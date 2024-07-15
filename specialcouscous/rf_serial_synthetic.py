@@ -2,10 +2,8 @@ import argparse
 import os
 import pickle
 import time
-from typing import Tuple
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 
 from synthetic_classification_data import make_classification_dataset
 
@@ -15,17 +13,17 @@ if __name__ == "__main__":
         prog="Random Forest",
         description="Generate synthetic classification data and classify with random forest.",
     )
-    parser.add_argument("-s", "--n_samples", type=int)
-    parser.add_argument("-f", "--n_features", type=int)
-    parser.add_argument("-fi", "--frac_informative", type=float, default=0.1)
-    parser.add_argument("-fr", "--frac_redundant", type=float, default=0.1)
-    parser.add_argument("-c", "--n_classes", type=int, default=10)
-    parser.add_argument("-cc", "--n_clusters_per_class", type=int, default=1)
-    parser.add_argument("-rsg", "--random_state_generation", type=int, default=17)
-    parser.add_argument("-ts", "--train_split", type=float, default=0.75)
-    parser.add_argument("-rss", "--random_state_split", type=int, default=9)
-    parser.add_argument("-t", "--n_trees", type=int)
-    parser.add_argument("-rsf", "--random_state_forest", type=int, default=5)
+    parser.add_argument("--n_samples", type=int)
+    parser.add_argument("--n_features", type=int)
+    parser.add_argument("--n_trees", type=int)
+    parser.add_argument("--frac_informative", type=float, default=0.1)
+    parser.add_argument("--frac_redundant", type=float, default=0.1)
+    parser.add_argument("--n_classes", type=int, default=10)
+    parser.add_argument("--n_clusters_per_class", type=int, default=1)
+    parser.add_argument("--random_state_generation", type=int, default=17)
+    parser.add_argument("--train_split", type=float, default=0.75)
+    parser.add_argument("--random_state_split", type=int, default=9)
+    parser.add_argument("--random_state_forest", type=int, default=5)
     args = parser.parse_args()
 
     print(
@@ -42,7 +40,7 @@ if __name__ == "__main__":
 
     pickle.dump(args, open(f"./config_{job_id}.pickle", "wb"))
 
-    print(f"Generating data...")
+    print("Generating data...")
     # Generate data.
     (
         train_samples,
