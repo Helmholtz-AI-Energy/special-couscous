@@ -7,16 +7,13 @@
 #SBATCH --cpus-per-task=76            # number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 
-# Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-special-couscous/}
-
 export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
-export PYDIR=${BASE_DIR}/special-couscous/specialcouscous
+export PYDIR=/hkfs/work/workspace/scratch/ku4408-special-couscous/special-couscous/specialcouscous
 
 ml purge                          # Unload all currently loaded modules.
 ml load compiler/gnu              # Load required modules.
 ml load mpi/openmpi
-source "${BASE_DIR}"/special-couscous-venv/bin/activate  # Activate venv.
+source /hkfs/work/workspace/scratch/ku4408-special-couscous/special-couscous-venv/bin/activate  # Activate venv.
 
 N_SAMPLES=1000000
 N_FEATURES=100
@@ -24,8 +21,8 @@ N_TREES=100
 
 SCRIPT="RF_serial_synthetic.py"
 
-RESDIR=${BASE_DIR}/results/single_node_experiments/job_${SLURM_JOB_ID}/
-mkdir "${RESDIR}"
-cd "${RESDIR}" || exit
+RESDIR=/hkfs/work/workspace/scratch/ku4408-special-couscous/results/single_node_experiments/job_${SLURM_JOB_ID}/
+mkdir ${RESDIR}
+cd ${RESDIR}
 
-python -u "${PYDIR}"/${SCRIPT} --n_samples ${N_SAMPLES} --n_features ${N_FEATURES} --n_trees ${N_TREES}
+python -u ${PYDIR}/${SCRIPT} --n_samples ${N_SAMPLES} --n_features ${N_FEATURES} --n_trees ${N_TREES}
