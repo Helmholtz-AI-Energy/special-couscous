@@ -69,6 +69,7 @@ def test_breaking_iid(
         10.0  # The μ = μ₁ = μ₂, μ ∊ [0, ∞] parameter of the Skellam distribution.
     )
     detailed_evaluation: bool = True
+    save_model: bool = True
     log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
@@ -112,6 +113,7 @@ def test_breaking_iid(
         output_dir=output_dir,
         output_label=output_label,
         experiment_id=experiment_id,
+        save_model=save_model,
     )
     if comm.rank == 0:
         log_file.unlink()

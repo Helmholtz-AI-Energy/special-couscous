@@ -111,6 +111,11 @@ if __name__ == "__main__":
         "result in. The subdirectory will be created automatically.",
     )
     parser.add_argument(
+        "--save_model",
+        action="store_true",
+        help="Whether to save the locally trained classifiers to disk.",
+    )
+    parser.add_argument(
         "--log_path",
         type=pathlib.Path,
         default=pathlib.Path("./"),
@@ -160,4 +165,5 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         output_label=args.output_label,
         experiment_id=args.experiment_id,
+        save_model=args.save_model,
     )

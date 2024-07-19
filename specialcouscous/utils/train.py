@@ -3,6 +3,7 @@ import os
 import pathlib
 import re
 import time
+from pickle import dump
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
@@ -37,6 +38,7 @@ def train_serial_on_synthetic_data(
     output_dir: Optional[Union[str, pathlib.Path]] = None,
     output_label: str = "",
     experiment_id: str = "",
+    save_model: bool = True,
 ) -> None:
     """
     Train and evaluate a serial random forest on synthetic data.
@@ -65,6 +67,8 @@ def train_serial_on_synthetic_data(
         Relative size of the train set.
     n_trees : int
         The number of trees in the global forest.
+    detailed_evaluation : bool
+        Whether to perform a detailed evaluation on more than just the local test set.
     output_dir : Optional[Union[pathlib.Path, str]]
         Output base directory. If given, the results are written to
         output_dir / year / year-month / date / YYYY-mm-dd--HH-MM-SS-<output_name>-<uuid>.
@@ -73,6 +77,8 @@ def train_serial_on_synthetic_data(
     experiment_id : str
         If given, the output file is placed in a further subdirectory <experiment_id> inside the <date> directory.
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
+    save_model : bool
+        Whether the trained classifier is saved to disk (True) or not (False). Default is True.
     """
     configuration = locals()
     for key in ["output_dir"]:
@@ -178,6 +184,9 @@ def train_serial_on_synthetic_data(
         )
         fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
         fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
+        if save_model:  # Save model to disk.
+            with open(path / (base_filename + "_classifier.pickle"), "wb") as f:
+                dump(clf, f, protocol=5)
 
 
 def train_parallel_on_synthetic_data(
@@ -201,6 +210,7 @@ def train_parallel_on_synthetic_data(
     output_dir: Optional[Union[pathlib.Path, str]] = None,
     output_label: str = "",
     experiment_id: str = "",
+    save_model: bool = True,
 ) -> None:
     """
     Train and evaluate a distributed random forest on synthetic data.
@@ -254,6 +264,8 @@ def train_parallel_on_synthetic_data(
     experiment_id : Optional[str]
         If given, the output file is placed in a further subdirectory <experiment_id> inside the <date> directory.
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
+    save_model : bool
+        Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
     assert global_model or shared_test_set
 
@@ -398,6 +410,12 @@ def train_parallel_on_synthetic_data(
             )
             fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
             fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
+            if save_model:  # Save model to disk.
+                with open(
+                    path / (base_filename + f"_classifier_rank_{comm.rank}.pickle"),
+                    "wb",
+                ) as f:
+                    dump(distributed_random_forest.clf, f, protocol=5)
 
 
 def train_parallel_on_balanced_synthetic_data(
@@ -418,6 +436,7 @@ def train_parallel_on_balanced_synthetic_data(
     output_dir: Optional[Union[pathlib.Path, str]] = None,
     output_label: str = "",
     experiment_id: str = "",
+    save_model: bool = True,
 ) -> None:
     """
     Train and evaluate a distributed random forest on globally balanced synthetic data.
@@ -460,6 +479,8 @@ def train_parallel_on_balanced_synthetic_data(
     experiment_id : str
         If given, the output file is placed in a further subdirectory <experiment_id> inside the <date> directory.
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
+    save_model : bool
+        Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
@@ -610,3 +631,9 @@ def train_parallel_on_balanced_synthetic_data(
             )
             fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
             fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
+            if save_model:  # Save model to disk.
+                with open(
+                    path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
+                    "wb",
+                ) as f:
+                    dump(distributed_random_forest.clf, f, protocol=5)

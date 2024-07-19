@@ -100,6 +100,11 @@ if __name__ == "__main__":
         "result in. The subdirectory will be created automatically.",
     )
     parser.add_argument(
+        "--save_model",
+        action="store_true",
+        help="Whether to save the trained classifier to disk.",
+    )
+    parser.add_argument(
         "--log_path",
         type=pathlib.Path,
         default=pathlib.Path("./"),
@@ -130,18 +135,19 @@ if __name__ == "__main__":
     )
 
     train_serial_on_synthetic_data(
-        args.n_samples,
-        args.n_features,
-        args.n_classes,
-        args.n_clusters_per_class,
-        args.frac_informative,
-        args.frac_redundant,
-        args.random_state_data,
-        args.random_state_split,
-        args.random_state_forest,
-        args.train_split,
-        args.n_trees,
-        args.output_dir,
-        args.output_label,
-        args.experiment_id,
+        n_samples=args.n_samples,
+        n_features=args.n_features,
+        n_classes=args.n_classes,
+        n_clusters_per_class=args.n_clusters_per_class,
+        frac_informative=args.frac_informative,
+        frac_redundant=args.frac_redundant,
+        seed_data=args.random_state_data,
+        seed_split=args.random_state_split,
+        seed_model=args.random_state_forest,
+        train_split=args.train_split,
+        n_trees=args.n_trees,
+        output_dir=args.output_dir,
+        output_label=args.output_label,
+        experiment_id=args.experiment_id,
+        save_model=args.save_model,
     )

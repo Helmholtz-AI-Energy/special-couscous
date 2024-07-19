@@ -32,8 +32,9 @@ def test_parallel_synthetic() -> None:
     experiment_id: str = (
         "test_parallel_rf"  # Optional subdirectory name to collect related result in
     )
-    global_model = True
-    detailed_evaluation = True  # Whether to perform a detailed evaluation on more than just the local test set.
+    save_model: bool = True
+    global_model: bool = True
+    detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
     log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
@@ -71,6 +72,7 @@ def test_parallel_synthetic() -> None:
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         experiment_id=experiment_id,
+        save_model=save_model,
     )
     if comm.rank == 0:
         log_file.unlink()

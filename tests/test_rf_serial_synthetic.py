@@ -33,6 +33,7 @@ def test_serial_synthetic() -> None:
     experiment_id: str = (
         "test_serial_rf"  # Optional subdirectory name to collect related result in
     )
+    save_model: bool = True
     log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
@@ -55,16 +56,17 @@ def test_serial_synthetic() -> None:
     )
 
     train_serial_on_synthetic_data(
-        n_samples,
-        n_features,
-        n_classes,
-        n_clusters_per_class,
-        frac_informative,
-        frac_redundant,
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        n_clusters_per_class=n_clusters_per_class,
+        frac_informative=frac_informative,
+        frac_redundant=frac_redundant,
         n_trees=n_trees,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         experiment_id=experiment_id,
+        save_model=save_model,
     )
     log_file.unlink()
     shutil.rmtree(output_dir)
