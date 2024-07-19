@@ -377,24 +377,25 @@ def train_parallel_on_synthetic_data(
     local_results_array = np.array([local_results[key] for key in key_order])
 
     gathered_local_results = comm.gather(local_results_array)
-    gathered_class_frequencies_train = local_train.gather_class_frequencies(comm)
-    gathered_class_frequencies_test = local_test.gather_class_frequencies(comm)
-    if comm.rank == 0:
-        # Convert arrays back into dicts, then into dataframe.
-        gathered_local_results = [
-            dict(zip(key_order, gathered_values))
-            for gathered_values in gathered_local_results
-        ]
-        results_df = pandas.DataFrame(gathered_local_results + [global_results])
+    gathered_class_frequencies_train = local_train.allgather_class_frequencies(comm)
+    gathered_class_frequencies_test = local_test.allgather_class_frequencies(comm)
 
-        # Add configuration as columns.
-        for key, value in configuration.items():
-            results_df[key] = value
+    if output_dir:
+        path, base_filename = construct_output_path(
+            output_dir, output_label, experiment_id
+        )
+        if comm.rank == 0:
+            # Convert arrays back into dicts, then into dataframe.
+            gathered_local_results = [
+                dict(zip(key_order, gathered_values))
+                for gathered_values in gathered_local_results
+            ]
+            results_df = pandas.DataFrame(gathered_local_results + [global_results])
 
-        if output_dir:
-            path, base_filename = construct_output_path(
-                output_dir, output_label, experiment_id
-            )
+            # Add configuration as columns.
+            for key, value in configuration.items():
+                results_df[key] = value
+
             save_dataframe(results_df, path / (base_filename + "_results.csv"))
             (
                 fig_train,
@@ -410,12 +411,13 @@ def train_parallel_on_synthetic_data(
             )
             fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
             fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
-            if save_model:  # Save model to disk.
-                with open(
-                    path / (base_filename + f"_classifier_rank_{comm.rank}.pickle"),
-                    "wb",
-                ) as f:
-                    dump(distributed_random_forest.clf, f, protocol=5)
+
+        if save_model:  # Save model to disk.
+            with open(
+                path / (base_filename + f"_classifier_rank_{comm.rank}.pickle"),
+                "wb",
+            ) as f:
+                dump(distributed_random_forest.clf, f, protocol=5)
 
 
 def train_parallel_on_balanced_synthetic_data(
@@ -599,23 +601,25 @@ def train_parallel_on_balanced_synthetic_data(
     local_results_array = np.array([local_results[key] for key in key_order])
 
     gathered_local_results = mpi_comm.gather(local_results_array)
-    gathered_class_frequencies_train = train_data.gather_class_frequencies(mpi_comm)
-    gathered_class_frequencies_test = test_data.gather_class_frequencies(mpi_comm)
-    if mpi_comm.rank == 0:
-        # Convert arrays back into dicts, then into dataframe.
-        gathered_local_results = [
-            dict(zip(key_order, gathered_values))
-            for gathered_values in gathered_local_results
-        ]
-        results_df = pandas.DataFrame(gathered_local_results + [global_results])
-        # Add configuration as columns.
-        for key, value in configuration.items():
-            results_df[key] = value
+    gathered_class_frequencies_train = train_data.allgather_class_frequencies(mpi_comm)
+    gathered_class_frequencies_test = test_data.allgather_class_frequencies(mpi_comm)
+    if output_dir:
+        path, base_filename = construct_output_path(
+            output_dir, output_label, experiment_id
+        )
 
-        if output_dir:
-            path, base_filename = construct_output_path(
-                output_dir, output_label, experiment_id
-            )
+        if mpi_comm.rank == 0:
+            # Convert arrays back into dicts, then into dataframe.
+            gathered_local_results = [
+                dict(zip(key_order, gathered_values))
+                for gathered_values in gathered_local_results
+            ]
+            results_df = pandas.DataFrame(gathered_local_results + [global_results])
+
+            # Add configuration as columns.
+            for key, value in configuration.items():
+                results_df[key] = value
+
             save_dataframe(results_df, path / (base_filename + "_results.csv"))
             (
                 fig_train,
@@ -631,9 +635,10 @@ def train_parallel_on_balanced_synthetic_data(
             )
             fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
             fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
-            if save_model:  # Save model to disk.
-                with open(
-                    path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
-                    "wb",
-                ) as f:
-                    dump(distributed_random_forest.clf, f, protocol=5)
+
+        if save_model:  # Save model to disk.
+            with open(
+                path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
+                "wb",
+            ) as f:
+                dump(distributed_random_forest.clf, f, protocol=5)
