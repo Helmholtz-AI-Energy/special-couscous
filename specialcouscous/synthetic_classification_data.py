@@ -498,8 +498,8 @@ class SyntheticDataset:
         Split this dataset into a train and test set using ``sklearn.model_selection.train_test_split``.
     get_local_subset()
         Partition the dataset among ``n_ranks`` ranks and select the samples assigned to this rank.
-    gather_class_frequencies()
-        Compute class frequencies as array and gather them via the given communicator.
+    allgather_class_frequencies()
+        Compute class frequencies as array and all-gather them via the given communicator.
     plot_local_class_distributions()
         Plot the given local and global class distribution as ridge plot.
     plot_skellam_distributions()
@@ -760,18 +760,18 @@ class SyntheticDataset:
             self.x[assigned_indices], self.y[assigned_indices], None, self.n_classes
         )
 
-    def gather_class_frequencies(
+    def allgather_class_frequencies(
         self, comm: MPI.Comm, relative: bool = False
     ) -> np.ndarray:
         """
-        Compute class frequencies as array and gather them via the given communicator.
+        Compute class frequencies as array and all-gather them via the given communicator.
 
         Parameters
         ----------
         comm : MPI.Comm
-            The communicator to gather the results in.
+            The communicator to all-gather the results in.
         relative : bool
-            Whether the absolute or relative class frequencies shall be gathered.
+            Whether the absolute or relative class frequencies shall be all-gathered.
 
         Returns
         -------
