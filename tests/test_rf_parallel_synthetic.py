@@ -77,7 +77,3 @@ def test_parallel_synthetic() -> None:
     if comm.rank == 0:
         log_file.unlink()
         shutil.rmtree(output_dir)
-
-
-if __name__ == "__main__":
-    test_parallel_synthetic()

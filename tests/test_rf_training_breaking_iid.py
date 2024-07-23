@@ -118,7 +118,3 @@ def test_breaking_iid(
     if comm.rank == 0:
         log_file.unlink()
         shutil.rmtree(output_dir)
-
-
-if __name__ == "__main__":
-    test_breaking_iid()

@@ -70,7 +70,3 @@ def test_serial_synthetic() -> None:
     )
     log_file.unlink()
     shutil.rmtree(output_dir)
-
-
-if __name__ == "__main__":
-    test_serial_synthetic()
