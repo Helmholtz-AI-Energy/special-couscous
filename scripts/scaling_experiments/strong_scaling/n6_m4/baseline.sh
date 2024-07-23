@@ -19,7 +19,7 @@ ml load mpi/openmpi
 source "${BASE_DIR}"/special-couscous-venv/bin/activate  # Activate virtual environment.
 
 # Set hyperparameters of synthetic dataset and random forest model.
-# We estimated 1,500 trees should be trainable in serial in 3 days
+# We estimated 1,500 trees to be trainable in serial in 3 days
 # and chose a close number evenly divisible by 64 (scaling exps).
 N_SAMPLES=1000000
 N_FEATURES=10000
