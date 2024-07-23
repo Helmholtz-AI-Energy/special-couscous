@@ -25,7 +25,7 @@ N_SAMPLES=10000000
 N_FEATURES=1000
 N_TREES=448
 
-SCRIPT="RF_serial_synthetic.py"  # Set script name.
+SCRIPT="scripts/examples/rf_serial_synthetic.py"  # Set script name.
 
 # Create directory to save results to.
 RESDIR=${BASE_DIR}/results/single_node_experiments/job_${SLURM_JOB_ID}_n7_m3_t2/

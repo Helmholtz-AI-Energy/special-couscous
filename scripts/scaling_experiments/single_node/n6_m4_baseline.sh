@@ -25,7 +25,7 @@ N_SAMPLES=1000000
 N_FEATURES=10000
 N_TREES=1600
 
-SCRIPT="RF_serial_synthetic.py"  # Set script name.
+SCRIPT="scripts/examples/rf_serial_synthetic.py"  # Set script name.
 
 # Create directory to save results to.
 RESDIR=/hkfs/work/workspace/scratch/ku4408-special-couscous/results/single_node_experiments/job_${SLURM_JOB_ID}_n6_m4_baseline/
