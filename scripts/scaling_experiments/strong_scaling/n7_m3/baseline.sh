@@ -28,7 +28,7 @@ N_TREES=448
 SCRIPT="scripts/examples/rf_serial_synthetic.py"  # Set script name.
 
 # Create directory to save results to.
-RESDIR=/hkfs/work/workspace/scratch/ku4408-special-couscous/results/single_node_experiments/job_${SLURM_JOB_ID}_n6_m4_baseline/
+RESDIR=${BASE_DIR}/results/single_node_experiments/job_${SLURM_JOB_ID}_n6_m4_baseline/
 mkdir "${RESDIR}"
 cd "${RESDIR}" || exit
 

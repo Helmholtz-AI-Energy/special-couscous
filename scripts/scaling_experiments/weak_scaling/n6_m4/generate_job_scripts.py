@@ -5,7 +5,7 @@ num_trees_base = 800
 
 
 def main() -> None:
-    """Generate the n6_m4 job scripts."""
+    """Generate the job scripts for the n6_m4 weak scaling experiments."""
     for num_nodes in nodes:
         num_trees = num_trees_base * num_nodes
         print(f"Current config uses {num_nodes} nodes and {num_trees} trees.")
@@ -36,7 +36,7 @@ N_SAMPLES=1000000
 N_FEATURES=10000
 N_TREES={num_trees}
 
-SCRIPT="rf_parallel_synthetic.py"
+SCRIPT="scripts/examples/rf_parallel_synthetic.py"
 
 RESDIR="${{BASE_DIR}}"/results/weak_scaling/n6_m4_nodes_${{SLURM_NPROCS}}_${{SLURM_JOB_ID}}/
 mkdir "${{RESDIR}}"
