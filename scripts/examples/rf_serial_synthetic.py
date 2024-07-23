@@ -81,6 +81,11 @@ if __name__ == "__main__":
         help="Fraction of data in the train set. The remainder makes up the test set.",
     )
     parser.add_argument(
+        "--detailed_evaluation",
+        action="store_true",
+        help="Whether to perform a detailed evaluation on more than just the local test set.",
+    )
+    parser.add_argument(
         "--output_dir",
         type=pathlib.Path,
         default=pathlib.Path(__file__).parent.parent.parent / "results",
@@ -146,6 +151,7 @@ if __name__ == "__main__":
         seed_model=args.random_state_forest,
         train_split=args.train_split,
         n_trees=args.n_trees,
+        detailed_evaluation=args.detailed_evaluation,
         output_dir=args.output_dir,
         output_label=args.output_label,
         experiment_id=args.experiment_id,
