@@ -11,7 +11,7 @@ MU_PART=5  # Spread of Skellam distribution for local imbalance
 N_TREES=1000  # Number of trees
 
 EXPERIMENT_ID="breaking_iid_demo"
-SCRIPT="../py/rf_training_breaking_iid.py"
+SCRIPT="./rf_training_breaking_iid.py"
 
 BASE_SCRIPT="mpirun -n ${N_RANKS} python ${SCRIPT} --n_classes ${N_CLASSES} --n_samples ${N_SAMPLES} --n_features ${N_FEATURES} --peak $((N_CLASSES / 2)) --n_trees ${N_TREES} --experiment_id ${EXPERIMENT_ID}"
 
