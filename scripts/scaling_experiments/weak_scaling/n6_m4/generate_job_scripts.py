@@ -1,6 +1,6 @@
 import subprocess
 
-nodes = [2, 4, 8, 16, 32, 64]  # number of nodes for scaling exps
+nodes = [2, 4, 8, 16, 32, 64]  # Number of nodes for scaling exps
 num_trees_base = 800
 
 
@@ -12,15 +12,14 @@ def main() -> None:
         job_name = f"n6_m4_weak_{num_nodes}"
         job_script_name = f"{job_name}.sh"
         script_content = f"""#!/bin/bash
-#SBATCH --job-name={job_name}          # Job name
-#SBATCH --partition=cpuonly            # Queue for resource allocation
+#SBATCH --job-name={job_name}         # Job name
+#SBATCH --partition=cpuonly           # Queue for resource allocation
 #SBATCH --time=2-12:00:00             # Wall-clock time limit
-#SBATCH --mem=243200mb		      # main memory (use standard nodes)
+#SBATCH --mem=243200mb		          # Main memory (use standard nodes)
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
-#SBATCH --account=hk-project-test-aihero2
 #SBATCH --nodes={num_nodes}           # Number of nodes
-#SBATCH --ntasks-per-node=1           # One MPI rank per node.
+#SBATCH --ntasks-per-node=1           # One MPI rank per node
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-special-couscous/}}
@@ -28,8 +27,8 @@ BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-special-couscous/}}
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 export PYDIR=${{BASE_DIR}}/special-couscous/specialcouscous
 
-ml purge                          # Unload all currently loaded modules.
-ml load compiler/gnu              # Load required modules.
+ml purge              # Unload all currently loaded modules.
+ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi
 source "${{BASE_DIR}}"/special-couscous-venv/bin/activate  # Activate venv.
 
@@ -37,13 +36,13 @@ N_SAMPLES=1000000
 N_FEATURES=10000
 N_TREES={num_trees}
 
-SCRIPT="rf_scaling_synthetic.py"
+SCRIPT="rf_parallel_synthetic.py"
 
 RESDIR="${{BASE_DIR}}"/results/weak_scaling/n6_m4_nodes_${{SLURM_NPROCS}}_${{SLURM_JOB_ID}}/
 mkdir "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-srun python -u ${{PYDIR}}/${{SCRIPT}} --n_samples ${{N_SAMPLES}} --n_features ${{N_FEATURES}} --n_trees ${{N_TREES}} --output_dir ${{RESDIR}} --output_label ${{SLURM_JOB_ID}} --detailed_evaluation
+srun python -u ${{PYDIR}}/${{SCRIPT}} --n_samples ${{N_SAMPLES}} --n_features ${{N_FEATURES}} --n_trees ${{N_TREES}} --output_dir ${{RESDIR}} --output_label ${{SLURM_JOB_ID}} --detailed_evaluation --save_model
                                 """
 
         with open(job_script_name, "wt") as f:
