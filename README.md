@@ -7,17 +7,17 @@
 [![](https://img.shields.io/badge/Contact-marie.weiel%40kit.edu-blue)](mailto:marie.weiel@kit.edu)
 ![](./coverage.svg)
 
-``SpecialCouscous`` is a Python package for large-scale distributed training and inference of random forests on
+``specialcouscous`` is a Python package for large-scale distributed training and inference of random forests on
 supercomputers. It uses the message passing interface (MPI) for communication between parallel processes.
 
 ## Installation
-- You can install ``SpecialCouscous`` directly from the main branch.
+- You can install ``specialcouscous`` directly from the main branch.
 Pull and run: ``pip install .``
-- If you want to **contribute** to ``SpecialCousCous`` as a developer, you need to install the required dependencies
+- If you want to **contribute** to ``specialcouscous`` as a developer, you need to install the required dependencies
   with the package:
 ``pip install -e ."[dev]"``.
 
-``SpecialCouscous`` depends on [``mpi4py``](https://mpi4py.readthedocs.io/en/stable/) and requires an MPI implementation
+``specialcouscous`` depends on [``mpi4py``](https://mpi4py.readthedocs.io/en/stable/) and requires an MPI implementation
 under the hood. Currently, it is only tested with [OpenMPI](https://www.open-mpi.org/).
 
 ## Synthetic Classification Data
