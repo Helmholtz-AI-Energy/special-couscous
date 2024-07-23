@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=n8_m2_base       # job name
+#SBATCH --job-name=n8_m2_base         # job name
 #SBATCH --partition=cpuonly           # queue for resource allocation
 #SBATCH --mem=501600mb
 #SBATCH --time=3-00:00:00             # wall-clock time limit
