@@ -13,7 +13,7 @@ authors = [
 ]
 description = "Distributed random forests in Python with MPI"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: BSD License",
@@ -53,7 +53,7 @@ modules = ["specialcouscous"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 explicit_package_bases = true
-exclude = ["^.*generate_job_scripts\\.py$"]
+#exclude = ["^.*generate_job_scripts\\.py$"]
 files = [
     "scripts/",
 ]
