@@ -1,5 +1,5 @@
 import pathlib
-from typing import Collection, Dict, List, Optional, Tuple, Union
+from typing import Collection
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,18 +11,18 @@ from specialcouscous.utils import time_to_seconds
 
 
 def mix_colors(
-    colors: Collection[Union[str, Collection[float]]],
-    ratios: Optional[Collection[float]] = None,
+    colors: Collection[str | Collection[float]],
+    ratios: Collection[float] | None = None,
 ) -> np.ndarray:
     """
     Mix the given colors according to the given ratios (equal ratios if no ratios given) and return the result.
 
     Parameters
     ----------
-    colors : Collection[Union[str, Collection[float]]]
+    colors : Collection[str | Collection[float]]
         A collection of the colors to mix. Colors need to be provided in a format parsable by
         ``matplotlib.colors.to_rgb``, e.g., either a matplotlib color string or an '(a), r, g, b' tuple.
-    ratios : Optional[Collection[float]]
+    ratios : Collection[float], optional
         A collection of ratios in which the colors shall be mixed, should have the same size as colors.
         If no ratios are given, equal ratios are used.
 
@@ -40,14 +40,14 @@ def mix_colors(
 
 
 def mix_with_white(
-    color: Union[str, Collection[float]], color_ratio: float = 0.5
+    color: str | Collection[float], color_ratio: float = 0.5
 ) -> np.ndarray:
     """
     Mix the given color with white using the given ratio.
 
     Parameters
     ----------
-    color : Union[str, Collection[float]]
+    color : str | Collection[float]
         The color to mix with white, needs to be in a format parsable by ``matplotlib.colors.to_rgb``.
     color_ratio : float
         The ratio of the given color to white (i.e. this color has ratio ``color_ratio``, white has ratio
@@ -67,7 +67,7 @@ def ticks(
     max_ticks: int = 10,
     include_upper: bool = False,
     _accumulated_divisor: int = 1,
-) -> List[int]:
+) -> list[int]:
     """
     Generate an evenly spaced list of ticks.
 
@@ -86,7 +86,7 @@ def ticks(
 
     Returns
     -------
-    List[int]
+    list[int]
         The resulting ticks.
     """
     divisors = [1, 2, 5]
@@ -98,7 +98,7 @@ def ticks(
 
 
 def get_evenly_spaced_colors(
-    num_colors: int, colormap: Union[matplotlib.colors.Colormap, str] = "viridis"
+    num_colors: int, colormap: matplotlib.colors.Colormap | str = "viridis"
 ) -> np.ndarray:
     """
     Get evenly spaced colors from the given colormap.
@@ -107,7 +107,7 @@ def get_evenly_spaced_colors(
     ----------
     num_colors : int
         The number of colors to pick.
-    colormap : Union[plt.Colormap, str]
+    colormap : plt.Colormap | str
         The matplotlib colormap to pick from. Default is viridis.
 
     Returns
@@ -121,10 +121,10 @@ def get_evenly_spaced_colors(
 def plot_local_class_distributions_as_ridgeplot(
     class_frequencies: np.ndarray,
     y_offset: float = 0.75,
-    figsize: Optional[Collection[float]] = None,
+    figsize: Collection[float] | None = None,
     title: str = "",
-    class_labels: Optional[Collection] = None,
-) -> Tuple[plt.Figure, Collection[plt.Axes]]:
+    class_labels: Collection | None = None,
+) -> tuple[plt.Figure, Collection[plt.Axes]]:
     """
     Plot the local and global class distribution as ridgeplot.
 
@@ -134,17 +134,17 @@ def plot_local_class_distributions_as_ridgeplot(
         The local class frequencies (ranks on axis 0, classes on axis 1).
     y_offset : float
         Offset between the different ridges. The smaller, the more likely the plots are to overlap.
-    figsize : Optional[Collection[float]]
+    figsize : Collection[float], optional
         Optional custom figure size. If not specified, the figure size is adjusted using the default width (from
         ``rcParams``) but increasing the height with the number of ridges.
     title : str
         The figure title.
-    class_labels : Optional[Collection]
+    class_labels : Collection, optional
         Optional class labels to use as x-labels. Otherwise, the class indices are used.
 
     Returns
     -------
-    Tuple[plt.Figure, Collection[plt.Axes]]
+    tuple[plt.Figure, Collection[plt.Axes]]
         The figure and axis.
     """
     num_ranks, num_classes = class_frequencies.shape
@@ -194,29 +194,29 @@ def plot_local_class_distributions_as_ridgeplot(
 
 
 def plot_class_distributions(
-    class_frequencies_by_label: Dict,
+    class_frequencies_by_label: dict,
     title: str = "",
     legend_title: str = "",
-    labels_order: Optional[List] = None,
-) -> Tuple[plt.Figure, plt.Axes]:
+    labels_order: list | None = None,
+) -> tuple[plt.Figure, plt.Axes]:
     """
     Plot different class distributions as line plot.
 
     Parameters
     ----------
-    class_frequencies_by_label : Dict
+    class_frequencies_by_label : dict
         The data mapping a label for each line to the corresponding class frequencies.
     title : str
         Optional title for the figure.
     legend_title : str
         Optional title for the labels
-    labels_order : Optional[List]
+    labels_order : list | None
         Optional list of labels specifying the order in which the distributions are plotted. All given labels need to be
         valid keys to ``class_frequencies_by_label``.
 
     Returns
     -------
-    Tuple[plt.Figure, plt.Axes]
+    tuple[plt.Figure, plt.Axes]
         The figure and axis.
     """
     labels = labels_order or list(class_frequencies_by_label.keys())
@@ -248,7 +248,7 @@ def plot_class_distributions(
 
 
 def plot_single_node_capacity(
-    df: pandas.DataFrame, save_fig: Union[pathlib.Path, str] = pathlib.Path("../")
+    df: pandas.DataFrame, save_fig: pathlib.Path | str = pathlib.Path("../")
 ) -> None:
     """
     Plot results from single-node capacity experiments.
@@ -257,7 +257,7 @@ def plot_single_node_capacity(
     ----------
     df : pandas.DataFrame
         The dataframe with (result) parameters of the provided SLURM jobs.
-    save_fig : Union[pathlib.Path, str]
+    save_fig : pathlib.Path | str
         The path to save the figure to.
     """
     # Define marker colors based on job state.
@@ -351,16 +351,16 @@ def plot_single_node_capacity(
 
 
 def plot_times_and_accuracy(
-    df: pandas.DataFrame, save_fig: Union[pathlib.Path, str] = pathlib.Path("../")
+    df: pandas.DataFrame, save_fig: pathlib.Path | str = pathlib.Path("../")
 ) -> None:
     """
-    Plot accuracy from single-node capacity experiments.
+    Plot training time and accuracy from single-node capacity experiments.
 
     Parameters
     ----------
     df : pandas.DataFrame
         The dataframe with (result) parameters of the provided SLURM jobs.
-    save_fig : Union[pathlib.Path, str]
+    save_fig : pathlib.Path | str
         The path to save the figure to.
     """
     df_filtered = df[
