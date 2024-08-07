@@ -578,7 +578,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--output_label",
         type=str,
-        default="serial_rf",
+        default="",
         help="Optional label for the output files.",
     )
     parser.add_argument(
