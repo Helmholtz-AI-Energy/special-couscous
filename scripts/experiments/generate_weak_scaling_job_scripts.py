@@ -59,7 +59,14 @@ RESDIR="${{BASE_DIR}}"/results/weak_scaling/n6_m4_nodes_${{SLURM_NPROCS}}_${{SLU
 mkdir "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-srun python -u ${{PYDIR}}/${{SCRIPT}} --n_samples ${{N_SAMPLES}} --n_features ${{N_FEATURES}} --n_trees ${{N_TREES}} --output_dir ${{RESDIR}} --output_label ${{SLURM_JOB_ID}} --detailed_evaluation --save_model
+srun python -u ${{PYDIR}}/${{SCRIPT}} \\
+    --n_samples ${{N_SAMPLES}} \\
+    --n_features ${{N_FEATURES}} \\
+    --n_trees ${{N_TREES}} \\
+    --output_dir ${{RESDIR}} \\
+    --output_label ${{SLURM_JOB_ID}} \\
+    --detailed_evaluation \\
+    --save_model
                                 """
 
         with open(job_script_name, "wt") as f:
