@@ -5,7 +5,7 @@ limit = 60 * 24 * 3  # HoreKa wall-clock time limit in minutes
 nodes = [2, 4, 8, 16, 32, 64]  # Number of nodes for scaling exps
 
 
-def generate_job_scripts(
+def generate_strong_scaling_job_scripts(
     log_n_samples: int, log_n_features: int, n_trees: int, submit: bool = False
 ) -> None:
     """
@@ -97,6 +97,6 @@ if __name__ == "__main__":
     parser.add_argument("--n_trees", type=int, help="The number of trees to use.")
     args = parser.parse_args()
     # Generate job scripts and possibly submit them to the cluster.
-    generate_job_scripts(
+    generate_strong_scaling_job_scripts(
         args.log_n_samples, args.log_n_features, args.n_trees, args.submit
     )

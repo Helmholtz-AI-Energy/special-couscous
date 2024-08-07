@@ -4,7 +4,7 @@ import subprocess
 nodes = [2, 4, 8, 16, 32, 64]  # Number of nodes for scaling exps
 
 
-def generate_job_scripts(
+def generate_weak_scaling_job_scripts(
     log_n_samples: int, log_n_features: int, n_trees_base: int, submit: bool = False
 ) -> None:
     """
@@ -92,6 +92,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # Generate job scripts and possibly submit them to the cluster.
-    generate_job_scripts(
+    generate_weak_scaling_job_scripts(
         args.log_n_samples, args.log_n_features, args.n_trees_base, args.submit
     )

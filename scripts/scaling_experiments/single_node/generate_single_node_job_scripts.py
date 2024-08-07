@@ -12,7 +12,7 @@ n_trees = [100, 1000, 10000, 100000]
 limit = 60 * 24 * 3
 
 
-def generate_job_scripts(submit: bool = False) -> None:
+def generate_single_node_job_scripts(submit: bool = False) -> None:
     """
     Generate single-node job scripts.
 
@@ -68,7 +68,15 @@ RESDIR=${{BASE_DIR}}/results/single_node_experiments/job_${{SLURM_JOB_ID}}_{job_
 mkdir "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-python -u ${{PYDIR}}/${{SCRIPT}} --n_samples ${{N_SAMPLES}} --n_features ${{N_FEATURES}} --n_trees ${{N_TREES}}
+python -u ${{PYDIR}}/${{SCRIPT}} \\
+    --n_samples ${{N_SAMPLES}} \\
+    --n_features ${{N_FEATURES}} \\
+    --n_trees ${{N_TREES}} \\
+    --detailed_evaluation \\
+    --save_model \\
+    --output_dir ${{RESDIR}} \\
+    --output_label ${{SLURM_JOB_ID}} \\
+    --log_path ${{RESDIR}}
                                 """
                 # Write script content to file.
                 with open(job_script_name, "wt") as f:
@@ -89,4 +97,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # Generate job scripts and possibly submit them to the cluster.
-    generate_job_scripts(args.submit)
+    generate_single_node_job_scripts(args.submit)
