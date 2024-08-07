@@ -25,6 +25,11 @@ source "${BASE_DIR}"/special-couscous-venv/bin/activate  # Activate virtual envi
 # n7m3: (n, m, t) = (10^7, 10^3, 448)
 # n8m2: (n, m, t) = (10^8, 10^2, 64)
 #
+# This single-node baseline script can also be used as a baseline for our strong and weak scaling experiments (also see
+# ``script_content`` in respective job script generation Python scripts).
+# Serial baselines for strong scaling: n6mw (n, m, t) = (10^6, 10^4, 1600); n7m3 (n, m, t) = (10^7, 10^3, 448)
+# Serial baselines for weak scaling: n6mw (n, m, t) = (10^6, 10^4, 800); n7m3 (n, m, t) = (10^7, 10^3, 224)
+#
 # ADAPT NUMBERS BELOW AS NEEDED:
 N_SAMPLES=100000000
 N_FEATURES=100

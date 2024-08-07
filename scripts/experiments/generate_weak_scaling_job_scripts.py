@@ -10,7 +10,7 @@ def generate_weak_scaling_job_scripts(
     """
     Generate the job scripts for the weak scaling experiments.
 
-    NOTE: Our n6_m4 weak scaling experiments use 800 trees, the n7_m3 experiments use 224 trees as a baseline.
+    NOTE: Our n6m4 weak scaling experiments use 800 trees, the n7m3 experiments use 224 trees as a baseline.
 
     Parameters
     ----------

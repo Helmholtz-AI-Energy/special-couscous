@@ -11,7 +11,10 @@ def generate_strong_scaling_job_scripts(
     """
     Generate the job scripts for the strong scaling experiments.
 
-    NOTE: Our n6_m4 strong scaling experiments use 1600 trees, the n7_m3 experiments use 448 trees.
+    NOTE: We estimated 1500 and 450 trees to be trainable in serial in 3 days for 1M samples with 10k features and 10M
+    samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline. With
+    number of samples n, number of features m, and number of trees t:
+    n6m4 strong baseline (n, m, t) = (10^6, 10^4, 1600) and n7m3 strong baseline: (n, m, t) = (10^7, 10^3, 448)
 
     Parameters
     ----------
@@ -52,8 +55,6 @@ ml load mpi/openmpi
 source "${{BASE_DIR}}"/special-couscous-venv/bin/activate  # Activate virtual environment.
 
 # Set hyperparameters of synthetic dataset and random forest model.
-# We estimated 1500 and 450 trees should be trainable in serial in 3 days for 1M samples with 10k features and 10M
-# samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline.
 N_SAMPLES={10**log_n_samples}
 N_FEATURES={10**log_n_features}
 N_TREES={n_trees}
