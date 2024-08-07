@@ -5,8 +5,8 @@ import shutil
 import pytest
 from mpi4py import MPI
 
+from specialcouscous.train import train_parallel_on_balanced_synthetic_data
 from specialcouscous.utils import set_logger_config
-from specialcouscous.utils.train import train_parallel_on_balanced_synthetic_data
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
 
