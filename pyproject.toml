@@ -48,7 +48,7 @@ Homepage = "https://github.com/Helmholtz-AI-Energy/special-couscous"
 Issues = "https://github.com/Helmholtz-AI-Energy/special-couscous/issues"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 modules = ["specialcouscous"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true

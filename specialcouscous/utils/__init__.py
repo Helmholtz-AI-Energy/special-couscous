@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import logging
 import os
@@ -7,7 +8,7 @@ import string
 import sys
 import time
 import uuid
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import colorlog
 import numpy as np
@@ -40,7 +41,7 @@ def get_problem_size(n: int, m: int, t: int) -> float:
 
 def set_logger_config(
     level: int = logging.INFO,
-    log_file: Optional[Union[str, pathlib.Path]] = None,
+    log_file: str | pathlib.Path | None = None,
     log_to_stdout: bool = True,
     log_rank: bool = False,
     colors: bool = True,
@@ -206,7 +207,7 @@ class MPITimer:
         self.start()
         return self
 
-    def __exit__(self, *args: Tuple[Any, ...]) -> None:
+    def __exit__(self, *args: tuple[Any, ...]) -> None:
         """
         Stop the timer, compute the global average, and optionally print the result on rank 0.
 
@@ -224,11 +225,11 @@ class MPITimer:
 
 
 def construct_output_path(
-    output_path: Union[pathlib.Path, str] = ".",
+    output_path: pathlib.Path | str = ".",
     output_name: str = "",
     experiment_id: str = "",
     mkdir: bool = True,
-) -> Tuple[pathlib.Path, str]:
+) -> tuple[pathlib.Path, str]:
     """
     Construct the path and filename to save results to based on the current time and date.
 
@@ -239,7 +240,7 @@ def construct_output_path(
 
     Parameters
     ----------
-    output_path : Union[pathlib.Path, str]
+    output_path : pathlib.Path | str
         The path to the base output directory to create the date-based output directory tree in.
     output_name : str
         Optional label for the csv file, added to the name after the timestamp. Default is an empty string.
@@ -252,7 +253,7 @@ def construct_output_path(
 
     Returns
     -------
-    Tuple[pathlib.Path, str]
+    tuple[pathlib.Path, str]
         The path to the output directory and the base file name.
     """
     today = datetime.datetime.today()
@@ -273,7 +274,7 @@ def construct_output_path(
 
 
 def save_dataframe(
-    dataframe: pandas.DataFrame, output_path: Union[pathlib.Path, str]
+    dataframe: pandas.DataFrame, output_path: pathlib.Path | str
 ) -> None:
     """
     Safe the given dataframe as csv to ``output_path``.
@@ -284,7 +285,7 @@ def save_dataframe(
     ----------
     dataframe : pandas.DataFrame
         The dataframe to save as csv.
-    output_path : Union[pathlib.Path, str]
+    output_path : pathlib.Path | str
         The path to save to dataframe to.
     """
     output_path = pathlib.Path(output_path)
@@ -295,13 +296,13 @@ def save_dataframe(
     dataframe.to_csv(output_path, index=False)
 
 
-def dataframe_from_slurm_output(path: Union[pathlib.Path, str]) -> pandas.DataFrame:
+def dataframe_from_slurm_output(path: pathlib.Path | str) -> pandas.DataFrame:
     """
     Create a dataframe from SLURM output files and save it to csv file.
 
     Parameters
     ----------
-    path : Union[pathlib.Path, str]
+    path : pathlib.Path | str
         Path to folder with SLURM output files.
 
     Returns
@@ -406,7 +407,7 @@ def dataframe_from_slurm_output(path: Union[pathlib.Path, str]) -> pandas.DataFr
     return df
 
 
-def time_to_seconds(time_str: str) -> Union[float, None]:
+def time_to_seconds(time_str: str) -> float | None:
     """
     Convert wall-clock time string "d-hh:mm:ss" or "hh:mm:ss" into corresponding time in seconds.
 
@@ -417,7 +418,7 @@ def time_to_seconds(time_str: str) -> Union[float, None]:
 
     Returns
     -------
-    Union[float, None]
+    float | None
         The wall-clock time in seconds (None if provided string was invalid).
     """
     time_pattern = r"(\d+)-(\d+):(\d+):(\d+)|(\d+):(\d+):(\d+)"  # Define regular expression to match time strings.
@@ -437,3 +438,172 @@ def time_to_seconds(time_str: str) -> Union[float, None]:
         return float(total_seconds)
     else:
         return None  # Return None for invalid time strings.
+
+
+def parse_arguments() -> argparse.Namespace:
+    """
+    Set up argument parser for random forest classification in ``special-couscous``.
+
+    Returns
+    -------
+    argparse.Namespace
+        The namespace of all parsed arguments.
+    """
+    # Parse command-line arguments.
+    parser = argparse.ArgumentParser(
+        prog="Random Forest",
+        description="Generate synthetic classification data and classify with (distributed) random forest.",
+    )
+    parser.add_argument(
+        "--n_samples",
+        type=int,
+        default=1000,
+        help="Number of samples in synthetic classification data",
+    )
+    parser.add_argument(
+        "--n_features",
+        type=int,
+        default=100,
+        help="Number of features in synthetic classification data",
+    )
+    parser.add_argument(
+        "--n_classes",
+        type=int,
+        default=5,
+        help="Number of classes in synthetic classification data",
+    )
+    parser.add_argument(
+        "--n_clusters_per_class",
+        type=int,
+        default=1,
+        help="Number of clusters per class",
+    )
+    parser.add_argument(
+        "--random_state_data",
+        type=int,
+        default=0,
+        help="Random seed used in synthetic dataset generation",
+    )
+    parser.add_argument(
+        "--frac_informative",
+        type=float,
+        default=0.1,
+        help="Fraction of informative features in synthetic classification dataset",
+    )
+    parser.add_argument(
+        "--frac_redundant",
+        type=float,
+        default=0.1,
+        help="Fraction of redundant features in synthetic classification dataset",
+    )
+    parser.add_argument(
+        "--random_state_split",
+        type=int,
+        default=9,
+        help="Random seed used in train-test split",
+    )
+    # Model-related arguments
+    parser.add_argument(
+        "--n_trees",
+        type=int,
+        default=100,
+        help="Number of trees in global random forest classifier",
+    )
+    parser.add_argument(
+        "--random_state_forest",
+        type=int,
+        default=0,
+        help="Random seed used to initialize random forest classifier",
+    )
+    parser.add_argument(
+        "--train_split",
+        type=float,
+        default=0.75,
+        help="Fraction of data in the train set. The remainder makes up the test set.",
+    )
+    parser.add_argument("--global_model", action="store_true")
+    parser.add_argument(
+        "--private_test_set",
+        action="store_true",
+        help="Whether the test set is private (not shared across subforests)",
+    )
+    parser.add_argument(
+        "--globally_imbalanced",
+        action="store_true",
+        help="Whether the global dataset has class imbalance. If true, the classes are Skellam "
+        "distributed. Use --mu_data and --peak to customize the distribution.",
+    )
+    parser.add_argument(
+        "--mu_data",
+        type=float,
+        default=10,
+        help="The μ = μ₁ = μ₂, μ ∊ [0, ∞] parameter of the Skellam distribution. The larger μ, the "
+        "larger the spread. Edge cases: For μ=0, the peak class has weight 1, while all other "
+        "classes have weight 0. For μ=inf, the generated dataset is balanced, i.e., all classes "
+        "have equal weights.",
+    )
+    parser.add_argument(
+        "--peak",
+        type=int,
+        default=0,
+        help="The position (class index) of the distribution's peak (i.e., the most frequent class).",
+    )
+
+    parser.add_argument(
+        "--locally_imbalanced",
+        action="store_true",
+        help="Whether the partition to local datasets has class imbalance. If true, the classes are "
+        "Skellam distributed. Use --mu_partition to customize spread of the distributions.",
+    )
+    parser.add_argument(
+        "--mu_partition",
+        type=float,
+        default=10.0,
+        help="The μ = μ₁ = μ₂, μ ∊ [0, ∞] parameter of the Skellam distribution. The larger μ, the "
+        "larger the spread. Edge cases: For μ=0, the peak class has weight 1, while all other "
+        "classes have weight 0. For μ=inf, the generated dataset is balanced, i.e., all classes "
+        "have equal weights.",
+    )
+    parser.add_argument(
+        "--detailed_evaluation",
+        action="store_true",
+        help="Whether to perform a detailed evaluation on more than just the local test set.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).parent.parent.parent / "results",
+        help="The directory to write the results to.",
+    )
+    parser.add_argument(
+        "--output_label",
+        type=str,
+        default="serial_rf",
+        help="Optional label for the output files.",
+    )
+    parser.add_argument(
+        "--experiment_id",
+        type=str,
+        default="",
+        help="Optional subdirectory name to collect related "
+        "result in. The subdirectory will be created automatically.",
+    )
+    parser.add_argument(
+        "--save_model",
+        action="store_true",
+        help="Whether to save the trained classifier to disk.",
+    )
+    parser.add_argument(
+        "--log_path",
+        type=pathlib.Path,
+        default=pathlib.Path("./"),
+        help="Path to the log directory. The directory will be created automatically if it does not exist.",
+    )
+    parser.add_argument(
+        "--logging_level",
+        type=int,
+        default=logging.INFO,
+        help="Logging level.",
+    )
+
+    return parser.parse_args()
