@@ -1,3 +1,4 @@
+import argparse
 import subprocess
 
 import numpy as np
@@ -11,8 +12,15 @@ n_trees = [100, 1000, 10000, 100000]
 limit = 60 * 24 * 3
 
 
-def main() -> None:
-    """Generate single-node job scripts."""
+def generate_job_scripts(submit: bool = False) -> None:
+    """
+    Generate single-node job scripts.
+
+    Parameters
+    ----------
+    submit : bool, optional
+        Whether to submit jobs to the cluster. Default is False.
+    """
     base_problem_size = get_problem_size(n_samples[0], n_features[0], n_trees[0])
     base_time = 30
 
@@ -62,12 +70,23 @@ cd "${{RESDIR}}" || exit
 
 python -u ${{PYDIR}}/${{SCRIPT}} --n_samples ${{N_SAMPLES}} --n_features ${{N_FEATURES}} --n_trees ${{N_TREES}}
                                 """
-
+                # Write script content to file.
                 with open(job_script_name, "wt") as f:
                     f.write(scriptcontent)
-
-                subprocess.run(f"sbatch {job_script_name}", shell=True)
+                # Possibly submit script to cluster.
+                if submit:
+                    subprocess.run(f"sbatch {job_script_name}", shell=True)
 
 
 if __name__ == "__main__":
-    main()
+    # Parse command-line argument.
+    parser = argparse.ArgumentParser(
+        prog="Random Forest",
+        description="Generate synthetic classification data and classify with (distributed) random forest.",
+    )
+    parser.add_argument(
+        "--submit", action="store_true", help="Whether to submit jobs to the cluster."
+    )
+    args = parser.parse_args()
+    # Generate job scripts and possibly submit them to the cluster.
+    generate_job_scripts(args.submit)
