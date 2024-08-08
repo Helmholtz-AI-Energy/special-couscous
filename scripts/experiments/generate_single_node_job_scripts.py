@@ -38,7 +38,7 @@ def generate_single_node_job_scripts(submit: bool = False) -> None:
                     f"n{int(np.log10(n))}_m{int(np.log10(m))}_t{int(np.log10(t))}"
                 )
                 job_script_name = f"{job_name}.sh"
-                scriptcontent = f"""#!/bin/bash
+                script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}  # Job name
 #SBATCH --partition=cpuonly    # Queue for resource allocation
 #SBATCH --mem=501600mb         # Memory required per node
@@ -80,7 +80,7 @@ python -u ${{PYDIR}}/${{SCRIPT}} \\
                                 """
                 # Write script content to file.
                 with open(job_script_name, "wt") as f:
-                    f.write(scriptcontent)
+                    f.write(script_content)
                 # Possibly submit script to cluster.
                 if submit:
                     subprocess.run(f"sbatch {job_script_name}", shell=True)

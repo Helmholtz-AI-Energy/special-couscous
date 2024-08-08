@@ -33,7 +33,7 @@ def generate_strong_scaling_job_scripts(
         print(f"Current config uses {n_nodes} nodes. Wall-clock time is {time / 60} h.")
         job_name = f"n{log_n_samples}_m{log_n_features}_strong_{n_nodes}"
         job_script_name = f"{job_name}.sh"
-        scriptcontent = f"""#!/bin/bash
+        script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}  # Job name
 #SBATCH --partition=cpuonly    # Queue for resource allocation
 #SBATCH --time={time}          # Wall-clock time limit
@@ -45,7 +45,7 @@ def generate_strong_scaling_job_scripts(
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-special-couscous/}}
 
-export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}  # Set number of threads to number of CPUs per task as provided by SLURM.
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}  # Set number of threads to number of CPUs / task as provided by SLURM.
 export PYDIR=${{BASE_DIR}}/special-couscous/specialcouscous  # Set path to Python package directory.
 
 ml purge              # Unload all currently loaded modules.
@@ -77,7 +77,7 @@ srun python -u ${{PYDIR}}/${{SCRIPT}} \\
                                 """
         # Write script content to file.
         with open(job_script_name, "wt") as f:
-            f.write(scriptcontent)
+            f.write(script_content)
         # Possibly submit script to cluster.
         if submit:
             subprocess.run(f"sbatch {job_script_name}", shell=True)
