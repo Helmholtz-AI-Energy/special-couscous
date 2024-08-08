@@ -39,7 +39,7 @@ def store_timing(
     """
     label = "time_sec_" + re.sub(r"\s", "_", mpi_timer.name)
     global_results[label] = mpi_timer.elapsed_time_average
-    local_results[label] = (mpi_timer.elapsed_time_local,)
+    local_results[label] = mpi_timer.elapsed_time_local
 
 
 def store_accuracy(
@@ -62,8 +62,8 @@ def store_accuracy(
     local_results : dict[str, Any]
         The local results dictionary.
     """
-    global_results[f"accuracy_{label}"] = (model.acc_global,)
-    local_results[f"accuracy_{label}"] = (model.acc_local,)
+    global_results[f"accuracy_{label}"] = model.acc_global
+    local_results[f"accuracy_{label}"] = model.acc_local
 
 
 def save_results_serial(
