@@ -1,0 +1,149 @@
+import os
+import pathlib
+import re
+
+import pandas
+
+
+def dataframe_from_slurm_output(path: pathlib.Path | str) -> pandas.DataFrame:
+    """
+    Create a dataframe from SLURM output files and save it to csv file.
+
+    Parameters
+    ----------
+    path : pathlib.Path | str
+        Path to folder with SLURM output files.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The dataframe with (result) parameters of the provided SLURM jobs.
+    """
+    path = pathlib.Path(path)  # Convert to pathlib path.
+    # Define regular expression patterns to extract each piece of information separately.
+    pattern_samples = r"n_samples=(\d+)"
+    pattern_features = r"n_features=(\d+)"
+    pattern_trees = r"n_trees=(\d+)"
+    pattern_training_time = r"Time for training is (\d+\.\d+) s\."
+    pattern_accuracy = r"Accuracy is (\d+\.\d+)"
+    pattern_wall_clock_time = r"Job Wall-clock time: (\d+:\d+:\d+|\d+-\d+:\d+:\d+)"
+    pattern_energy_joule = r"Energy Consumed: (\d+) Joule"
+    pattern_job_id = r"Job ID: (\d+)"
+    pattern_job_state = r"State: (\w+)"
+
+    # Initialize lists to store data from multiple files.
+    n_samples_list = []
+    n_features_list = []
+    n_trees_list = []
+    training_time_list = []
+    accuracy_list = []
+    wall_clock_time_list = []
+    energy_joule_list = []
+    job_id_list = []
+    job_state_list = []
+
+    for filename in os.listdir(
+        path
+    ):  # Loop through output files in the provided folder.
+        if filename.endswith(".out"):
+            file_path = os.path.join(path, filename)  # Construct full file path.
+            with open(file_path, "r") as file:  # Load input text from the file.
+                input_text = file.read()
+
+            # Extract information using regular expressions.
+            n_samples_match = re.search(pattern_samples, input_text)
+            n_features_match = re.search(pattern_features, input_text)
+            n_trees_match = re.search(pattern_trees, input_text)
+            training_time_match = re.search(pattern_training_time, input_text)
+            accuracy_match = re.search(pattern_accuracy, input_text)
+            wall_clock_time_match = re.search(pattern_wall_clock_time, input_text)
+            energy_joule_match = re.search(pattern_energy_joule, input_text)
+            job_id_match = re.search(pattern_job_id, input_text)
+            job_state_match = re.search(pattern_job_state, input_text)
+
+            # Append extracted data to their respective lists ("N/A" if not found).
+            n_samples_list.append(
+                int(n_samples_match.group(1)) if n_samples_match else "N/A"
+            )
+            n_features_list.append(
+                int(n_features_match.group(1)) if n_features_match else "N/A"
+            )
+            n_trees_list.append(int(n_trees_match.group(1)) if n_trees_match else "N/A")
+            training_time_list.append(
+                float(training_time_match.group(1)) if training_time_match else "N/A"
+            )
+            accuracy_list.append(
+                float(accuracy_match.group(1)) if accuracy_match else "N/A"
+            )
+            wall_clock_time_list.append(
+                wall_clock_time_match.group(1) if wall_clock_time_match else "N/A"
+            )
+            energy_joule_list.append(
+                int(energy_joule_match.group(1)) if energy_joule_match else "N/A"
+            )
+            job_id_list.append(int(job_id_match.group(1)) if job_id_match else "N/A")
+            job_state_list.append(
+                job_state_match.group(1) if job_state_match else "N/A"
+            )
+
+    # Create a pandas dataframe from the extracted data.
+    data = {
+        "n_samples": n_samples_list,
+        "n_features": n_features_list,
+        "n_trees": n_trees_list,
+        "wall_clock_time": wall_clock_time_list,
+        "training_time": training_time_list,
+        "accuracy": accuracy_list,
+        "energy_joule": energy_joule_list,
+        "job_id": job_id_list,
+        "job_state": job_state_list,
+    }
+    df = pandas.DataFrame(data)
+    df.sort_values(
+        by=["n_trees", "n_samples", "n_features"],
+        ascending=[False, True, True],
+        inplace=True,
+        ignore_index=True,
+    )
+
+    df["data_entries"] = df["n_samples"] * df["n_features"]
+    df["n_samples"] = df["n_samples"].apply(lambda x: "{:.0E}".format(x))
+    df["n_features"] = df["n_features"].apply(lambda x: "{:.0E}".format(x))
+    df["n_trees"] = df["n_trees"].apply(lambda x: "{:.0E}".format(x))
+    df["data_entries"] = df["data_entries"].apply(lambda x: "{:.0E}".format(x))
+
+    df.to_csv(path / pathlib.Path("results.csv"))  # Save dataframe to csv file.
+    return df
+
+
+def time_to_seconds(time_str: str) -> float | None:
+    """
+    Convert wall-clock time string "d-hh:mm:ss" or "hh:mm:ss" into corresponding time in seconds.
+
+    Parameters
+    ----------
+    time_str : str
+        The wall-clock time string.
+
+    Returns
+    -------
+    float | None
+        The wall-clock time in seconds (None if provided string was invalid).
+    """
+    time_pattern = r"(\d+)-(\d+):(\d+):(\d+)|(\d+):(\d+):(\d+)"  # Define regular expression to match time strings.
+    match = re.match(time_pattern, time_str)  # Match the time string using the pattern.
+
+    if match:
+        # Extract hours, minutes, and seconds from matched groups.
+        if match.group(1):
+            days, hours, minutes, seconds = map(int, match.group(1, 2, 3, 4))
+        else:
+            days = 0
+            hours, minutes, seconds = map(int, match.group(5, 6, 7))
+
+        total_seconds = (
+            (days * 24 * 60 * 60) + (hours * 60 * 60) + (minutes * 60) + seconds
+        )  # Calculate total time in seconds.
+        return float(total_seconds)
+    else:
+        return None  # Return None for invalid time strings.

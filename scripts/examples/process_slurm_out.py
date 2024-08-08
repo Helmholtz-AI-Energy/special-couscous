@@ -5,11 +5,11 @@ import pathlib
 
 import pandas as pd
 
-from specialcouscous.utils import dataframe_from_slurm_output
 from specialcouscous.utils.plot import (
     plot_single_node_capacity,
     plot_times_and_accuracy,
 )
+from specialcouscous.utils.slurm import dataframe_from_slurm_output
 
 pd.set_option("display.max_columns", 20)
 pd.set_option("display.max_rows", None)
