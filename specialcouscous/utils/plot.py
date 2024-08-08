@@ -7,7 +7,7 @@ import numpy as np
 import pandas
 from matplotlib.lines import Line2D
 
-from specialcouscous.utils import time_to_seconds
+from specialcouscous.utils.slurm import time_to_seconds
 
 
 def mix_colors(

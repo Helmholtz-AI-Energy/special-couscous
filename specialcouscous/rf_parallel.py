@@ -6,7 +6,7 @@ import sklearn.tree
 from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
 
-from specialcouscous.utils import MPITimer
+from specialcouscous.utils.timing import MPITimer
 
 log = logging.getLogger(__name__)  # Get logger instance.
 

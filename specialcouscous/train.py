@@ -17,7 +17,8 @@ from specialcouscous.synthetic_classification_data import (
     generate_and_distribute_synthetic_dataset,
     make_classification_dataset,
 )
-from specialcouscous.utils import MPITimer, construct_output_path, save_dataframe
+from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
+from specialcouscous.utils.timing import MPITimer
 
 log = logging.getLogger(__name__)  # Get logger instance.
 
