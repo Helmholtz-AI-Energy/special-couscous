@@ -90,7 +90,7 @@ def test_breaking_iid(
     if comm.rank == 0:
         log.info(
             "*************************************************************\n"
-            "* Multi-Node Random Forest Classification of Synthetic Data *\n"
+            "* Multi-Node Random Forest Classification of Non-IID Synthetic Data *\n"
             "*************************************************************"
         )
     train_parallel_on_synthetic_data(
