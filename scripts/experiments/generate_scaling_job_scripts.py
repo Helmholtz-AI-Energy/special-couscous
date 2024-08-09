@@ -78,10 +78,10 @@ def generate_scaling_job_scripts(
         job_name = f"n{log_n_samples}_m{log_n_features}_{scaling_type}_{n_nodes}"
         job_script_name = f"{job_name}.sh"
         script_content = f"""#!/bin/bash
-#SBATCH --job-name={job_name}  # Job name
-#SBATCH --partition=cpuonly    # Queue for resource allocation
-#SBATCH --time={time}          # Wall-clock time limit
-#SBATCH --mem={mem}mb                # Main memory (use standard nodes)
+#SBATCH --job-name={job_name}         # Job name
+#SBATCH --partition=cpuonly           # Queue for resource allocation
+#SBATCH --time={time}                 # Wall-clock time limit
+#SBATCH --mem={mem}mb                 # Main memory (use standard nodes)
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}             # Number of nodes
