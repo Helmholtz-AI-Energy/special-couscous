@@ -1,0 +1,262 @@
+import argparse
+import logging
+import pathlib
+import sys
+
+import colorlog
+import numpy as np
+from mpi4py import MPI
+
+log = logging.getLogger(__name__)  # Get logger instance.
+
+
+def get_problem_size(n: int, m: int, t: int) -> float:
+    """
+    Determine problem size from number of samples, number of features, and number of trees.
+
+    Parameters
+    ----------
+    n : int
+        Number of samples.
+    m : int
+        Number of features.
+    t : int
+        Number of trees.
+
+    Returns
+    -------
+    float
+       The problem size in terms of the random forest's time complexity.
+    """
+    return n * np.log2(n) * np.sqrt(m) * t
+
+
+def set_logger_config(
+    level: int = logging.INFO,
+    log_file: str | pathlib.Path | None = None,
+    log_to_stdout: bool = True,
+    log_rank: bool = False,
+    colors: bool = True,
+) -> None:
+    """
+    Set up the logger. Should only need to be done once. Generally, logging should only be done on the master rank.
+
+    Parameters
+    ----------
+    level : int
+        The default level for logging. Default is ``logging.INFO``.
+    log_file : str | Path, optional
+        The file to save the log to.
+    log_to_stdout : bool
+        A flag indicating if the log should be printed on stdout. Default is True.
+    log_rank : bool
+        A flag for prepending the MPI rank to the logging message. Default is False.
+    colors : bool
+        A flag for using colored logs. Default is True.
+    """
+    rank = f"{MPI.COMM_WORLD.Get_rank()}:" if log_rank else ""
+    # Get base logger for SpecialCouscous.
+    base_logger = logging.getLogger("specialcouscous")
+    simple_formatter = logging.Formatter(
+        f"{rank}:[%(asctime)s][%(name)s][%(levelname)s] - %(message)s"
+    )
+    if colors:
+        formatter = colorlog.ColoredFormatter(
+            fmt=f"{rank}[%(cyan)s%(asctime)s%(reset)s][%(blue)s%(name)s%(reset)s]"
+            f"[%(log_color)s%(levelname)s%(reset)s] - %(message)s",
+            datefmt=None,
+            reset=True,
+            log_colors={
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
+            secondary_log_colors={},
+        )
+        std_handler = logging.StreamHandler(stream=sys.stdout)
+        std_handler.setFormatter(formatter)
+    else:
+        std_handler = logging.StreamHandler(stream=sys.stdout)
+        std_handler.setFormatter(simple_formatter)
+
+    if log_to_stdout:
+        base_logger.addHandler(std_handler)
+    if log_file is not None:
+        log_file = pathlib.Path(log_file)
+        log_dir = log_file.parents[0]
+        log_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(filename=log_file)
+        file_handler.setFormatter(simple_formatter)
+        base_logger.addHandler(file_handler)
+    base_logger.setLevel(level)
+
+
+def parse_arguments() -> argparse.Namespace:
+    """
+    Set up argument parser for random forest classification in ``special-couscous``.
+
+    Returns
+    -------
+    argparse.Namespace
+        The namespace of all parsed arguments.
+    """
+    # Parse command-line arguments.
+    parser = argparse.ArgumentParser(
+        prog="Random Forest",
+        description="Generate synthetic classification data and classify with (distributed) random forest.",
+    )
+    parser.add_argument(
+        "--n_samples",
+        type=int,
+        default=1000,
+        help="Number of samples in synthetic classification data",
+    )
+    parser.add_argument(
+        "--n_features",
+        type=int,
+        default=100,
+        help="Number of features in synthetic classification data",
+    )
+    parser.add_argument(
+        "--n_classes",
+        type=int,
+        default=5,
+        help="Number of classes in synthetic classification data",
+    )
+    parser.add_argument(
+        "--n_clusters_per_class",
+        type=int,
+        default=1,
+        help="Number of clusters per class",
+    )
+    parser.add_argument(
+        "--random_state_data",
+        type=int,
+        default=0,
+        help="Random seed used in synthetic dataset generation",
+    )
+    parser.add_argument(
+        "--frac_informative",
+        type=float,
+        default=0.1,
+        help="Fraction of informative features in synthetic classification dataset",
+    )
+    parser.add_argument(
+        "--frac_redundant",
+        type=float,
+        default=0.1,
+        help="Fraction of redundant features in synthetic classification dataset",
+    )
+    parser.add_argument(
+        "--random_state_split",
+        type=int,
+        default=9,
+        help="Random seed used in train-test split",
+    )
+    # Model-related arguments
+    parser.add_argument(
+        "--n_trees",
+        type=int,
+        default=100,
+        help="Number of trees in global random forest classifier",
+    )
+    parser.add_argument(
+        "--random_state_forest",
+        type=int,
+        default=0,
+        help="Random seed used to initialize random forest classifier",
+    )
+    parser.add_argument(
+        "--train_split",
+        type=float,
+        default=0.75,
+        help="Fraction of data in the train set. The remainder makes up the test set.",
+    )
+    parser.add_argument("--global_model", action="store_true")
+    parser.add_argument(
+        "--private_test_set",
+        action="store_true",
+        help="Whether the test set is private (not shared across subforests)",
+    )
+    parser.add_argument(
+        "--globally_imbalanced",
+        action="store_true",
+        help="Whether the global dataset has class imbalance. If true, the classes are Skellam "
+        "distributed. Use --mu_data and --peak to customize the distribution.",
+    )
+    parser.add_argument(
+        "--mu_data",
+        type=float,
+        default=10,
+        help="The μ = μ₁ = μ₂, μ ∊ [0, ∞] parameter of the Skellam distribution. The larger μ, the "
+        "larger the spread. Edge cases: For μ=0, the peak class has weight 1, while all other "
+        "classes have weight 0. For μ=inf, the generated dataset is balanced, i.e., all classes "
+        "have equal weights.",
+    )
+    parser.add_argument(
+        "--peak",
+        type=int,
+        default=0,
+        help="The position (class index) of the distribution's peak (i.e., the most frequent class).",
+    )
+
+    parser.add_argument(
+        "--locally_imbalanced",
+        action="store_true",
+        help="Whether the partition to local datasets has class imbalance. If true, the classes are "
+        "Skellam distributed. Use --mu_partition to customize spread of the distributions.",
+    )
+    parser.add_argument(
+        "--mu_partition",
+        type=float,
+        default=10.0,
+        help="The μ = μ₁ = μ₂, μ ∊ [0, ∞] parameter of the Skellam distribution. The larger μ, the "
+        "larger the spread. Edge cases: For μ=0, the peak class has weight 1, while all other "
+        "classes have weight 0. For μ=inf, the generated dataset is balanced, i.e., all classes "
+        "have equal weights.",
+    )
+    parser.add_argument(
+        "--detailed_evaluation",
+        action="store_true",
+        help="Whether to perform a detailed evaluation on more than just the local test set.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=pathlib.Path,
+        default=pathlib.Path(__file__).parent.parent.parent / "results",
+        help="The directory to write the results to.",
+    )
+    parser.add_argument(
+        "--output_label",
+        type=str,
+        default="",
+        help="Optional label for the output files.",
+    )
+    parser.add_argument(
+        "--experiment_id",
+        type=str,
+        default="",
+        help="Optional subdirectory name to collect related "
+        "result in. The subdirectory will be created automatically.",
+    )
+    parser.add_argument(
+        "--save_model",
+        action="store_true",
+        help="Whether to save the trained classifier to disk.",
+    )
+    parser.add_argument(
+        "--log_path",
+        type=pathlib.Path,
+        default=pathlib.Path("./"),
+        help="Path to the log directory. The directory will be created automatically if it does not exist.",
+    )
+    parser.add_argument(
+        "--logging_level",
+        type=int,
+        default=logging.INFO,
+        help="Logging level.",
+    )
+
+    return parser.parse_args()

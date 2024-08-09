@@ -1,22 +1,65 @@
 import collections
 import itertools
+import logging
 import pathlib
-from typing import Dict, Callable, Optional, Union, Type, Tuple, List
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
+import numpy.typing as npt
 import scipy
 from mpi4py import MPI
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 
-import utils
+from specialcouscous.utils.plot import (
+    plot_class_distributions,
+    plot_local_class_distributions_as_ridgeplot,
+)
+
+log = logging.getLogger(__name__)  # Get logger instance.
 
 
 class DatasetPartition:
+    """
+    Dataset partitioner.
+
+    Attributes
+    ----------
+    indices_by_class : Dict[int, np.ndarray]
+        The sample indices grouped by classes. Key is class and value is an array containing the indices of samples
+        belonging to that class.
+    n_classes : int
+        The number of classes in the dataset.
+    n_samples : int
+        The number of samples in the dataset.
+    targets : numpy.ndarray
+        A 1D numpy array containing the target for each sample.
+
+    Methods
+    -------
+    get_class_imbalance()
+        Get the percentage share for each target value from an array of targets.
+    assigned_indices_by_rank()
+        Convert array assigning each sample index to a rank to dict mapping each rank to array of its assigned indices.
+    weighted_partition()
+        Partition a number of elements into len(weights) parts according to the weights (as closely as possible).
+    deterministic_class_partitioner()
+        Return a function which partitions the samples for a class based on optional class weights.
+    sampling_class_partitioner()
+        Return a function which partitions the samples for a class based on optional class weights.
+    partition()
+        Partition this dataset among ``n_rank`` ranks according to the given class weights.
+    balanced_partition()
+        Create balanced partition of this dataset among ``n_rank`` ranks.
+    shifted_skellam_imbalanced_partition()
+        Partition this dataset among ``n_rank`` ranks using an imbalanced shifted Skellam class distribution.
+    """
+
     def __init__(self, targets: np.ndarray) -> None:
         """
-        Initialize the partition with the targets for each sample, automatically determines a list of sample indices for
-        each class.
+        Initialize the partition with the targets for each sample.
+
+        A list of sample indices for each class is determined automatically.
 
         Parameters
         ----------
@@ -24,12 +67,12 @@ class DatasetPartition:
             A 1D numpy array containing the target for each sample.
         """
         self.targets = targets
-        self.num_samples = len(self.targets)
+        self.n_samples = len(self.targets)
         self.indices_by_class = {
             class_index: np.nonzero(self.targets == class_index)[0]
             for class_index in np.unique(self.targets)
         }
-        self.num_classes = len(self.indices_by_class.keys())
+        self.n_classes = len(self.indices_by_class.keys())
 
     def get_class_imbalance(self) -> Dict[int, float]:
         """
@@ -37,7 +80,7 @@ class DatasetPartition:
 
         Returns
         -------
-        Dict
+        Dict[int, float]
             A dict mapping each target value to its percentage.
         """
         unique, counts = np.unique(self.targets, return_counts=True)
@@ -46,16 +89,15 @@ class DatasetPartition:
 
     @staticmethod
     def assigned_indices_by_rank(
-        assigned_ranks: np.ndarray[int],
-    ) -> Dict[int, np.ndarray[int]]:
+        assigned_ranks: npt.NDArray[np.int32],
+    ) -> Dict[int, npt.NDArray[np.int32]]:
         """
-        Turns an array assigning each sample index to a rank into a dict mapping each rank to its assigned sample
-        indices (as array).
+        Convert array assigning each sample index to a rank to dict mapping each rank to array of its assigned indices.
 
         Parameters
         ----------
         assigned_ranks : numpy.ndarray[int]
-            Numpy array of length num_samples, assigning each sample to a rank.
+            Numpy array of length ``n_samples``, assigning each sample to a rank.
 
         Returns
         -------
@@ -69,10 +111,10 @@ class DatasetPartition:
 
     @staticmethod
     def weighted_partition(
-        total_elements: int, weights: np.ndarray[float]
-    ) -> np.ndarray[int]:
+        total_elements: int, weights: npt.NDArray[np.float32]
+    ) -> npt.NDArray[np.int32]:
         """
-        Partition a number of elements into len(weights) parts according to the weights (as closely as possible).
+        Partition a number of elements into ``len(weights)`` parts according to the ``weights`` as closely as possible.
 
         Parameters
         ----------
@@ -89,7 +131,7 @@ class DatasetPartition:
         percentage = weights / weights.sum()
         element_count_per_part = np.floor(percentage * total_elements).astype(int)
 
-        # assign remaining elements to the parts with the largest difference between actual and current weight
+        # Assign remaining elements to the parts with the largest difference between actual and current weight.
         remainders = percentage * total_elements - element_count_per_part
         remaining_elements = total_elements - element_count_per_part.sum()
         if remaining_elements > 0:
@@ -101,8 +143,11 @@ class DatasetPartition:
         return element_count_per_part
 
     def _partition_class_wise(
-        self, class_partitioner: Callable[[int, np.ndarray[int]], np.ndarray[int]]
-    ) -> np.ndarray[int]:
+        self,
+        class_partitioner: Callable[
+            [int, npt.NDArray[np.int32]], npt.NDArray[np.int32]
+        ],
+    ) -> npt.NDArray[np.int32]:
         """
         Partition the dataset one class at a time using the given class_partitioner.
 
@@ -122,7 +167,7 @@ class DatasetPartition:
             for c, samples in self.indices_by_class.items()
         }
 
-        # not the most performant but it's only called once
+        # Not the most performant but it's only called once.
         index_rank_pairs = [
             (sample_index, rank)
             for c in assigned_ranks_by_class.keys()
@@ -130,7 +175,7 @@ class DatasetPartition:
                 self.indices_by_class[c], assigned_ranks_by_class[c]
             )
         ]
-        assigned_ranks = np.repeat(-1, self.num_samples)
+        assigned_ranks = np.repeat(-1, self.n_samples)
         for sample_index, rank in index_rank_pairs:
             assigned_ranks[sample_index] = rank
 
@@ -143,10 +188,10 @@ class DatasetPartition:
 
     @staticmethod
     def _class_weights_to_rank_weights(
-        class_weights_by_rank: Dict[int, np.ndarray[float]]
-    ) -> Dict[int, np.ndarray[float]]:
+        class_weights_by_rank: Dict[int, npt.NDArray[np.float32]],
+    ) -> Dict[int, npt.NDArray[np.float32]]:
         """
-        Converts a dict containing the class balance for each rank to a dict containing the rank balance for each class.
+        Convert a dict containing the class balance for each rank to a dict containing the rank balance for each class.
 
         Parameters
         ----------
@@ -158,13 +203,13 @@ class DatasetPartition:
         Dict[int, numpy.ndarray[float]]
             The rank balance (in percent) for each class as dict class -> rank_weights.
         """
-        num_ranks = len(class_weights_by_rank)
-        num_classes = len(class_weights_by_rank[0])
+        n_ranks = len(class_weights_by_rank)
+        n_classes = len(class_weights_by_rank[0])
         rank_weights_by_class = {
-            c: np.array([class_weights_by_rank[rank][c] for rank in range(num_ranks)])
-            for c in range(num_classes)
+            c: np.array([class_weights_by_rank[rank][c] for rank in range(n_ranks)])
+            for c in range(n_classes)
         }
-        # convert to probabilities and return
+        # Convert to probabilities and return.
         return {
             c: rank_weights / rank_weights.sum()
             for c, rank_weights in rank_weights_by_class.items()
@@ -172,17 +217,18 @@ class DatasetPartition:
 
     @staticmethod
     def deterministic_class_partitioner(
-        num_ranks: int,
-        class_weights_by_rank: Optional[Dict[int, np.ndarray[float]]] = None,
+        n_ranks: int,
+        class_weights_by_rank: Optional[Dict[int, npt.NDArray[np.float32]]] = None,
         seed: Optional[int] = None,
-    ) -> Callable[[int, np.ndarray[int]], np.ndarray[int]]:
+    ) -> Callable[[int, npt.NDArray[np.int32]], npt.NDArray[np.int32]]:
         """
-        Returns a function which partitions the samples for a class based on optional class weights by calculating the
-        number of samples per rank and shuffling the assignment.
+        Return a function which partitions the samples for a class based on optional class weights.
+
+        The partitioning is done by calculating the number of samples per rank and shuffling the assignment.
 
         Parameters
         ----------
-        num_ranks : int
+        n_ranks : int
             The number of ranks to partition into.
         class_weights_by_rank : Optional[Dict[int, numpy.ndarray[float]]]
             The class balance for each rank as dict rank -> class_weights. If None, a uniform class balance is assumed.
@@ -195,9 +241,10 @@ class DatasetPartition:
             A functon mapping the class index and sample indices to the assigned rank by sample.
         """
         rng = np.random.default_rng(seed)
+        rank_probabilities_by_class: dict
         if class_weights_by_rank is None:
             rank_probabilities_by_class = collections.defaultdict(
-                lambda: np.repeat(1 / num_ranks, num_ranks)
+                lambda: np.repeat(1 / n_ranks, n_ranks)
             )
         else:
             rank_probabilities_by_class = (
@@ -205,16 +252,16 @@ class DatasetPartition:
             )
 
         def assign_to_ranks(
-            class_index: int, sample_indices: np.ndarray[int]
-        ) -> np.ndarray[int]:
+            class_index: int, sample_indices: npt.NDArray[np.int32]
+        ) -> npt.NDArray[np.int32]:
             elements_per_rank = DatasetPartition.weighted_partition(
                 len(sample_indices), rank_probabilities_by_class[class_index]
             )
             assigned_ranks = np.array(
                 [
                     rank
-                    for rank, num_elements in enumerate(elements_per_rank)
-                    for _ in range(num_elements)
+                    for rank, n_elements in enumerate(elements_per_rank)
+                    for _ in range(n_elements)
                 ]
             )
             rng.shuffle(assigned_ranks)
@@ -224,33 +271,35 @@ class DatasetPartition:
 
     @staticmethod
     def sampling_class_partitioner(
-        num_ranks: int,
-        class_weights_by_rank: Optional[Dict[int, np.ndarray]] = None,
+        n_ranks: int,
+        class_weights_by_rank: Optional[Dict[int, npt.NDArray[np.float32]]] = None,
         seed: Optional[int] = None,
-        **choice_kwargs,
-    ) -> Callable[[int, np.ndarray[int]], np.ndarray[int]]:
+        **choice_kwargs: Any,
+    ) -> Callable[[int, npt.NDArray[np.int32]], npt.NDArray[np.int32]]:
         """
-        Returns a function which partitions the samples for a class based on optional class weights by sampling a random
-        rank based on its probability.
+        Return a function which partitions the samples for a class based on optional class weights.
+
+        The partitioning is done by sampling a random rank based on its probability.
 
         Parameters
         ----------
-        num_ranks : int
+        n_ranks : int
             The number of ranks to partition into.
         class_weights_by_rank : Optional[Dict[int, numpy.ndarray[float]]]
             The class balance for each rank as dict rank -> class_weights. If None, a uniform class balance is assumed.
         seed : Optional[int]
             The random seed used for the random sampling.
-        choice_kwargs :
-            Optional additional kwargs to numpy's rng.choice.
+        **choice_kwargs : Any
+            Optional additional keyword arguments to ``numpy``'s ``rng.choice``.
 
         Returns
         -------
         Callable[[int, numpy.ndarray[int]], ndarray[int]]
-            A functon mapping the class index and sample indices to the assigned rank by sample.
+            A function mapping the class index and sample indices to the assigned rank by sample.
         """
         rng = np.random.default_rng(seed)
 
+        rank_probabilities_by_class: dict
         if class_weights_by_rank is None:
             rank_probabilities_by_class = collections.defaultdict(None)
         else:
@@ -259,10 +308,10 @@ class DatasetPartition:
             )
 
         def assign_to_ranks(
-            class_index: int, sample_indices: np.ndarray[int]
-        ) -> np.ndarray[int]:
+            class_index: int, sample_indices: npt.NDArray[np.int32]
+        ) -> npt.NDArray[np.int32]:
             return rng.choice(
-                num_ranks,
+                n_ranks,
                 len(sample_indices),
                 p=rank_probabilities_by_class[class_index],
                 **choice_kwargs,
@@ -272,17 +321,17 @@ class DatasetPartition:
 
     def partition(
         self,
-        num_ranks: int,
-        class_weights_by_rank: Optional[Dict[int, np.ndarray]],
+        n_ranks: int,
+        class_weights_by_rank: Optional[Dict[int, npt.NDArray[np.float32]]] = None,
         seed: Optional[int] = None,
         sampling: bool = False,
-    ) -> np.ndarray[int]:
+    ) -> npt.NDArray[np.int32]:
         """
-        Partition this dataset among num_rank ranks according to the given class weights.
+        Partition this dataset among ``n_rank`` ranks according to the given class weights.
 
         Parameters
         ----------
-        num_ranks : int
+        n_ranks : int
             The number of ranks to partition into.
         class_weights_by_rank : Optional[Dict[int, numpy.ndarray[float]]]
             The class balance for each rank as dict rank -> class_weights. If None, a uniform class balance is assumed.
@@ -301,23 +350,23 @@ class DatasetPartition:
         """
         if sampling:
             class_partitioner = self.sampling_class_partitioner(
-                num_ranks, class_weights_by_rank, seed
+                n_ranks, class_weights_by_rank, seed
             )
         else:
             class_partitioner = self.deterministic_class_partitioner(
-                num_ranks, class_weights_by_rank, seed
+                n_ranks, class_weights_by_rank, seed
             )
         return self._partition_class_wise(class_partitioner)
 
     def balanced_partition(
-        self, num_ranks: int, seed: Optional[int] = None, sampling: bool = False
-    ) -> np.ndarray[int]:
+        self, n_ranks: int, seed: Optional[int] = None, sampling: bool = False
+    ) -> npt.NDArray[np.int32]:
         """
-        Balanced partition of this dataset among num_rank ranks.
+        Create balanced partition of this dataset among ``n_rank`` ranks.
 
         Parameters
         ----------
-        num_ranks : int
+        n_ranks : int
             The number of ranks to partition into.
         seed : Optional[int]
             The random seed used for shuffling and random sampling.
@@ -332,25 +381,26 @@ class DatasetPartition:
         numpy.ndarray[int]
             The rank assigned to each sample.
         """
-        return self.partition(num_ranks, None, seed, sampling)
+        return self.partition(n_ranks, None, seed, sampling)
 
     def shifted_skellam_imbalanced_partition(
         self,
-        num_ranks: int,
+        n_ranks: int,
         mu: Union[float, str],
         seed: Optional[int] = None,
         sampling: bool = False,
-    ) -> np.ndarray[int]:
+    ) -> npt.NDArray[np.int32]:
         """
-        Partition this dataset among num_rank ranks using an imbalanced class distribution via a shifted skellam
-        distribution.
+        Partition this dataset among ``n_rank`` ranks using an imbalanced class distribution.
+
+        A shifted Skellam distribution is used to model the imbalances.
 
         Parameters
         ----------
-        num_ranks : int
+        n_ranks : int
             The number of ranks to partition into.
         mu : Union[float, str]
-            The μ = μ₁ = μ₂ parameter of the skellam distribution. Must be ≥0 or 'inf'
+            The μ = μ₁ = μ₂ parameter of the Skellam distribution. Must be ≥0 or 'inf'.
         seed : Optional[int]
             The random seed used for shuffling and random sampling.
         sampling : bool
@@ -364,54 +414,54 @@ class DatasetPartition:
         numpy.ndarray[int]
             The rank assigned to each sample.
         """
-        peaks = (
-            np.linspace(0, self.num_classes, num=num_ranks + 1).round().astype(int)[:-1]
-        )
+        peaks = np.linspace(0, self.n_classes, num=n_ranks + 1).round().astype(int)[:-1]
         class_weights_by_rank = {
-            rank: get_skellam_class_weights(mu, self.num_classes, peak)
+            rank: get_skellam_class_weights(mu, self.n_classes, peak)
             for rank, peak in enumerate(peaks)
         }
-        return self.partition(num_ranks, class_weights_by_rank, seed, sampling)
+        return self.partition(n_ranks, class_weights_by_rank, seed, sampling)
 
 
 def get_skellam_class_weights(
     mu: Union[float, str],
-    num_classes: int,
+    n_classes: int,
     peak: int = 0,
     rescale_to_sum_one: bool = True,
-) -> np.ndarray[float]:
+) -> npt.NDArray[np.float32]:
     """
-    Generate Skellam distributed class weights with a variable spread adjusted via the μ parameter (the larger μ,
-    the larger the spread) and peak. Edge cases: For μ=0, the peak class has weight 1, while all other classes have
-    weight 0. For μ=inf, the generated dataset is balanced, i.e., all classes have equal weights.
+    Generate Skellam-distributed class weights with a variable spread and peak.
+
+    The spread is adjusted via the μ parameter (the larger μ, the larger the spread). Edge cases: For μ=0, the peak
+    class has weight 1, while all other classes have weight 0. For μ=inf, the generated dataset is balanced, i.e., all
+    classes have equal weights.
 
     Parameters
     ----------
     mu : Union[float, str]
-        The μ = μ₁ = μ₂ parameter of the skellam distribution. Must be ≥0 or 'inf'
-    num_classes : int
+        The μ = μ₁ = μ₂ parameter of the Skellam distribution. Must be ≥0 or 'inf'.
+    n_classes : int
         The number of classes.
     peak : int
         The position (class index) of the distribution's peak.
     rescale_to_sum_one : bool
-        Whether to rescale the weights, so they sum to 1.
+        Whether to rescale the weights, so they sum up to 1.
 
     Returns
     -------
     numpy.ndarray[float]
-        The class weights as numpy array.
+        The class weights.
     """
-    # edge cases
+    # Edge cases
     if mu == 0:
-        return np.eye(num_classes)[peak]
+        return np.eye(n_classes)[peak]
     elif mu == "inf" or np.isinf(float(mu)):
-        return np.repeat(1 / num_classes, num_classes)
+        return np.repeat(1 / n_classes, n_classes)
 
-    # standard case
+    # Standard case
     class_weight = scipy.stats.skellam.pmf(
-        np.arange(num_classes), mu1=mu, mu2=mu, loc=num_classes // 2
+        np.arange(n_classes), mu1=mu, mu2=mu, loc=n_classes // 2
     )
-    shift = peak - num_classes // 2
+    shift = peak - n_classes // 2
     class_weight = np.roll(class_weight, shift)
     if rescale_to_sum_one:
         class_weight /= class_weight.sum()
@@ -419,17 +469,54 @@ def get_skellam_class_weights(
 
 
 class SyntheticDataset:
+    """
+    Synthetic classification dataset.
+
+    Attributes
+    ----------
+    DEFAULT_CONFIG_MAKE_CLASSIFICATION : Dict[str, int]
+        Default parameters to use for ``sklearn``'s ``make_classification`` function.
+    n_classes : int
+        The number of classes.
+    n_samples : int
+        The number of samples.
+    x : numpy.ndarray
+        The input samples.
+    y : numpy.ndarray[float]
+        The corresponding targets.
+
+    Methods
+    -------
+    get_class_frequencies()
+        Get class frequency (either as absolute counts or as relative fraction).
+    generate()
+        Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
+    generate_with_skellam_imbalance()
+        Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``. The class weights
+        are automatically determined via a Skellam distribution.
+    train_test_split()
+        Split this dataset into a train and test set using ``sklearn.model_selection.train_test_split``.
+    get_local_subset()
+        Partition the dataset among ``n_ranks`` ranks and select the samples assigned to this rank.
+    allgather_class_frequencies()
+        Compute class frequencies as array and all-gather them via the given communicator.
+    plot_local_class_distributions()
+        Plot the given local and global class distribution as ridge plot.
+    plot_skellam_distributions()
+        Plot class frequencies for different Skellam distributions as line plot.
+    """
+
     DEFAULT_CONFIG_MAKE_CLASSIFICATION = {"flip_y": 0, "n_informative": 8}
 
     def __init__(
         self,
         x: np.ndarray,
         y: np.ndarray,
-        num_samples: Optional[int] = None,
-        num_classes: Optional[int] = None,
+        n_samples: Optional[int] = None,
+        n_classes: Optional[int] = None,
     ) -> None:
         """
-        Generates a synthetic classification dataset using sklearn.datasets.make_classification.
+        Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
 
         Parameters
         ----------
@@ -437,21 +524,21 @@ class SyntheticDataset:
             The input samples x.
         y : numpy.ndarray
             The corresponding targets y.
-        num_samples : Optional[int]
+        n_samples : Optional[int]
             The number of samples in the dataset.
-        num_classes : Optional[int]
+        n_classes : Optional[int]
             The number of (unique) classes in the dataset.
         """
         self.x = x
         self.y = y
-        self.num_samples = len(self.y) if num_samples is None else num_samples
-        self.num_classes = (
-            len(np.unique(self.y, axis=0)) if num_classes is None else num_classes
+        self.n_samples = len(self.y) if n_samples is None else n_samples
+        self.n_classes = (
+            len(np.unique(self.y, axis=0)) if n_classes is None else n_classes
         )
 
     def __str__(self) -> str:
         """
-        Converts the SyntheticDataset to a summary containing the dataset size, number of classes and class frequency.
+        Convert the ``SyntheticDataset`` to a summary containing its size, number of classes, and class frequency.
 
         Returns
         -------
@@ -464,7 +551,7 @@ class SyntheticDataset:
                 for target, frequency in self.get_class_frequency(True).items()
             ]
         )
-        return f"SyntheticDataset({self.num_samples} samples, classes: {histogram})"
+        return f"SyntheticDataset({self.n_samples} samples, classes: {histogram})"
 
     def get_class_frequency(self, relative: bool = False) -> Dict[int, float]:
         """
@@ -488,89 +575,98 @@ class SyntheticDataset:
     @classmethod
     def generate(
         cls: Type["SyntheticDataset"],
-        num_samples: int,
-        num_classes: int,
-        class_weights: Optional[np.ndarray[float]] = None,
+        n_samples: int,
+        n_features: int,
+        n_classes: int,
+        class_weights: Optional[npt.NDArray[np.float32]] = None,
         random_state: Optional[int] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> "SyntheticDataset":
         """
-        Generate a synthetic classification dataset using sklearn.datasets.make_classification.
+        Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
 
         Parameters
         ----------
-        num_samples : int
+        n_samples : int
             The number of samples in the dataset.
-        num_classes : int
+        n_features : int
+            The number of features in the dataset.
+        n_classes : int
             The number classes in the dataset.
         class_weights : Optional[numpy.ndarray]
             The weight for each class, default: balanced dataset, i.e., all classes have equal weight.
         random_state : Optional[int]
             The random state used for the generation and distributed assignment.
-        kwargs
-            Additional kwargs to sklearn.datasets.make_classification.
+        **kwargs : Any
+            Additional keyword arguments to ``sklearn.datasets.make_classification``.
 
         Returns
         -------
         SyntheticDataset
-            The generated dataset as new instance of SyntheticDataset.
+            The generated dataset as new instance of ``SyntheticDataset``.
         """
         make_classification_kwargs = {
             **cls.DEFAULT_CONFIG_MAKE_CLASSIFICATION,
             **kwargs,
         }
         x, y = make_classification(
-            n_samples=num_samples,
-            n_classes=num_classes,
+            n_samples=n_samples,
+            n_features=n_features,
+            n_classes=n_classes,
             weights=class_weights,
             random_state=random_state,
             **make_classification_kwargs,
         )
-        return SyntheticDataset(x, y, num_samples, num_classes)
+        return SyntheticDataset(x, y, n_samples, n_classes)
 
     @classmethod
     def generate_with_skellam_class_imbalance(
         cls: Type["SyntheticDataset"],
-        num_samples: int,
-        num_classes: int,
+        n_samples: int,
+        n_features: int,
+        n_classes: int,
         mu: Union[float, str],
         peak: int = 0,
         rescale_to_sum_one: bool = True,
         random_state: Optional[int] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> "SyntheticDataset":
         """
-        Generates a synthetic classification dataset using sklearn.datasets.make_classification.
-        The class weights are automatically determined via a skellam distribution.
+        Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
+
+        The class weights are automatically determined via a Skellam distribution.
 
         Parameters
         ----------
-        num_samples : int
+        n_samples : int
             The number of samples in the dataset.
-        num_classes : int
+        n_features : int
+            The number of features in the dataset.
+        n_classes : int
             The number classes in the dataset.
         mu : Union[float, str]
             The μ = μ₁ = μ₂ parameter of the skellam distribution. Must be ≥0 or 'inf'
         peak : int
             The position (class index) of the distribution's peak.
         rescale_to_sum_one : bool
-            Whether to rescale the weights, so they sum to 1.
+            Whether to rescale the weights, so they sum up to 1.
         random_state : int
             The random state used for the generation and distributed assignment.
-        kwargs
-            Additional kwargs to sklearn.datasets.make_classification.
+        **kwargs : Any
+            Additional keyword arguments to ``sklearn.datasets.make_classification``.
 
         Returns
         -------
         SyntheticDataset
-            The generated dataset as new instance of SyntheticDataset.
+            The generated dataset as new instance of ``SyntheticDataset``.
         """
         class_weights = get_skellam_class_weights(
-            mu, num_classes, peak, rescale_to_sum_one
+            mu, n_classes, peak, rescale_to_sum_one
         )
         return cls.generate(
-            num_samples,
-            num_classes,
+            n_samples,
+            n_features,
+            n_classes,
             class_weights=class_weights,
             random_state=random_state,
             **kwargs,
@@ -581,11 +677,12 @@ class SyntheticDataset:
         test_size: float,
         stratify: bool = True,
         random_state: Optional[int] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple["SyntheticDataset", "SyntheticDataset"]:
         """
-        Split this dataset into a train and test set using sklearn.model_selection.train_test_split and return them as
-        new SyntheticDatasets
+        Split this dataset into a train and test set using ``sklearn.model_selection.train_test_split``.
+
+        The respective train and test sets are returned as new instances of ``SyntheticDataset``.
 
         Parameters
         ----------
@@ -594,9 +691,9 @@ class SyntheticDataset:
         stratify : bool
             Whether to stratify the split using the class labels.
         random_state : Optional[int]
-            Random seed for sklearn.model_selection.train_test_split.
-        kwargs
-            Additional arguments to sklearn.model_selection.train_test_split.
+            Random seed for ``sklearn.model_selection.train_test_split``.
+        **kwargs : Any
+            Additional keyword arguments to ``sklearn.model_selection.train_test_split``.
 
         Returns
         -------
@@ -611,34 +708,34 @@ class SyntheticDataset:
             random_state=random_state,
             **kwargs,
         )
-        train = SyntheticDataset(x_train, y_train, None, self.num_classes)
-        test = SyntheticDataset(x_test, y_test, None, self.num_classes)
+        train = SyntheticDataset(x_train, y_train, None, self.n_classes)
+        test = SyntheticDataset(x_test, y_test, None, self.n_classes)
         return train, test
 
     def get_local_subset(
         self,
         rank: int,
-        num_ranks: int,
+        n_ranks: int,
         seed: int,
         balanced: bool,
-        mu: Union[float, str] = None,
+        mu: Optional[Union[float, str]] = None,
         sampling: bool = False,
     ) -> "SyntheticDataset":
         """
-        Partition the dataset among num_ranks ranks and select the samples assigned to this rank.
+        Partition the dataset among ``n_ranks`` ranks and select the samples assigned to this rank.
 
         Parameters
         ----------
         rank : int
             The index of this rank.
-        num_ranks : int
+        n_ranks : int
             The total number of ranks.
         seed : int
             The random seed.
         balanced : bool
-            Whether to use a balanced partition, if False, mu must be specified.
+            Whether to use a balanced partition, if False, ``mu`` must be specified.
         mu : Union[float, str]
-            The μ = μ₁ = μ₂ parameter of the skellam distribution when using an imbalanced class distribution.
+            The μ = μ₁ = μ₂ parameter of the Skellam distribution when using an imbalanced class distribution.
         sampling : bool
             Whether to partition the dataset using deterministic element counts and shuffling (number of elements per
             rank and class independent of random seed, only which samples are assigned to which rank may change) or
@@ -648,85 +745,84 @@ class SyntheticDataset:
         Returns
         -------
         SyntheticDataset
-            A SyntheticDataset containing only the samples assigned to the specified rank.
+            A ``SyntheticDataset`` containing only the samples assigned to the specified rank.
         """
         partition = DatasetPartition(self.y)
         if balanced:
-            assigned_ranks = partition.balanced_partition(num_ranks, seed, sampling)
+            assigned_ranks = partition.balanced_partition(n_ranks, seed, sampling)
         else:
             assert mu is not None
             assigned_ranks = partition.shifted_skellam_imbalanced_partition(
-                num_ranks, mu, seed, sampling
+                n_ranks, mu, seed, sampling
             )
         assigned_indices = partition.assigned_indices_by_rank(assigned_ranks)[rank]
         return SyntheticDataset(
-            self.x[assigned_indices], self.y[assigned_indices], None, self.num_classes
+            self.x[assigned_indices], self.y[assigned_indices], None, self.n_classes
         )
 
-    def gather_class_frequencies(
-        self, comm: MPI.Comm, root: int = 0, relative: bool = False
-    ) -> Union[None, np.ndarray]:
+    def allgather_class_frequencies(
+        self, comm: MPI.Comm, relative: bool = False
+    ) -> np.ndarray:
         """
-        Compute class frequencies as array and gather them via the given communicator.
+        Compute class frequencies as array and all-gather them via the given communicator.
 
         Parameters
         ----------
         comm : MPI.Comm
-            The communicator to gather the results in.
-        root : int
-            The root rank to gather the results.
+            The communicator to all-gather the results in.
         relative : bool
-            Whether the absolute or relative class frequencies shall be gathered.
+            Whether the absolute or relative class frequencies shall be all-gathered.
 
         Returns
         -------
-        Union[None, np.ndarray]
-            The computed class frequencies on the root rank, None on all other ranks.
+        np.ndarray
+            The computed class frequencies.
         """
         local_class_frequencies = np.array(
             [
                 self.get_class_frequency(relative).get(class_id, 0)
-                for class_id in range(self.num_classes)
+                for class_id in range(self.n_classes)
             ]
         )
-        return np.array(comm.gather(local_class_frequencies, root=root))
+        return np.array(comm.allgather(local_class_frequencies))
 
     @staticmethod
     def plot_local_class_distributions(
-        local_class_frequencies: np.ndarray, **kwargs
+        local_class_frequencies: np.ndarray, **kwargs: Any
     ) -> Tuple:
         """
-        Plot the given local and global class distribution as ridgeplot.
+        Plot the given local and global class distribution as ridge plot.
 
         Parameters
         ----------
-        local_class_frequencies : numpy.array
+        local_class_frequencies : numpy.ndarray
             The local class frequencies (ranks on axis 0, classes on axis 1).
-        kwargs :
-            Optional additional parameters to utils.plot_local_class_distributions_as_ridgeplot
+        **kwargs : Any
+            Optional additional parameters to ``utils.plot_local_class_distributions_as_ridgeplot``.
 
         Returns
         -------
         Tuple[plt.Figure, Collection[plt.Axes]]
             The figure and axis.
         """
-        return utils.plot_local_class_distributions_as_ridgeplot(
+        return plot_local_class_distributions_as_ridgeplot(
             local_class_frequencies, **kwargs
         )
 
     @staticmethod
     def plot_skellam_distributions(
-        num_classes: int,
+        n_classes: int,
         mus: List[Union[float, str]],
         peaks: Optional[List[int]] = None,
     ) -> Tuple:
         """
-        Plot class frequencies for different skellam distributions as line plot. One line is plotted for each
-        combination of mu and peak values.
+        Plot class frequencies for different Skellam distributions as line plot.
+
+        One line is plotted for each combination of mu and peak values.
 
         Parameters
         ----------
-        num_classes : int
+        n_classes : int
             The number of classes in the generated distributions.
         mus : List[Union[float, str]]
             A list of mu values to plot the skellam distributions for.
@@ -739,9 +835,10 @@ class SyntheticDataset:
         Tuple[plt.Figure, Collection[plt.Axes]]
             The figure and axis.
         """
-        peaks = peaks or [num_classes // 2]
+        peaks = peaks or [n_classes // 2]
 
-        def label(mu, peak):
+        def label(mu: Union[float, str], peak: int) -> str:
+            """Get a label for the given mu and peak."""
             if len(mus) <= 1:
                 return f"peak={peak}"
             elif len(peaks) <= 1:
@@ -749,19 +846,20 @@ class SyntheticDataset:
             return f"μ={mu:g}, peak={peak}"
 
         class_frequencies_by_mu = {
-            label(mu, peak): get_skellam_class_weights(mu, num_classes, peak)
+            label(mu, peak): get_skellam_class_weights(mu, n_classes, peak)
             for mu, peak in itertools.product(mus, peaks)
         }
-        return utils.plot_class_distributions(class_frequencies_by_mu, title="")
+        return plot_class_distributions(class_frequencies_by_mu, title="")
 
 
 def generate_and_distribute_synthetic_dataset(
     globally_balanced: bool,
     locally_balanced: bool,
-    num_samples: int,
-    num_classes: int,
+    n_samples: int,
+    n_features: int,
+    n_classes: int,
     rank: int,
-    num_ranks: int,
+    n_ranks: int,
     seed: int,
     test_size: float,
     mu_partition: Optional[Union[float, str]] = None,
@@ -774,69 +872,76 @@ def generate_and_distribute_synthetic_dataset(
     stratified_train_test: bool = True,
 ) -> Tuple[SyntheticDataset, SyntheticDataset, SyntheticDataset]:
     """
-    Generate a synthetic dataset, partition it among all ranks and determine the subset assigned to this rank.
+    Generate a synthetic dataset, partition it among all ranks, and determine the subset assigned to this rank.
 
     Parameters
     ----------
     globally_balanced : bool
-            Whether the class distribution of the entire dataset is balanced. If False, `mu_data` must be
-                        specified.
+        Whether the class distribution of the entire dataset is balanced. If False, ``mu_data`` must be specified.
     locally_balanced : bool
-            Whether to use a balanced partition when assigning the dataset to ranks. If False, `mu_partition`
-                       must be specified.
-    num_samples : int
-            The number of samples in the dataset.
-    num_classes : int
-            The number classes in the dataset.
+        Whether to use a balanced partition when assigning the dataset to ranks. If False, ``mu_partition`` must be
+        specified.
+    n_samples : int
+        The number of samples in the dataset.
+    n_features : int
+        The number of features in the dataset.
+    n_classes : int
+        The number classes in the dataset.
     rank : int
-            The index of this rank.
-    num_ranks : int
-            The total number of ranks.
+        The index of this rank.
+    n_ranks : int
+        The total number of ranks.
     seed : int
-            The random seed, used for both the dataset generation and the partition and distribution.
+        The random seed, used for both the dataset generation and the partition and distribution.
     test_size : float
-            Relative size of the test set.
+        Relative size of the test set.
     mu_partition : Optional[Union[float, str]]
-            The μ parameter of the skellam distribution for imbalanced class distribution. Has no effect if
-            `locally_balanced` is True.
+        The μ parameter of the Skellam distribution for imbalanced class distribution. Has no effect if
+        ``locally_balanced`` is True.
     mu_data : Optional[Union[float, str]]
-            The μ parameter of the skellam distribution for imbalanced class distribution in the dataset. Has no
-            effect if `globally_balanced` is True.
+        The μ parameter of the Skellam distribution for imbalanced class distribution in the dataset. Has no effect if
+        ``globally_balanced`` is True.
     peak : Optional[int]
-            The position (class index) of the class distribution peak in the dataset. Has no effect if
-           `globally_balanced` is True.
+        The position (class index) of the class distribution peak in the dataset. Has no effect if ``globally_balanced``
+        is True.
     rescale_to_sum_one : bool
-            Whether to rescale the class weights, so they sum to 1. Default: True.
+        Whether to rescale the class weights, so they sum up to 1. Default is True.
     make_classification_kwargs : Optional[Dict]
-            Additional kwargs to sklearn.datasets.make_classification.
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
     sampling : bool
-            Whether to partition the dataset using deterministic element counts and shuffling or random sampling.
-            See `SyntheticDataset.get_local_subset` for more details.
+        Whether to partition the dataset using deterministic element counts and shuffling or random sampling.
+        See ``SyntheticDataset.get_local_subset`` for more details.
     shared_test_set : bool
-            Whether the test set is shared among all ranks or each rank has its own test set that is not shared with the
-            other ranks. In practice, this decides whether we first split the data into train-test and then distribute
-            the train set (shared test set) or first distribute the dataset and then split the local subsets into train
-            and test (private test sets).
+        Whether the test set is shared among all ranks or each rank has its own test set that is not shared with the
+        other ranks. In practice, this decides whether we first split the data into train-test and then distribute
+        the train set (shared test set) or first distribute the dataset and then split the local subsets into train
+        and test (private test sets).
     stratified_train_test : bool
-            Whether to stratify the train-test split with the class labels.
+        Whether to stratify the train-test split with the class labels.
 
     Returns
     -------
     Tuple[SyntheticDataset, SyntheticDataset, SyntheticDataset]
-            The global dataset and the local subset as X and y containing only the samples assigned to this rank.
+        The global dataset and the local subset as x and y containing only the samples assigned to this rank.
     """
-    # generate dataset
+    # Generate dataset.
     make_classification_kwargs = (
         {} if make_classification_kwargs is None else make_classification_kwargs
     )
     if globally_balanced:
         global_dataset = SyntheticDataset.generate(
-            num_samples, num_classes, None, seed, **make_classification_kwargs
+            n_samples,
+            n_features,
+            n_classes,
+            random_state=seed,
+            **make_classification_kwargs,
         )
     else:
+        assert mu_data is not None and peak is not None
         global_dataset = SyntheticDataset.generate_with_skellam_class_imbalance(
-            num_samples,
-            num_classes,
+            n_samples,
+            n_features,
+            n_classes,
             mu_data,
             peak,
             rescale_to_sum_one,
@@ -844,32 +949,32 @@ def generate_and_distribute_synthetic_dataset(
             **make_classification_kwargs,
         )
 
-    if shared_test_set:  # Case 1: shared test set, all ranks use the same test set
-        # first: train test split
+    if shared_test_set:  # Case 1: Shared test set, all ranks use the same test set.
+        # First: Train-test split
         global_train_set, global_test_set = global_dataset.train_test_split(
             test_size, stratified_train_test, seed
         )
         local_test = global_test_set  # in this case, the local test set is the same as the global test set
-        # then: partition only the training data and distribute them across ranks
+        # Then: Partition only the training data and distribute them across ranks.
         local_train = global_train_set.get_local_subset(
             rank,
-            num_ranks,
+            n_ranks,
             seed,
             balanced=locally_balanced,
             mu=mu_partition,
             sampling=sampling,
         )
-    else:  # Case 2: private test set, each rank has its  own test set that is not shared with the other ranks
-        # first: partition the entire dataset
+    else:  # Case 2: Private test set, each rank has its own test set that is not shared with the other ranks.
+        # First: Partition the entire dataset.
         local_subset = global_dataset.get_local_subset(
             rank,
-            num_ranks,
+            n_ranks,
             seed,
             balanced=locally_balanced,
             mu=mu_partition,
             sampling=sampling,
         )
-        # then: perform train test splits locally on each rank
+        # Then: Perform train-test splits locally on each rank.
         local_train, local_test = local_subset.train_test_split(
             test_size, stratified_train_test, seed
         )
@@ -881,9 +986,10 @@ def data_generation_demo(
     globally_balanced: bool,
     locally_balanced: bool,
     shared_test_set: bool,
-    num_samples: int = 100,
-    num_classes: int = 5,
-    num_ranks: int = 4,
+    n_samples: int = 100,
+    n_features: int = 10,
+    n_classes: int = 5,
+    n_ranks: int = 4,
     seed: int = 0,
     mu_partition: Union[float, str] = 2,
     mu_data: Union[float, str] = 2,
@@ -891,12 +997,48 @@ def data_generation_demo(
     test_size: float = 0.2,
     path: Optional[Union[pathlib.Path, str]] = None,
 ) -> None:
-    print(f"\n{globally_balanced=}, {locally_balanced=}, {shared_test_set=}")
-    label = f"{shared_test_set=}__{globally_balanced=}__{locally_balanced=}"
-    local_datasets = {"train": [], "test": []}
+    """
+    Demonstrate how to generate a synthetic dataset and partition it among all ranks.
 
-    for rank in range(num_ranks):
-        print(f"---- Rank {rank} ------------------------")
+    Parameters
+    ----------
+    globally_balanced : bool
+        Whether the generated dataset is globally balanced (True) or imbalanced (False).
+    locally_balanced : bool
+        Whether the generated dataset is locally balanced (True) or imbalanced (False).
+    shared_test_set : bool
+        Whether all ranks share the same test set (True) or each of them uses its own private test set (False).
+    n_samples : int
+        The number of samples in the dataset.
+    n_features : int
+        The number of features in the dataset.
+    n_classes : int
+        The number classes in the dataset.
+    n_ranks : int
+        The total number of ranks, i.e., processes, in the communicator.
+    seed : int
+        The random seed, used for both the dataset generation and the partition and distribution.
+    mu_partition : Optional[Union[float, str]]
+        The μ parameter of the Skellam distribution for imbalanced class distribution. Has no effect if
+        ``locally_balanced`` is True.
+    mu_data : Optional[Union[float, str]]
+        The μ parameter of the Skellam distribution for imbalanced class distribution in the dataset. Has no effect if
+        ``globally_balanced`` is True.
+    peak : Optional[int]
+        The position (class index) of the class distribution peak in the dataset. Has no effect if ``globally_balanced``
+        is True.
+    test_size : float
+        Relative size of the test set.
+    path : Optional[Union[pathlib.Path, str]]
+        Optional output path to store result figures to
+    """
+    path = pathlib.Path(path) if path is not None else None
+    log.info(f"\n{globally_balanced=}, {locally_balanced=}, {shared_test_set=}")
+    label = f"{shared_test_set=}__{globally_balanced=}__{locally_balanced=}"
+    local_datasets: Dict[str, List] = {"train": [], "test": []}
+
+    for rank in range(n_ranks):
+        log.info(f"---- Rank {rank} ------------------------")
         (
             global_dataset,
             local_train,
@@ -904,21 +1046,22 @@ def data_generation_demo(
         ) = generate_and_distribute_synthetic_dataset(
             globally_balanced=globally_balanced,
             locally_balanced=locally_balanced,
-            shared_test_set=shared_test_set,
-            num_samples=num_samples,
-            num_classes=num_classes,
+            n_samples=n_samples,
+            n_features=n_features,
+            n_classes=n_classes,
             rank=rank,
-            num_ranks=num_ranks,
+            n_ranks=n_ranks,
             seed=seed,
+            test_size=test_size,
             mu_partition=mu_partition,
             mu_data=mu_data,
             peak=peak,
-            test_size=test_size,
+            shared_test_set=shared_test_set,
         )
 
-        print(f"Global: {global_dataset}")
-        print(f" Train: {local_train}")
-        print(f"  Test: {local_test}\n")
+        log.info(
+            f"Global: {global_dataset}\n Train: {local_train}\n  Test: {local_test}\n"
+        )
 
         local_datasets["train"].append(local_train)
         local_datasets["test"].append(local_test)
@@ -929,7 +1072,7 @@ def data_generation_demo(
                 [
                     [
                         dataset.get_class_frequency(True).get(class_id, 0)
-                        for class_id in range(num_classes)
+                        for class_id in range(n_classes)
                     ]
                     for dataset in datasets
                 ]
@@ -963,34 +1106,34 @@ def make_classification_dataset(
     Parameters
     ----------
     n_samples : int
-        number of samples
+        The number of samples.
     n_features : int
-        number of features
+        The number of features.
     frac_informative : float
-        fraction of informative features
+        The fraction of informative features.
     frac_redundant : float
-        fraction of redundant features
+        The fraction of redundant features.
     n_classes : int
-        number of classes
+        The number of classes
     n_clusters_per_class : int | list[int]
-        number of clusters per class
+        The number of clusters per class.
     random_state_generation : int
-        seed for sklearn's `make_classification`
+        The seed for ``sklearn``'s ``make_classification``.
     train_split : float
-        train-test split fraction
+        The train-test split fraction.
     random_state_split : int
-        seed for sklearn's train-test split
+        The seed for ``sklearn``'s train-test split.
 
     Returns
     -------
     numpy.ndarray
-        train samples
+        The train samples.
     numpy.ndarray
-        train targets
+        The train targets.
     numpy.ndarray
-        test samples
+        The test samples.
     numpy.ndarray
-        test targets
+        The test targets.
     """
     # Generate data as numpy arrays.
     samples, targets = make_classification(
@@ -1016,15 +1159,15 @@ if __name__ == "__main__":
         *[[True, False]] * 3
     ):
         data_generation_demo(
-            num_classes=11,
-            num_samples=10000,
-            path=output_path,
-            mu_partition=5,
-            mu_data=5,
-            peak=5,
             globally_balanced=globally_balanced,
             locally_balanced=locally_balanced,
             shared_test_set=shared_test_set,
+            n_samples=10000,
+            n_classes=11,
+            mu_partition=5,
+            mu_data=5,
+            peak=5,
+            path=output_path,
         )
 
     # impact of mu
