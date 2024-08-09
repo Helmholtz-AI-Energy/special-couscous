@@ -15,7 +15,7 @@ def generate_scaling_job_scripts(
     submit: bool = False,
 ) -> None:
     """
-    Generate the job scripts for the weak scaling experiments.
+    Generate the job scripts for the scaling experiments.
 
     NOTE: We estimated 1500 and 450 trees to be trainable in serial in 3 days for 1M samples with 10k features and 10M
     samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline.
