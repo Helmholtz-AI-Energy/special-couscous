@@ -35,7 +35,7 @@ def generate_weak_scaling_job_scripts(
 #SBATCH --mem=243200mb                # Main memory (use standard nodes)
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
-#SBATCH --nodes={n_nodes}           # Number of nodes
+#SBATCH --nodes={n_nodes}             # Number of nodes
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
