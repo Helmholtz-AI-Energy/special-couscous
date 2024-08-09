@@ -32,7 +32,7 @@ def generate_weak_scaling_job_scripts(
 #SBATCH --job-name={job_name}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
 #SBATCH --time=2-12:00:00             # Wall-clock time limit
-#SBATCH --mem=243200mb		          # Main memory (use standard nodes)
+#SBATCH --mem=243200mb                # Main memory (use standard nodes)
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}           # Number of nodes
