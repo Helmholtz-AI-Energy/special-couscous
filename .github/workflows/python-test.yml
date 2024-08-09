@@ -28,10 +28,10 @@ jobs:
                   ruff check --output-format=github --target-version=py39 .
             - name: Test with pytest and measure coverage
               run: |
-                coverage run --rcfile=./pyproject.toml -m pytest
+                coverage run --omit "*/tests/*" --rcfile=./pyproject.toml -m pytest
                 mpirun -n 2 coverage run --rcfile=./pyproject.toml -m mpi4py -m pytest --with-mpi
                 coverage combine
-                coverage report -m
+                coverage report  --omit "*/tests/*" -m
                 coverage xml
                 genbadge coverage -i coverage.xml -o coverage.svg
             - name: Verify Changed files
