@@ -10,6 +10,7 @@ import scipy
 from mpi4py import MPI
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
+from sklearn.utils.validation import check_random_state
 
 from specialcouscous.utils.plot import (
     plot_class_distributions,
@@ -1096,9 +1097,8 @@ def make_classification_dataset(
     frac_redundant: float = 0.1,
     n_classes: int = 10,
     n_clusters_per_class: int = 1,
-    random_state_generation: int = 9,
+    random_state: int | np.random.RandomState | None = 9,
     train_split: float = 0.75,
-    random_state_split: int = 42,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate globally balanced synthetic classification dataset for non-distributed case.
@@ -1110,19 +1110,17 @@ def make_classification_dataset(
     n_features : int
         The number of features.
     frac_informative : float
-        The fraction of informative features.
+        The fraction of informative features. Default is 0.1
     frac_redundant : float
-        The fraction of redundant features.
+        The fraction of redundant features. Default is 0.1.
     n_classes : int
-        The number of classes
+        The number of classes. Default is 10.
     n_clusters_per_class : int | list[int]
-        The number of clusters per class.
-    random_state_generation : int
-        The seed for ``sklearn``'s ``make_classification``.
+        The number of clusters per class. Default is 1.
+    random_state : int | np.random.RandomState | None, optional
+        The random state for dataset generation and splitting. Default is 9.
     train_split : float
-        The train-test split fraction.
-    random_state_split : int
-        The seed for ``sklearn``'s train-test split.
+        The train-test split fraction. Default is 0.75.
 
     Returns
     -------
@@ -1135,6 +1133,8 @@ def make_classification_dataset(
     numpy.ndarray
         The test targets.
     """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
     # Generate data as numpy arrays.
     samples, targets = make_classification(
         n_samples=n_samples,
@@ -1143,12 +1143,12 @@ def make_classification_dataset(
         n_redundant=int(frac_redundant * n_features),
         n_classes=n_classes,
         n_clusters_per_class=n_clusters_per_class,
-        random_state=random_state_generation,
+        random_state=random_state,
     )
-    samples_train, samples_test, targets_train, targets_test = train_test_split(
-        samples, targets, test_size=1 - train_split, random_state=random_state_split
+    # Split into train and test set.
+    return train_test_split(
+        samples, targets, test_size=1 - train_split, random_state=random_state
     )
-    return samples_train, samples_test, targets_train, targets_test
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import numpy as np
 import pandas
 from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.utils.validation import check_random_state
 
 from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.synthetic_classification_data import (
@@ -228,9 +229,7 @@ def train_serial_on_synthetic_data(
     n_clusters_per_class: int,
     frac_informative: float,
     frac_redundant: float,
-    seed_data: int = 0,
-    seed_split: int = 0,
-    seed_model: int = 0,
+    random_state: int | np.random.RandomState = 0,
     train_split: float = 0.75,
     n_trees: int = 100,
     detailed_evaluation: bool = False,
@@ -256,12 +255,8 @@ def train_serial_on_synthetic_data(
         The fraction of informative features in the dataset.
     frac_redundant : float
         The fraction of redundant features in the dataset.
-    seed_data : int
-        The random seed used for the dataset generation.
-    seed_split : int
-        The random seed used to train-test split the data.
-    seed_model : int
-        The random seed used for the model.
+    random_state : int | np.random.RandomState
+        The random state used for dataset generation, splitting, and setting up the model.
     train_split : float
         Relative size of the train set.
     n_trees : int
@@ -279,6 +274,8 @@ def train_serial_on_synthetic_data(
     save_model : bool
         Whether the trained classifier is saved to disk (True) or not (False). Default is True.
     """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
     configuration = locals()
     del configuration["output_dir"]
     configuration["comm_size"] = 1
@@ -303,9 +300,8 @@ def train_serial_on_synthetic_data(
         frac_redundant=frac_redundant,
         n_classes=n_classes,
         n_clusters_per_class=n_clusters_per_class,
-        random_state_generation=seed_data,
+        random_state=random_state,
         train_split=train_split,
-        random_state_split=seed_split,
     )
     train_data = SyntheticDataset(x=train_samples, y=train_targets)
     test_data = SyntheticDataset(x=test_samples, y=test_targets)
@@ -323,7 +319,7 @@ def train_serial_on_synthetic_data(
 
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
-    clf = RandomForestClassifier(n_estimators=n_trees, random_state=seed_model)
+    clf = RandomForestClassifier(n_estimators=n_trees, random_state=random_state)
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
     )
@@ -628,9 +624,8 @@ def train_parallel_on_balanced_synthetic_data(
             frac_redundant=frac_redundant,
             n_classes=n_classes,
             n_clusters_per_class=n_clusters_per_class,
-            random_state_generation=seed_data,
+            random_state=seed_data,
             train_split=train_split,
-            random_state_split=seed_split,
         )
 
         train_data = SyntheticDataset(x=train_samples, y=train_targets)

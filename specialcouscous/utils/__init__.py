@@ -135,7 +135,7 @@ def parse_arguments() -> argparse.Namespace:
         "--random_state_data",
         type=int,
         default=0,
-        help="Random seed used in synthetic dataset generation",
+        help="Random seed used in synthetic dataset generation. Used a the general seed in the serial case.",
     )
     parser.add_argument(
         "--frac_informative",

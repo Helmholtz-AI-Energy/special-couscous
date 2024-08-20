@@ -62,6 +62,7 @@ def test_serial_synthetic() -> None:
         n_clusters_per_class=n_clusters_per_class,
         frac_informative=frac_informative,
         frac_redundant=frac_redundant,
+        random_state=9,
         n_trees=n_trees,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
