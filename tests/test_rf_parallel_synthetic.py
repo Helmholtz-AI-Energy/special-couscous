@@ -66,6 +66,8 @@ def test_parallel_synthetic() -> None:
         n_clusters_per_class=n_clusters_per_class,
         frac_informative=frac_informative,
         frac_redundant=frac_redundant,
+        random_state_data=9,
+        random_state_model=17,
         mpi_comm=comm,
         n_trees=n_trees,
         global_model=global_model,

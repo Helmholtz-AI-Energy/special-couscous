@@ -15,9 +15,18 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 @pytest.mark.parametrize(
     "global_model, private_test_set, globally_imbalanced, locally_imbalanced",
     [
-        (True, False, True, False),
-        (False, False, True, True),
+        (True, True, True, True),
+        (True, True, True, False),
         (True, True, False, True),
+        (True, True, False, False),
+        (True, False, True, True),
+        (True, False, True, False),
+        (True, False, False, True),
+        (True, False, False, False),
+        (False, False, True, True),
+        (False, False, True, False),
+        (False, False, False, True),
+        (False, False, False, False),
     ],
 )
 def test_breaking_iid(
@@ -48,7 +57,7 @@ def test_breaking_iid(
 
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    random_state_forest: int = (
+    random_state_model: int = (
         0  # Random seed used to initialize random forest classifier
     )
     train_split: float = 0.75  # Fraction of data in the train set
@@ -89,9 +98,9 @@ def test_breaking_iid(
 
     if comm.rank == 0:
         log.info(
-            "*************************************************************\n"
+            "*********************************************************************\n"
             "* Multi-Node Random Forest Classification of Non-IID Synthetic Data *\n"
-            "*************************************************************"
+            "*********************************************************************"
         )
     train_parallel_on_synthetic_data(
         n_samples=n_samples,
@@ -100,8 +109,8 @@ def test_breaking_iid(
         globally_balanced=not globally_imbalanced,
         locally_balanced=not locally_imbalanced,
         shared_test_set=not private_test_set,
-        seed_data=random_state_data,
-        seed_model=random_state_forest,
+        random_state_data=random_state_data,
+        random_state_model=random_state_model,
         mu_partition=mu_partition,
         mu_data=mu_data,
         peak=peak,

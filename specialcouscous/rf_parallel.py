@@ -5,6 +5,7 @@ import numpy as np
 import sklearn.tree
 from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.utils.validation import check_random_state
 
 from specialcouscous.utils.timing import MPITimer
 
@@ -76,7 +77,10 @@ class DistributedRandomForest:
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
-        self.random_state = random_state + self.comm.rank
+        self.random_state = check_random_state(random_state + self.comm.rank)
+        log.debug(
+            f"Random state of model is: {self.random_state.get_state(legacy=True)}"
+        )
         self.global_model = global_model
         self.clf: RandomForestClassifier  # Local random forest classifier
         self.trees: List[
@@ -232,6 +236,9 @@ class DistributedRandomForest:
         numpy.ndarray
             The sample-wise distributions of the predicted classes.
         """
+        log.debug(
+            f"[{self.comm.rank}/{self.comm.size}] tree-wise predictions shape: {tree_wise_predictions.shape}"
+        )
         sample_wise_predictions = tree_wise_predictions.transpose()
         predicted_class_hists_local = np.array(
             [
@@ -244,6 +251,10 @@ class DistributedRandomForest:
         # Now we want to sum up those sample-wise distributions to obtain the global hist over the global forest.
         # From this global hist, we can determine the global majority vote for each test sample.
         predicted_class_hists_global = np.zeros_like(predicted_class_hists_local)
+        log.debug(
+            f"[{self.comm.rank}/{self.comm.size}]: predicted_class_hists_local: {predicted_class_hists_local.shape}, {type(predicted_class_hists_local)}, {predicted_class_hists_local.dtype}\n"
+            f"predicted_class_hists_global: {predicted_class_hists_global.shape}, {type(predicted_class_hists_global)}, {predicted_class_hists_global.dtype}"
+        )
         self.comm.Allreduce(predicted_class_hists_local, predicted_class_hists_global)
         return predicted_class_hists_global
 

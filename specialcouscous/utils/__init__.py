@@ -149,12 +149,6 @@ def parse_arguments() -> argparse.Namespace:
         default=0.1,
         help="Fraction of redundant features in synthetic classification dataset",
     )
-    parser.add_argument(
-        "--random_state_split",
-        type=int,
-        default=9,
-        help="Random seed used in train-test split",
-    )
     # Model-related arguments
     parser.add_argument(
         "--n_trees",
@@ -163,7 +157,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Number of trees in global random forest classifier",
     )
     parser.add_argument(
-        "--random_state_forest",
+        "--random_state_model",
         type=int,
         default=0,
         help="Random seed used to initialize random forest classifier",
