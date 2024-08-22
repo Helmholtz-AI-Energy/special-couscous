@@ -65,8 +65,9 @@ def store_accuracy(
     local_results : dict[str, Any]
         The local results dictionary.
     """
-    global_results[f"accuracy_{label}"] = model.acc_global
-    local_results[f"accuracy_{label}"] = model.acc_local
+    global_results[f"accuracy_global_global_{label}"] = model.acc_global
+    local_results[f"accuracy_global_local_{label}"] = model.acc_global_local
+    local_results[f"accuracy_local_local_{label}"] = model.acc_local
 
 
 def save_results_serial(
@@ -485,8 +486,9 @@ def train_parallel_on_synthetic_data(
     log.info(
         f"[{comm.rank}/{comm.size}]: Done...\n"
         f"Local train samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
-        f"Global test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}.\n"
-        f"[{comm.rank}/{comm.size}]: Labels are {local_train.y}"
+        f"Local test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}.\n"
+        f"[{comm.rank}/{comm.size}]: Labels are {local_train.y}\n"
+        f"Local test samples are {local_test.x}"
     )
 
     # -------------- Setup and train random forest --------------
@@ -509,7 +511,7 @@ def train_parallel_on_synthetic_data(
         f"[{comm.rank}/{comm.size}]: Evaluate random forest on test dataset with {len(local_test.x)} samples."
     )
     with MPITimer(comm, name="test") as timer:
-        distributed_random_forest.test(
+        distributed_random_forest.evaluate(
             local_test.x, local_test.y, n_classes, global_model
         )
     store_timing(timer, global_results, local_results)
@@ -520,7 +522,7 @@ def train_parallel_on_synthetic_data(
             f"[{comm.rank}/{comm.size}]: Additionally evaluate on train dataset with {len(local_train.x)} samples."
         )
         if global_model:
-            distributed_random_forest.test(
+            distributed_random_forest.evaluate(
                 local_train.x, local_train.y, n_classes, global_model
             )
         else:
@@ -570,6 +572,8 @@ def train_parallel_on_balanced_synthetic_data(
 ) -> None:
     """
     Train and evaluate a distributed random forest on globally balanced synthetic data.
+
+    Note that training and test data are not distributed over the ranks but each rank sees the full dataset.
 
     Parameters
     ----------
@@ -684,7 +688,7 @@ def train_parallel_on_balanced_synthetic_data(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest on test dataset."
     )
     with MPITimer(mpi_comm, name="test") as timer:  # Test trained model on test data.
-        distributed_random_forest.test(
+        distributed_random_forest.evaluate(
             test_data.x, test_data.y, n_classes, global_model
         )
     store_timing(timer, global_results, local_results)
@@ -694,7 +698,7 @@ def train_parallel_on_balanced_synthetic_data(
         log.info(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
-        distributed_random_forest.test(
+        distributed_random_forest.evaluate(
             train_samples, train_targets, n_classes, global_model
         )
         store_accuracy(
