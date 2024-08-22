@@ -86,8 +86,11 @@ class DistributedRandomForest:
         self.trees: List[
             sklearn.tree.DecisionTreeClassifier
         ]  # Global classifier as a list of all local trees
-        self.acc_global: float  # Accuracy of global classifier
-        self.acc_local: float  # Accuracy of each rank-local classifier
+        self.acc_global: float  # Accuracy of global classifier over global test set
+        self.acc_local: (
+            float  # Accuracy of each rank-local classifier on local test set
+        )
+        self.acc_global_local: float  # Accuracy of global classifier on local test set (only relevant for private test set and global model
 
     def _distribute_trees(self) -> Tuple[int, int, int]:
         """
@@ -322,47 +325,70 @@ class DistributedRandomForest:
             self.trees = trees
             return timer
 
-    def test(
+    def evaluate(
         self,
-        test_samples: np.ndarray,
-        test_targets: np.ndarray,
+        samples: np.ndarray,
+        targets: np.ndarray,
         n_classes: int,
         global_model: bool = True,
     ) -> None:
         """
-        Test the trained global random forest.
+        Evaluate the trained global random forest.
 
         Parameters
         ----------
-        test_samples : numpy.ndarray
-            The rank-local test samples.
-        test_targets : numpy.ndarray
-            The corresponding test targets.
+        samples : numpy.ndarray
+            The rank-local samples to evaluate on.
+        targets : numpy.ndarray
+            The corresponding targets.
         n_classes : int
             The number of classes in the dataset.
         global_model : bool
-            Whether the global model shall be shared among all ranks (True) or not (False).
+            Whether the global model is shared among all ranks (True) or not (False). Default is True.
         """
         rank, size = self.comm.rank, self.comm.size
         if global_model:
-            tree_predictions = self._predict_tree_by_tree(test_samples)
+            tree_predictions = self._predict_tree_by_tree(samples)
             # Array with one vector for each tree in global RF with predictions for all test samples.
             # Final prediction of parallel RF is majority vote over all sub estimators.
             # Calculate majority vote.
             log.info(f"[{rank}/{size}]: Calculate majority vote.")
             majority_vote = self._calc_majority_vote(tree_predictions)
+            # Calculate accuracy of global model over all local datasets.
+            n_correct_local = (targets == majority_vote).sum()
+            n_samples_local = targets.shape[0]
+            log.info(
+                f"[{rank}/{size}]: Number of correctly predicted samples on this rank is {n_correct_local}.\n"
+                f"Number of overall samples on this rank is {n_samples_local}."
+            )
+            n_correct = self.comm.allreduce(n_correct_local)
+            n_samples = self.comm.allreduce(targets.shape[0])
+            log.info(
+                f"[{rank}/{size}]: Number of correctly predicted samples overall is {n_correct}.\n"
+                f"Number of overall samples is {n_samples}."
+            )
+            # Calculate accuracy of global model on global test set.
+            self.acc_global = n_correct / n_samples
+            # Calculate accuracy of global model on local private test set.
+            self.acc_global_local = (targets == majority_vote).mean()
+
         else:
             # Get class predictions of sub estimators in each forest.
             log.info(f"[{rank}/{size}]: Get predictions of individual sub estimators.")
-            tree_predictions_local = self._predict_locally(test_samples)
+            tree_predictions_local = self._predict_locally(samples)
             log.info(f"[{rank}/{size}]: Calculate majority vote via histograms.")
             predicted_class_hists = self._predicted_class_hist(
                 tree_predictions_local, n_classes
             )
             majority_vote = self._calc_majority_vote_hist(predicted_class_hists)
-        # Calculate accuracies.
-        self.acc_global = (test_targets == majority_vote).mean()
-        self.acc_local = self.clf.score(test_samples, test_targets)
+            # Calculate accuracy of global model on local dataset which must be the same on each rank if the model is
+            # not shared globally. Thus, the accuracy of the global model on the global dataset equals the accuracy of
+            # the global model on the local dataset.
+            self.acc_global = (targets == majority_vote).mean()
+            self.acc_global_local = self.acc_global
+        self.acc_local = self.clf.score(samples, targets)
         log.info(
-            f"[{rank}/{size}]: Local accuracy is {self.acc_local}, global accuracy is {self.acc_global}."
+            f"[{rank}/{size}]: Accuracy of local model on local data is {self.acc_local}.\n"
+            f"Accuracy of global model on local data is {self.acc_global_local}.\n"
+            f"Accuracy of global model on global data is {self.acc_global}."
         )
