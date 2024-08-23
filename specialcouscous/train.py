@@ -370,7 +370,7 @@ def train_parallel_on_synthetic_data(
     globally_balanced: bool,
     locally_balanced: bool,
     shared_test_set: bool,
-    random_state_data: int = 0,
+    random_state_data: int | np.random.RandomState = 0,
     random_state_model: int = 0,
     mu_partition: float | str | None = None,
     mu_data: float | str | None = None,
@@ -406,9 +406,12 @@ def train_parallel_on_synthetic_data(
         Whether the test set is private (not shared across subforests). If global_model == False, the test set needs to
         be shared.
     random_state_data : int | np.random.RandomState
-        The random seed, used for both the dataset generation and the partition and distribution.
+        The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
+        state as it must be the same on all ranks to ensure that each rank generates the very same global dataset.
     random_state_model : int
-        The random seed used for the model.
+        The random seed used for the model. Can only be an integer as it must be different on each rank to ensure that
+        each local model is different. In the ``DistributedRandomForest`` constructor, the rank will be added to the
+        passed integer random seed before converting it into a rank-specific numpy random state.
     mu_partition : float | str, optional
         The μ parameter of the Skellam distribution for imbalanced class distribution. Has no effect if
         ``locally_balanced`` is True.
@@ -441,7 +444,11 @@ def train_parallel_on_synthetic_data(
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state_data = check_random_state(random_state_data)
+    # Note that to evaluate the global model in a meaningful way, either the model itself of the test data must be
+    # shared among all ranks. Otherwise, each rank can only test its local subforest on its private test set, making
+    # any evaluation of the global model impossible.
     if not (global_model or shared_test_set):
         raise ValueError("Either `global_model` or `shared_test_set` must be True.")
 
@@ -488,8 +495,8 @@ def train_parallel_on_synthetic_data(
         f"Local train samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
         f"Local test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}.\n"
         f"[{comm.rank}/{comm.size}]: Labels are {local_train.y}\n"
-        f"Local test samples are {local_test.x}"
     )
+    log.debug(f"[{comm.rank}/{comm.size}]: Local test samples are {local_test.x}.")
 
     # -------------- Setup and train random forest --------------
     log.info(f"[{comm.rank}/{comm.size}]: Set up and train local random forest.")
@@ -558,7 +565,7 @@ def train_parallel_on_balanced_synthetic_data(
     n_clusters_per_class: int,
     frac_informative: float,
     frac_redundant: float,
-    random_state_data: int = 0,
+    random_state_data: int | np.random.RandomState = 0,
     random_state_model: int = 0,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
@@ -590,9 +597,12 @@ def train_parallel_on_balanced_synthetic_data(
     frac_redundant : float
         The fraction of redundant features in the dataset.
     random_state_data : int | np.random.RandomState
-        The random seed used for the dataset generation.
+        The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
+        state as it must be the same on all ranks to ensure that each rank generates the very same global dataset.
     random_state_model : int
-        The random seed used for the model.
+        The random seed used for the model. Can only be an integer as it must be different on each rank to ensure that
+        each local model is different. In the ``DistributedRandomForest`` constructor, the rank will be added to the
+        passed integer random seed before converting it into a rank-specific numpy random state.
     mpi_comm : MPI.Comm
         The MPI communicator to distribute over.
     train_split : float
@@ -614,6 +624,7 @@ def train_parallel_on_balanced_synthetic_data(
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state_data = check_random_state(random_state_data)
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
