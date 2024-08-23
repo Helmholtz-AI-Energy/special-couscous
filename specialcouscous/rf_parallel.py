@@ -372,14 +372,14 @@ class DistributedRandomForest:
             n_correct_local = (targets == majority_vote).sum()
             n_samples_local = targets.shape[0]
             log.info(
-                f"[{rank}/{size}]: Number of correctly predicted samples on this rank is {n_correct_local}.\n"
-                f"Number of overall samples on this rank is {n_samples_local}."
+                f"[{rank}/{size}]: Fraction of correctly predicted samples on this rank: "
+                f"{n_correct_local} / {n_samples_local}."
             )
             n_correct = self.comm.allreduce(n_correct_local)
             n_samples = self.comm.allreduce(targets.shape[0])
             log.info(
-                f"[{rank}/{size}]: Number of correctly predicted samples overall is {n_correct}.\n"
-                f"Number of overall samples is {n_samples}."
+                f"[{rank}/{size}]: Fraction of correctly predicted samples overall:"
+                f" {n_correct}/ {n_samples}"
             )
             # Calculate accuracy of global model on global test set.
             self.acc_global = n_correct / n_samples
