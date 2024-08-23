@@ -493,8 +493,7 @@ def train_parallel_on_synthetic_data(
     log.info(
         f"[{comm.rank}/{comm.size}]: Done...\n"
         f"Local train samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
-        f"Local test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}.\n"
-        f"[{comm.rank}/{comm.size}]: Labels are {local_train.y}\n"
+        f"Local test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}."
     )
     log.debug(f"[{comm.rank}/{comm.size}]: Local test samples are {local_test.x}.")
 
@@ -580,7 +579,9 @@ def train_parallel_on_balanced_synthetic_data(
     """
     Train and evaluate a distributed random forest on globally balanced synthetic data.
 
-    Note that training and test data are not distributed over the ranks but each rank sees the full dataset.
+    Note that training and test data are not distributed over the ranks but each rank sees the full dataset. Thus, the
+    test set on each rank is the same even if ``private_test_set`` is set to True as a ``RandomState`` object with the
+    same seed is used for data generation and splitting on each rank.
 
     Parameters
     ----------
@@ -666,9 +667,12 @@ def train_parallel_on_balanced_synthetic_data(
 
     log.info(
         f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
-        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}.\n"
-        f"Set up classifier."
+        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}."
     )
+    log.debug(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
+    )
+    log.info("Set up classifier.")
 
     # -------------- Setup and train random forest --------------
     log.info(
