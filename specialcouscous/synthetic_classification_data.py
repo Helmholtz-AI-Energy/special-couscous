@@ -921,7 +921,7 @@ def generate_and_distribute_synthetic_dataset(
     n_ranks : int
         The total number of ranks.
     random_state : int | np.random.RandomState
-        The random state, used for both the dataset generation and the partition and distribution.
+        The random state, used for dataset generation, partition, and distribution.
     test_size : float
         Relative size of the test set.
     mu_partition : float | str, optional
@@ -1140,7 +1140,7 @@ def make_classification_dataset(
     frac_redundant: float = 0.1,
     n_classes: int = 10,
     n_clusters_per_class: int = 1,
-    random_state: int | np.random.RandomState | None = 9,
+    random_state: int | np.random.RandomState | None = 0,
     train_split: float = 0.75,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -1160,8 +1160,8 @@ def make_classification_dataset(
         The number of classes. Default is 10.
     n_clusters_per_class : int | list[int]
         The number of clusters per class. Default is 1.
-    random_state : int | np.random.RandomState | None, optional
-        The random state for dataset generation and splitting. Default is 9.
+    random_state : int | np.random.RandomState, optional
+        The random state for dataset generation and splitting. Default is 0.
     train_split : float
         The train-test split fraction. Default is 0.75.
 
