@@ -77,6 +77,8 @@ class DistributedRandomForest:
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
+        # Convert the rank-specific integer seed to rank-specific ``np.random.RandomState`` instance.
+        # This ensures that each rank-local subforest is different.
         self.random_state = check_random_state(random_state + self.comm.rank)
         log.debug(
             f"Random state of model is: {self.random_state.get_state(legacy=True)}"
@@ -86,11 +88,14 @@ class DistributedRandomForest:
         self.trees: List[
             sklearn.tree.DecisionTreeClassifier
         ]  # Global classifier as a list of all local trees
-        self.acc_global: float  # Accuracy of global classifier over global test set
-        self.acc_local: (
-            float  # Accuracy of each rank-local classifier on local test set
+        self.acc_global: (
+            float  # Accuracy of global classifier on global evaluation dataset
         )
-        self.acc_global_local: float  # Accuracy of global classifier on local test set (only relevant for private test set and global model
+        self.acc_local: (
+            float  # Accuracy of rank-local classifier on local evaluation dataset
+        )
+        # Only relevant for private test set and global model: Accuracy of global classifier on local evaluation dataset
+        self.acc_global_local: float
 
     def _distribute_trees(self) -> Tuple[int, int, int]:
         """
@@ -133,10 +138,11 @@ class DistributedRandomForest:
         sklearn.ensemble.RandomForestClassifier
             The trained model.
         """
+        # Set up and train local subforest using rank-specific random state.
         clf = RandomForestClassifier(
             n_estimators=self.n_trees_local, random_state=self.random_state
         )
-        _ = clf.fit(train_samples, train_targets)
+        clf.fit(train_samples, train_targets)
         return clf
 
     def _predict_tree_by_tree(self, samples: np.ndarray) -> np.ndarray:
@@ -163,17 +169,25 @@ class DistributedRandomForest:
         Params
         ------
         numpy.ndarray
-            The array with tree-wise predictions.
+            The array with tree-wise predictions. Contains a vector for each tree in the forest with the classes it
+            predicted for all samples.
 
         Returns
         -------
         numpy.ndarray
             The majority vote.
         """
+        # Determine sample-wise predictions by transposing tree-wise predictions.
+        # This array contains one vector for each sample with the predicted classes from all trees in the subforest.
         sample_wise_predictions = tree_wise_predictions.transpose()
-        majority_vote = []
-        for sample_preds in sample_wise_predictions:
-            class_values, class_counts = np.unique(sample_preds, return_counts=True)
+        majority_vote: list = []
+        # Loop over predictions of all trees for each sample.
+        for sample_predictions in sample_wise_predictions:
+            # Determine predicted classes and how often each class was predicted for the considered sample.
+            class_values, class_counts = np.unique(
+                sample_predictions, return_counts=True
+            )
+            # Take the majority vote for that sample, i.e., choose the class that was predicted most often.
             majority_vote.append(class_values[np.argmax(class_counts)])
         return np.array(majority_vote)
 
