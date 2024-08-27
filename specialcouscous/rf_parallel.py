@@ -54,6 +54,7 @@ class DistributedRandomForest:
         comm: MPI.Comm,
         random_state: int,
         global_model: bool = True,
+        add_rank: bool = False,
     ) -> None:
         """
         Initialize a distributed random forest object.
@@ -68,6 +69,9 @@ class DistributedRandomForest:
             The base random state for the ``sklearn.ensemble.RandomForestClassifier`` objects.``
         global_model : bool
             Whether the local models are all-gathered to one global model shared by all ranks after training.
+        add_rank : bool
+            Whether to use random integers generated from the model base seed (False) or the sum of the base seed and
+            the local rank to initialize the local random forest model (True). Default is False.
         """
         self.n_trees_global = n_trees_global
         self.comm = comm
@@ -77,19 +81,28 @@ class DistributedRandomForest:
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
-        # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
-        # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
-        # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring that
-        # each rank-local subforest is different.
-        base_random_state = check_random_state(random_state)
-        local_seeds = base_random_state.randint(
-            low=0, high=2**32 - 1, size=self.comm.size
-        )
-        local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
-        log.info(
-            f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
-        )
-        self.random_state = check_random_state(local_seed)
+        if add_rank:
+            # Add the local rank to the provided base seed to obtain a rank-specific integer seed. Convert this seed to
+            # a rank-specific ``np.random.RandomState`` instance. This ensures that each local subforest is different.
+            local_seed = random_state + self.comm.rank
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+            )
+            self.random_state = check_random_state(local_seed)
+        else:
+            # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
+            # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
+            # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring
+            # that each rank-local subforest is different.
+            base_random_state = check_random_state(random_state)
+            local_seeds = base_random_state.randint(
+                low=0, high=2**32 - 1, size=self.comm.size
+            )  # NOTE: The seed range here is the maximum range possible.
+            local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+            )
+            self.random_state = check_random_state(local_seed)
         log.debug(
             f"Random state of model is: {self.random_state.get_state(legacy=True)}"
         )
