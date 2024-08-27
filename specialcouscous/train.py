@@ -531,19 +531,26 @@ def train_parallel_on_synthetic_data(
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
 
+    # if detailed_evaluation:
+    #     log.info(
+    #         f"[{comm.rank}/{comm.size}]: Additionally evaluate on train dataset with {len(local_train.x)} samples."
+    #     )
+    #     if global_model:
+    #         distributed_random_forest.evaluate(
+    #             local_train.x, local_train.y, n_classes, global_model
+    #         )
+    #     else:
+    #         distributed_random_forest.acc_global = np.nan
+    #         distributed_random_forest.acc_local = distributed_random_forest.clf.score(
+    #             local_train.x, local_train.y
+    #         )
+    #     store_accuracy(
+    #         distributed_random_forest, "train", global_results, local_results
+    #     )
     if detailed_evaluation:
-        log.info(
-            f"[{comm.rank}/{comm.size}]: Additionally evaluate on train dataset with {len(local_train.x)} samples."
+        distributed_random_forest.test(
+            local_train.x, local_train.y, n_classes, global_model
         )
-        if global_model:
-            distributed_random_forest.evaluate(
-                local_train.x, local_train.y, n_classes, global_model
-            )
-        else:
-            distributed_random_forest.acc_global = np.nan
-            distributed_random_forest.acc_local = distributed_random_forest.clf.score(
-                local_train.x, local_train.y
-            )
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results
         )
