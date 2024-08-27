@@ -361,7 +361,7 @@ class DistributedRandomForest:
             Whether the global model is shared among all ranks (True) or not (False). Default is True.
         """
         rank, size = self.comm.rank, self.comm.size
-        if global_model:
+        if global_model:  # Global model is shared.
             tree_predictions = self._predict_tree_by_tree(samples)
             # Array with one vector for each tree in global RF with predictions for all test samples.
             # Final prediction of parallel RF is majority vote over all sub estimators.
@@ -381,12 +381,13 @@ class DistributedRandomForest:
                 f"[{rank}/{size}]: Fraction of correctly predicted samples overall:"
                 f" {n_correct}/ {n_samples}"
             )
-            # Calculate accuracy of global model on global test set.
+            # Calculate accuracy of global model on global dataset.
             self.acc_global = n_correct / n_samples
-            # Calculate accuracy of global model on local private test set.
+            # Calculate accuracy of global model on local dataset.
+            # Note that this metric can only be calculated if the global model is shared among all ranks.
             self.acc_global_local = (targets == majority_vote).mean()
 
-        else:
+        else:  # Global model is not shared. Note that the dataset to be tested must be shared among all ranks.
             # Get class predictions of sub estimators in each forest.
             log.info(f"[{rank}/{size}]: Get predictions of individual sub estimators.")
             tree_predictions_local = self._predict_locally(samples)
@@ -395,11 +396,14 @@ class DistributedRandomForest:
                 tree_predictions_local, n_classes
             )
             majority_vote = self._calc_majority_vote_hist(predicted_class_hists)
-            # Calculate accuracy of global model on local dataset which must be the same on each rank if the model is
-            # not shared globally. Thus, the accuracy of the global model on the global dataset equals the accuracy of
-            # the global model on the local dataset.
+            # Calculate global accuracy as accuracy of global model on local dataset which must be the same on each rank
+            # if the model is not shared globally. The accuracy of the global model on the global dataset is not
+            # accessible for this configuration and set to NaN. It should equal the accuracy of the global model on the
+            # local dataset as the local dataset is the same as the global dataset.
             self.acc_global = (targets == majority_vote).mean()
-            self.acc_global_local = self.acc_global
+            self.acc_global_local = np.nan
+
+        # Calculate accuracy of local model on local dataset.
         self.acc_local = self.clf.score(samples, targets)
         log.info(
             f"[{rank}/{size}]: Accuracy of local model on local data is {self.acc_local}.\n"
