@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple, Union
 
 import numpy as np
 import sklearn.tree
@@ -38,7 +37,7 @@ class DistributedRandomForest:
         The remaining number of trees to distribute.
     random_state : int
         The rank-local random state of each local random forest classifier.
-    trees : List[sklearn.tree.DecisionTreeClassifier]
+    trees : list[sklearn.tree.DecisionTreeClassifier]
         A list of all trees in the global random forest model.
 
     Methods
@@ -85,7 +84,7 @@ class DistributedRandomForest:
         )
         self.global_model = global_model
         self.clf: RandomForestClassifier  # Local random forest classifier
-        self.trees: List[
+        self.trees: list[
             sklearn.tree.DecisionTreeClassifier
         ]  # Global classifier as a list of all local trees
         self.acc_global: (
@@ -97,7 +96,7 @@ class DistributedRandomForest:
         # Only relevant for private test set and global model: Accuracy of global classifier on local evaluation dataset
         self.acc_global_local: float
 
-    def _distribute_trees(self) -> Tuple[int, int, int]:
+    def _distribute_trees(self) -> tuple[int, int, int]:
         """
         Distribute trees evenly over all processors.
 
@@ -193,7 +192,7 @@ class DistributedRandomForest:
 
     def _allgather_subforests_tree_by_tree(
         self,
-    ) -> List[sklearn.tree.DecisionTreeClassifier]:
+    ) -> list[sklearn.tree.DecisionTreeClassifier]:
         """
         All-gather locally trained subforests tree by tree so that each processor finally holds complete global model.
 
@@ -299,7 +298,7 @@ class DistributedRandomForest:
         train_samples: np.ndarray,
         train_targets: np.ndarray,
         global_model: bool = True,
-    ) -> Union[None, MPITimer]:
+    ) -> None | MPITimer:
         """
         Train random forest model in parallel.
 
@@ -314,7 +313,7 @@ class DistributedRandomForest:
 
         Returns
         -------
-        Union[None, MPITimer]
+        None | MPITimer
             A distributed MPI timer (if ``global_model`` is True).
         """
         # Set up communicator.
