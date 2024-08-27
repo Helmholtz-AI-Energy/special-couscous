@@ -132,10 +132,10 @@ def parse_arguments() -> argparse.Namespace:
         help="Number of clusters per class",
     )
     parser.add_argument(
-        "--random_state_data",
+        "--random_state",
         type=int,
         default=0,
-        help="Random seed used in synthetic dataset generation. Used as the general seed in the serial case.",
+        help="Random state used for synthetic dataset generation and model instantiation.",
     )
     parser.add_argument(
         "--frac_informative",
@@ -159,8 +159,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--random_state_model",
         type=int,
-        default=0,
-        help="Random seed used to initialize random forest classifier",
+        default=None,
+        help="Optional random seed used to initialize the random forest classifier",
     )
     parser.add_argument(
         "--train_split",
