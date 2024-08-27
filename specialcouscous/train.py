@@ -65,9 +65,9 @@ def store_accuracy(
     local_results : dict[str, Any]
         The local results dictionary.
     """
-    global_results[f"accuracy_global_global_{label}"] = model.acc_global
+    global_results[f"accuracy_global_{label}"] = model.acc_global
     local_results[f"accuracy_global_local_{label}"] = model.acc_global_local
-    local_results[f"accuracy_local_local_{label}"] = model.acc_local
+    local_results[f"accuracy_local_{label}"] = model.acc_local
 
 
 def save_results_serial(
