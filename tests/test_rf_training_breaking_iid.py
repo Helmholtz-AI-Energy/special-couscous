@@ -29,7 +29,12 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
         (False, False, False, False),
     ],
 )
+@pytest.mark.parametrize(
+    "random_state_model",
+    [17, None],
+)
 def test_breaking_iid(
+    random_state_model: int,
     global_model: bool,
     private_test_set: bool,
     globally_imbalanced: bool,
@@ -40,6 +45,8 @@ def test_breaking_iid(
 
     Parameters
     ----------
+    random_state_model: int
+        The random state used for the model.
     global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
     private_test_set : bool
@@ -53,13 +60,10 @@ def test_breaking_iid(
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
     n_classes: int = 3  # Number of classes in synthetic classification data
-    random_state_data: int = 0  # Random seed used in synthetic dataset generation
+    random_state: int = 0  # Random seed used in synthetic dataset generation
 
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    random_state_model: int = (
-        0  # Random seed used to initialize random forest classifier
-    )
     train_split: float = 0.75  # Fraction of data in the train set
     output_dir: pathlib.Path = pathlib.Path(
         "./results"
@@ -109,7 +113,7 @@ def test_breaking_iid(
         globally_balanced=not globally_imbalanced,
         locally_balanced=not locally_imbalanced,
         shared_test_set=not private_test_set,
-        random_state_data=random_state_data,
+        random_state=random_state,
         random_state_model=random_state_model,
         mu_partition=mu_partition,
         mu_data=mu_data,

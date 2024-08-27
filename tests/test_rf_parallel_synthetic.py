@@ -12,8 +12,19 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
 @pytest.mark.mpi
-def test_parallel_synthetic() -> None:
-    """Test parallel training of random forest on synthetic data."""
+@pytest.mark.parametrize(
+    "random_state_model",
+    [17, None],
+)
+def test_parallel_synthetic(random_state_model: int) -> None:
+    """
+    Test parallel training of random forest on synthetic data.
+
+    Parameters
+    ----------
+    random_state_model: int
+        The random state used for the model.
+    """
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
     n_classes: int = 10  # Number of classes in synthetic classification data
@@ -66,8 +77,8 @@ def test_parallel_synthetic() -> None:
         n_clusters_per_class=n_clusters_per_class,
         frac_informative=frac_informative,
         frac_redundant=frac_redundant,
-        random_state_data=9,
-        random_state_model=17,
+        random_state=9,
+        random_state_model=random_state_model,
         mpi_comm=comm,
         n_trees=n_trees,
         global_model=global_model,

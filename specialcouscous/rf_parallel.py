@@ -71,14 +71,25 @@ class DistributedRandomForest:
         """
         self.n_trees_global = n_trees_global
         self.comm = comm
+        # Distribute trees over available ranks in a load-balanced fashion.
         (
             self.n_trees_base,
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
-        # Convert the rank-specific integer seed to rank-specific ``np.random.RandomState`` instance.
-        # This ensures that each rank-local subforest is different.
-        self.random_state = check_random_state(random_state + self.comm.rank)
+        # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
+        # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
+        # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring that
+        # each rank-local subforest is different.
+        base_random_state = check_random_state(random_state)
+        local_seeds = base_random_state.randint(
+            low=0, high=2**32 - 1, size=self.comm.size
+        )
+        local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
+        log.info(
+            f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+        )
+        self.random_state = check_random_state(local_seed)
         log.debug(
             f"Random state of model is: {self.random_state.get_state(legacy=True)}"
         )
@@ -87,14 +98,14 @@ class DistributedRandomForest:
         self.trees: list[
             sklearn.tree.DecisionTreeClassifier
         ]  # Global classifier as a list of all local trees
-        self.acc_global: (
-            float  # Accuracy of global classifier on global evaluation dataset
-        )
-        self.acc_local: (
-            float  # Accuracy of rank-local classifier on local evaluation dataset
-        )
-        # Only relevant for private test set and global model: Accuracy of global classifier on local evaluation dataset
-        self.acc_global_local: float
+        self.acc_global: float = (
+            np.nan
+        )  # Accuracy of global classifier on global evaluation dataset
+        self.acc_local: float = (
+            np.nan
+        )  # Accuracy of rank-local classifier on local evaluation dataset
+        # Only relevant for private test set + global model: Accuracy of global classifier on local evaluation dataset
+        self.acc_global_local: float = np.nan
 
     def _distribute_trees(self) -> tuple[int, int, int]:
         """
@@ -268,8 +279,10 @@ class DistributedRandomForest:
         # From this global hist, we can determine the global majority vote for each test sample.
         predicted_class_hists_global = np.zeros_like(predicted_class_hists_local)
         log.debug(
-            f"[{self.comm.rank}/{self.comm.size}]: predicted_class_hists_local: {predicted_class_hists_local.shape}, {type(predicted_class_hists_local)}, {predicted_class_hists_local.dtype}\n"
-            f"predicted_class_hists_global: {predicted_class_hists_global.shape}, {type(predicted_class_hists_global)}, {predicted_class_hists_global.dtype}"
+            f"[{self.comm.rank}/{self.comm.size}]: predicted_class_hists_local: {predicted_class_hists_local.shape}, "
+            f"{type(predicted_class_hists_local)}, {predicted_class_hists_local.dtype}\n"
+            f"predicted_class_hists_global: {predicted_class_hists_global.shape}, "
+            f"{type(predicted_class_hists_global)}, {predicted_class_hists_global.dtype}"
         )
         self.comm.Allreduce(predicted_class_hists_local, predicted_class_hists_global)
         return predicted_class_hists_global
@@ -320,8 +333,7 @@ class DistributedRandomForest:
         rank, size = self.comm.rank, self.comm.size
         # Set up and train local forest.
         log.info(
-            f"[{rank}/{size}]: Set up and train local random forest with "
-            f"{self.n_trees_local} trees and random state {self.random_state}."
+            f"[{rank}/{size}]: Set up and train local random forest with {self.n_trees_local} trees."
         )
         self.clf = self._train_local_classifier(
             train_samples=train_samples,

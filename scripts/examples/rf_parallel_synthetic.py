@@ -41,7 +41,7 @@ if __name__ == "__main__":
         n_clusters_per_class=args.n_clusters_per_class,
         frac_informative=args.frac_informative,
         frac_redundant=args.frac_redundant,
-        random_state_data=args.random_state_data,
+        random_state=args.random_state,
         random_state_model=args.random_state_model,
         mpi_comm=comm,
         train_split=args.train_split,

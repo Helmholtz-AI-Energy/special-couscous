@@ -31,7 +31,6 @@ if __name__ == "__main__":
             "*************************************************************\n"
             f"Hyperparameters used are:\n{args}"
         )
-
     # Train distributed random forest on synthetic classification data.
     train_parallel_on_synthetic_data(
         n_samples=args.n_samples,
@@ -40,7 +39,7 @@ if __name__ == "__main__":
         globally_balanced=not args.globally_imbalanced,
         locally_balanced=not args.locally_imbalanced,
         shared_test_set=not args.private_test_set,
-        random_state_data=args.random_state_data,
+        random_state=args.random_state,
         random_state_model=args.random_state_model,
         mu_partition=args.mu_partition,
         mu_data=args.mu_data,
