@@ -44,7 +44,7 @@ def test_parallel_synthetic(random_state_model: int) -> None:
         "test_parallel_rf"  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
-    global_model: bool = True
+    shared_global_model: bool = True
     detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
     log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
@@ -81,7 +81,7 @@ def test_parallel_synthetic(random_state_model: int) -> None:
         random_state_model=random_state_model,
         mpi_comm=comm,
         n_trees=n_trees,
-        shared_global_model=global_model,
+        shared_global_model=shared_global_model,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         experiment_id=experiment_id,

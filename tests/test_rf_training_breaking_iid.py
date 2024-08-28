@@ -35,7 +35,7 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 )
 def test_breaking_iid(
     random_state_model: int,
-    global_model: bool,
+    shared_global_model: bool,
     shared_test_set: bool,
     globally_imbalanced: bool,
     locally_imbalanced: bool,
@@ -47,7 +47,7 @@ def test_breaking_iid(
     ----------
     random_state_model: int
         The random state used for the model.
-    global_model : bool
+    shared_global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
     shared_test_set : bool
         Whether the test set is shared across all subforests (True) or private to each rank (False).
@@ -121,7 +121,7 @@ def test_breaking_iid(
         comm=MPI.COMM_WORLD,
         train_split=train_split,
         n_trees=n_trees,
-        shared_global_model=global_model,
+        shared_global_model=shared_global_model,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         output_label=output_label,
