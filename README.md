@@ -106,7 +106,7 @@ global_dataset, local_train, local_test = generate_and_distribute_synthetic_data
                                                                                     mu_partition, mu_data, peak,
                                                                                     shared_test_set=shared_test_set)
 distributed_random_forest = DistributedRandomForest(n_trees_global=n_trees, comm=comm, random_state=seed,
-                                                    global_model=global_model)
+                                                    shared_global_model=global_model)
 distributed_random_forest.train(local_train.x, local_train.y, global_model)
 distributed_random_forest.evaluate(local_test.x, local_test.y, num_classes, global_model)
 ```

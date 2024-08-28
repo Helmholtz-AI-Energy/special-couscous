@@ -81,7 +81,7 @@ def test_parallel_synthetic(random_state_model: int) -> None:
         random_state_model=random_state_model,
         mpi_comm=comm,
         n_trees=n_trees,
-        global_model=global_model,
+        shared_global_model=global_model,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         experiment_id=experiment_id,

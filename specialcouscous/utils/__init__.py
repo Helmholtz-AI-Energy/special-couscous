@@ -168,11 +168,15 @@ def parse_arguments() -> argparse.Namespace:
         default=0.75,
         help="Fraction of data in the train set. The remainder makes up the test set.",
     )
-    parser.add_argument("--global_model", action="store_true")
     parser.add_argument(
-        "--private_test_set",
+        "--shared_global_model",
         action="store_true",
-        help="Whether the test set is private (not shared across subforests)",
+        help="Whether the local classifiers are all-gathered so that each rank can access the shared global model",
+    )
+    parser.add_argument(
+        "--shared_test_set",
+        action="store_true",
+        help="Whether the test set is shared across all subforests",
     )
     parser.add_argument(
         "--globally_imbalanced",

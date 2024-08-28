@@ -13,20 +13,20 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 @pytest.mark.mpi
 @pytest.mark.parametrize(
-    "global_model, private_test_set, globally_imbalanced, locally_imbalanced",
+    "shared_global_model, shared_test_set, globally_imbalanced, locally_imbalanced",
     [
-        (True, True, True, True),
-        (True, True, True, False),
-        (True, True, False, True),
-        (True, True, False, False),
         (True, False, True, True),
         (True, False, True, False),
         (True, False, False, True),
         (True, False, False, False),
-        (False, False, True, True),
-        (False, False, True, False),
-        (False, False, False, True),
-        (False, False, False, False),
+        (True, True, True, True),
+        (True, True, True, False),
+        (True, True, False, True),
+        (True, True, False, False),
+        (False, True, True, True),
+        (False, True, True, False),
+        (False, True, False, True),
+        (False, True, False, False),
     ],
 )
 @pytest.mark.parametrize(
@@ -36,7 +36,7 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 def test_breaking_iid(
     random_state_model: int,
     global_model: bool,
-    private_test_set: bool,
+    shared_test_set: bool,
     globally_imbalanced: bool,
     locally_imbalanced: bool,
 ) -> None:
@@ -49,9 +49,9 @@ def test_breaking_iid(
         The random state used for the model.
     global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
-    private_test_set : bool
-        Whether the test set is private (not shared across subforests). If global_model == False, the test set needs to
-        be shared.
+    shared_test_set : bool
+        Whether the test set is shared across all subforests (True) or private to each rank (False).
+        If shared_global_model == False, the test set needs to be shared.
     globally_imbalanced : bool
         Whether the class distribution of the entire dataset is imbalanced.
     locally_imbalanced : bool
@@ -112,7 +112,7 @@ def test_breaking_iid(
         n_classes=n_classes,
         globally_balanced=not globally_imbalanced,
         locally_balanced=not locally_imbalanced,
-        shared_test_set=not private_test_set,
+        shared_test_set=shared_test_set,
         random_state=random_state,
         random_state_model=random_state_model,
         mu_partition=mu_partition,
@@ -121,7 +121,7 @@ def test_breaking_iid(
         comm=MPI.COMM_WORLD,
         train_split=train_split,
         n_trees=n_trees,
-        global_model=global_model,
+        shared_global_model=global_model,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         output_label=output_label,

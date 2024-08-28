@@ -25,7 +25,7 @@ class DistributedRandomForest:
         The rank-local random forest classifier.
     comm : MPI.Comm
         The MPI communicator.
-    global_model : bool
+    shared_global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
     n_trees_base : int
         The base number of rank-local trees.
@@ -53,7 +53,7 @@ class DistributedRandomForest:
         n_trees_global: int,
         comm: MPI.Comm,
         random_state: int,
-        global_model: bool = True,
+        shared_global_model: bool = True,
         add_rank: bool = False,
     ) -> None:
         """
@@ -67,7 +67,7 @@ class DistributedRandomForest:
             The MPI communicator to use.
         random_state : int
             The base random state for the ``sklearn.ensemble.RandomForestClassifier`` objects.``
-        global_model : bool
+        shared_global_model : bool
             Whether the local models are all-gathered to one global model shared by all ranks after training.
         add_rank : bool
             Whether to use random integers generated from the model base seed (False) or the sum of the base seed and
@@ -106,7 +106,7 @@ class DistributedRandomForest:
         log.debug(
             f"Random state of model is: {self.random_state.get_state(legacy=True)}"
         )
-        self.global_model = global_model
+        self.shared_global_model = shared_global_model
         self.clf: RandomForestClassifier  # Local random forest classifier
         self.trees: list[
             sklearn.tree.DecisionTreeClassifier
@@ -323,7 +323,7 @@ class DistributedRandomForest:
         self,
         train_samples: np.ndarray,
         train_targets: np.ndarray,
-        global_model: bool = True,
+        shared_global_model: bool = True,
     ) -> None | MPITimer:
         """
         Train random forest model in parallel.
@@ -334,13 +334,13 @@ class DistributedRandomForest:
             The rank-local train samples.
         train_targets : numpy.ndarray
             The corresponding train targets.
-        global_model : bool
+        shared_global_model : bool
             Whether the global model shall be shared among all ranks (True) or not (False).
 
         Returns
         -------
         None | MPITimer
-            A distributed MPI timer (if ``global_model`` is True).
+            A distributed MPI timer (if ``shared_global_model`` is True).
         """
         # Set up communicator.
         rank, size = self.comm.rank, self.comm.size
@@ -352,7 +352,7 @@ class DistributedRandomForest:
             train_samples=train_samples,
             train_targets=train_targets,
         )
-        if not global_model:
+        if not shared_global_model:
             return None
         with MPITimer(self.comm, name="all-gathering model") as timer:
             log.info(
@@ -368,7 +368,7 @@ class DistributedRandomForest:
         samples: np.ndarray,
         targets: np.ndarray,
         n_classes: int,
-        global_model: bool = True,
+        shared_global_model: bool = True,
     ) -> None:
         """
         Evaluate the trained global random forest.
@@ -381,11 +381,11 @@ class DistributedRandomForest:
             The corresponding targets.
         n_classes : int
             The number of classes in the dataset.
-        global_model : bool
+        shared_global_model : bool
             Whether the global model is shared among all ranks (True) or not (False). Default is True.
         """
         rank, size = self.comm.rank, self.comm.size
-        if global_model:  # Global model is shared.
+        if shared_global_model:  # Global model is shared.
             tree_predictions = self._predict_tree_by_tree(samples)
             # Array with one vector for each tree in global RF with predictions for all test samples.
             # Final prediction of parallel RF is majority vote over all sub estimators.

@@ -46,7 +46,7 @@ if __name__ == "__main__":
         mpi_comm=comm,
         train_split=args.train_split,
         n_trees=args.n_trees,
-        global_model=args.global_model,
+        shared_global_model=args.shared_global_model,
         detailed_evaluation=args.detailed_evaluation,
         output_dir=args.output_dir,
         output_label=args.output_label,
