@@ -237,6 +237,7 @@ def train_serial_on_synthetic_data(
     frac_informative: float,
     frac_redundant: float,
     random_state: int | np.random.RandomState = 0,
+    random_state_model: int | np.random.RandomState | None = None,
     train_split: float = 0.75,
     n_trees: int = 100,
     detailed_evaluation: bool = False,
@@ -263,7 +264,10 @@ def train_serial_on_synthetic_data(
     frac_redundant : float
         The fraction of redundant features in the dataset.
     random_state : int | np.random.RandomState
-        The random state used for dataset generation, splitting, and setting up the model.
+        The random state used for dataset generation and splitting. If no model-specific random state is provided, it is
+        also used to instantiate the random forest classifier.
+    random_state_model : int | np.random.RandomState, optional
+        An optional random state used for the model.
     train_split : float
         Relative size of the train set.
     n_trees : int
@@ -283,6 +287,7 @@ def train_serial_on_synthetic_data(
     """
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
+
     configuration = locals()
     del configuration["output_dir"]
     configuration["comm_size"] = 1
@@ -326,7 +331,14 @@ def train_serial_on_synthetic_data(
 
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
-    clf = RandomForestClassifier(n_estimators=n_trees, random_state=random_state)
+    if random_state_model is None:
+        log.debug("Use general random state to seed classifier.")
+        random_state_model = random_state
+    else:
+        log.debug("Use model-specific random state to seed classifier.")
+        random_state_model = check_random_state(random_state_model)
+
+    clf = RandomForestClassifier(n_estimators=n_trees, random_state=random_state_model)
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
     )
