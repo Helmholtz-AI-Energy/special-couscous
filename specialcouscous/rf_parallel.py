@@ -414,6 +414,12 @@ class DistributedRandomForest:
         else:  # Global model is not shared. Note that the dataset to be tested must be shared among all ranks.
             # Get class predictions of sub estimators in each forest.
             log.info(f"[{rank}/{size}]: Get predictions of individual sub estimators.")
+            # Check whether all ranks have the same number of samples as a sanity check whether they share the
+            # evaluation dataset.
+            if len(set(self.comm.allgather(targets.shape[0]))) != 1:
+                raise ValueError(
+                    "The dataset to evaluate the distributed global model on must be shared among all ranks."
+                )
             tree_predictions_local = self._predict_locally(samples)
             log.info(f"[{rank}/{size}]: Calculate majority vote via histograms.")
             predicted_class_hists = self._predicted_class_hist(

@@ -556,6 +556,11 @@ def train_parallel_on_synthetic_data(
                 local_train.x, local_train.y, n_classes, shared_global_model
             )
         else:
+            if comm.rank == 0:
+                log.info(
+                    "The accuracy of the distributed global model cannot "
+                    "be calculated without a shared evaluation dataset."
+                )
             distributed_random_forest.acc_global = np.nan
             distributed_random_forest.acc_local = distributed_random_forest.clf.score(
                 local_train.x, local_train.y
