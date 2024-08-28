@@ -420,10 +420,11 @@ class DistributedRandomForest:
                 tree_predictions_local, n_classes
             )
             majority_vote = self._calc_majority_vote_hist(predicted_class_hists)
-            # Calculate global accuracy as accuracy of global model on local dataset which must be the same on each rank
-            # if the model is not shared globally. The accuracy of the global model on the global dataset is not
-            # accessible for this configuration and set to NaN. It should equal the accuracy of the global model on the
-            # local dataset as the local dataset is the same as the global dataset.
+            # Calculate the accuracy of the global model. Since the global model is distributed across the ranks, it can
+            # only be evaluated by processing the same data on each rank's local model and aggregating the majority vote
+            # across the ranks. Evaluating the (distributed) global model is thus only possible if all ranks use the
+            # same "local" data for the evaluation (i.e., local data == global data). Evaluating the global model on
+            # true local data (not shared with other ranks) is not possible. We thus set ``acc_global_local`` to NaN.
             self.acc_global = (targets == majority_vote).mean()
             self.acc_global_local = np.nan
 
