@@ -1,10 +1,10 @@
 import logging
-from typing import List, Tuple, Union
 
 import numpy as np
 import sklearn.tree
 from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.utils.validation import check_random_state
 
 from specialcouscous.utils.timing import MPITimer
 
@@ -25,7 +25,7 @@ class DistributedRandomForest:
         The rank-local random forest classifier.
     comm : MPI.Comm
         The MPI communicator.
-    global_model : bool
+    shared_global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
     n_trees_base : int
         The base number of rank-local trees.
@@ -37,7 +37,7 @@ class DistributedRandomForest:
         The remaining number of trees to distribute.
     random_state : int
         The rank-local random state of each local random forest classifier.
-    trees : List[sklearn.tree.DecisionTreeClassifier]
+    trees : list[sklearn.tree.DecisionTreeClassifier]
         A list of all trees in the global random forest model.
 
     Methods
@@ -53,7 +53,8 @@ class DistributedRandomForest:
         n_trees_global: int,
         comm: MPI.Comm,
         random_state: int,
-        global_model: bool = True,
+        shared_global_model: bool = True,
+        add_rank: bool = False,
     ) -> None:
         """
         Initialize a distributed random forest object.
@@ -66,26 +67,60 @@ class DistributedRandomForest:
             The MPI communicator to use.
         random_state : int
             The base random state for the ``sklearn.ensemble.RandomForestClassifier`` objects.``
-        global_model : bool
+        shared_global_model : bool
             Whether the local models are all-gathered to one global model shared by all ranks after training.
+        add_rank : bool
+            Whether to use random integers generated from the model base seed (False) or the sum of the base seed and
+            the local rank to initialize the local random forest model (True). Default is False.
         """
         self.n_trees_global = n_trees_global
         self.comm = comm
+        # Distribute trees over available ranks in a load-balanced fashion.
         (
             self.n_trees_base,
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
-        self.random_state = random_state + self.comm.rank
-        self.global_model = global_model
+        if add_rank:
+            # Add the local rank to the provided base seed to obtain a rank-specific integer seed. Convert this seed to
+            # a rank-specific ``np.random.RandomState`` instance. This ensures that each local subforest is different.
+            local_seed = random_state + self.comm.rank
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+            )
+            self.random_state = check_random_state(local_seed)
+        else:
+            # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
+            # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
+            # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring
+            # that each rank-local subforest is different.
+            base_random_state = check_random_state(random_state)
+            local_seeds = base_random_state.randint(
+                low=0, high=2**32 - 1, size=self.comm.size
+            )  # NOTE: The seed range here is the maximum range possible.
+            local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+            )
+            self.random_state = check_random_state(local_seed)
+        log.debug(
+            f"Random state of model is: {self.random_state.get_state(legacy=True)}"
+        )
+        self.shared_global_model = shared_global_model
         self.clf: RandomForestClassifier  # Local random forest classifier
-        self.trees: List[
+        self.trees: list[
             sklearn.tree.DecisionTreeClassifier
         ]  # Global classifier as a list of all local trees
-        self.acc_global: float  # Accuracy of global classifier
-        self.acc_local: float  # Accuracy of each rank-local classifier
+        self.acc_global: float = (
+            np.nan
+        )  # Accuracy of global classifier on global evaluation dataset
+        self.acc_local: float = (
+            np.nan
+        )  # Accuracy of rank-local classifier on local evaluation dataset
+        # Only relevant for private test set + global model: Accuracy of global classifier on local evaluation dataset
+        self.acc_global_local: float = np.nan
 
-    def _distribute_trees(self) -> Tuple[int, int, int]:
+    def _distribute_trees(self) -> tuple[int, int, int]:
         """
         Distribute trees evenly over all processors.
 
@@ -126,10 +161,11 @@ class DistributedRandomForest:
         sklearn.ensemble.RandomForestClassifier
             The trained model.
         """
+        # Set up and train local subforest using rank-specific random state.
         clf = RandomForestClassifier(
             n_estimators=self.n_trees_local, random_state=self.random_state
         )
-        _ = clf.fit(train_samples, train_targets)
+        clf.fit(train_samples, train_targets)
         return clf
 
     def _predict_tree_by_tree(self, samples: np.ndarray) -> np.ndarray:
@@ -156,23 +192,31 @@ class DistributedRandomForest:
         Params
         ------
         numpy.ndarray
-            The array with tree-wise predictions.
+            The array with tree-wise predictions. Contains a vector for each tree in the forest with the classes it
+            predicted for all samples.
 
         Returns
         -------
         numpy.ndarray
             The majority vote.
         """
+        # Determine sample-wise predictions by transposing tree-wise predictions.
+        # This array contains one vector for each sample with the predicted classes from all trees in the subforest.
         sample_wise_predictions = tree_wise_predictions.transpose()
-        majority_vote = []
-        for sample_preds in sample_wise_predictions:
-            class_values, class_counts = np.unique(sample_preds, return_counts=True)
+        majority_vote: list = []
+        # Loop over predictions of all trees for each sample.
+        for sample_predictions in sample_wise_predictions:
+            # Determine predicted classes and how often each class was predicted for the considered sample.
+            class_values, class_counts = np.unique(
+                sample_predictions, return_counts=True
+            )
+            # Take the majority vote for that sample, i.e., choose the class that was predicted most often.
             majority_vote.append(class_values[np.argmax(class_counts)])
         return np.array(majority_vote)
 
     def _allgather_subforests_tree_by_tree(
         self,
-    ) -> List[sklearn.tree.DecisionTreeClassifier]:
+    ) -> list[sklearn.tree.DecisionTreeClassifier]:
         """
         All-gather locally trained subforests tree by tree so that each processor finally holds complete global model.
 
@@ -232,6 +276,9 @@ class DistributedRandomForest:
         numpy.ndarray
             The sample-wise distributions of the predicted classes.
         """
+        log.debug(
+            f"[{self.comm.rank}/{self.comm.size}] tree-wise predictions shape: {tree_wise_predictions.shape}"
+        )
         sample_wise_predictions = tree_wise_predictions.transpose()
         predicted_class_hists_local = np.array(
             [
@@ -244,6 +291,12 @@ class DistributedRandomForest:
         # Now we want to sum up those sample-wise distributions to obtain the global hist over the global forest.
         # From this global hist, we can determine the global majority vote for each test sample.
         predicted_class_hists_global = np.zeros_like(predicted_class_hists_local)
+        log.debug(
+            f"[{self.comm.rank}/{self.comm.size}]: predicted_class_hists_local: {predicted_class_hists_local.shape}, "
+            f"{type(predicted_class_hists_local)}, {predicted_class_hists_local.dtype}\n"
+            f"predicted_class_hists_global: {predicted_class_hists_global.shape}, "
+            f"{type(predicted_class_hists_global)}, {predicted_class_hists_global.dtype}"
+        )
         self.comm.Allreduce(predicted_class_hists_local, predicted_class_hists_global)
         return predicted_class_hists_global
 
@@ -270,8 +323,8 @@ class DistributedRandomForest:
         self,
         train_samples: np.ndarray,
         train_targets: np.ndarray,
-        global_model: bool = True,
-    ) -> Union[None, MPITimer]:
+        shared_global_model: bool = True,
+    ) -> None | MPITimer:
         """
         Train random forest model in parallel.
 
@@ -281,26 +334,25 @@ class DistributedRandomForest:
             The rank-local train samples.
         train_targets : numpy.ndarray
             The corresponding train targets.
-        global_model : bool
+        shared_global_model : bool
             Whether the global model shall be shared among all ranks (True) or not (False).
 
         Returns
         -------
-        Union[None, MPITimer]
-            A distributed MPI timer (if ``global_model`` is True).
+        None | MPITimer
+            A distributed MPI timer (if ``shared_global_model`` is True).
         """
         # Set up communicator.
         rank, size = self.comm.rank, self.comm.size
         # Set up and train local forest.
         log.info(
-            f"[{rank}/{size}]: Set up and train local random forest with "
-            f"{self.n_trees_local} trees and random state {self.random_state}."
+            f"[{rank}/{size}]: Set up and train local random forest with {self.n_trees_local} trees."
         )
         self.clf = self._train_local_classifier(
             train_samples=train_samples,
             train_targets=train_targets,
         )
-        if not global_model:
+        if not shared_global_model:
             return None
         with MPITimer(self.comm, name="all-gathering model") as timer:
             log.info(
@@ -311,47 +363,81 @@ class DistributedRandomForest:
             self.trees = trees
             return timer
 
-    def test(
+    def evaluate(
         self,
-        test_samples: np.ndarray,
-        test_targets: np.ndarray,
+        samples: np.ndarray,
+        targets: np.ndarray,
         n_classes: int,
-        global_model: bool = True,
+        shared_global_model: bool = True,
     ) -> None:
         """
-        Test the trained global random forest.
+        Evaluate the trained global random forest.
 
         Parameters
         ----------
-        test_samples : numpy.ndarray
-            The rank-local test samples.
-        test_targets : numpy.ndarray
-            The corresponding test targets.
+        samples : numpy.ndarray
+            The rank-local samples to evaluate on.
+        targets : numpy.ndarray
+            The corresponding targets.
         n_classes : int
             The number of classes in the dataset.
-        global_model : bool
-            Whether the global model shall be shared among all ranks (True) or not (False).
+        shared_global_model : bool
+            Whether the global model is shared among all ranks (True) or not (False). Default is True.
         """
         rank, size = self.comm.rank, self.comm.size
-        if global_model:
-            tree_predictions = self._predict_tree_by_tree(test_samples)
+        if shared_global_model:  # Global model is shared.
+            tree_predictions = self._predict_tree_by_tree(samples)
             # Array with one vector for each tree in global RF with predictions for all test samples.
             # Final prediction of parallel RF is majority vote over all sub estimators.
             # Calculate majority vote.
             log.info(f"[{rank}/{size}]: Calculate majority vote.")
             majority_vote = self._calc_majority_vote(tree_predictions)
-        else:
+            # Calculate accuracy of global model over all local datasets.
+            n_correct_local = (targets == majority_vote).sum()
+            n_samples_local = targets.shape[0]
+            log.info(
+                f"[{rank}/{size}]: Fraction of correctly predicted samples on this rank: "
+                f"{n_correct_local} / {n_samples_local}."
+            )
+            n_correct = self.comm.allreduce(n_correct_local)
+            n_samples = self.comm.allreduce(targets.shape[0])
+            log.info(
+                f"[{rank}/{size}]: Fraction of correctly predicted samples overall:"
+                f" {n_correct}/ {n_samples}"
+            )
+            # Calculate accuracy of global model on global dataset.
+            self.acc_global = n_correct / n_samples
+            # Calculate accuracy of global model on local dataset.
+            # Note that this metric can only be calculated if the global model is shared among all ranks.
+            self.acc_global_local = (targets == majority_vote).mean()
+
+        else:  # Global model is not shared. Note that the dataset to be tested must be shared among all ranks.
             # Get class predictions of sub estimators in each forest.
             log.info(f"[{rank}/{size}]: Get predictions of individual sub estimators.")
-            tree_predictions_local = self._predict_locally(test_samples)
+            # Check whether all ranks have the same number of samples as a sanity check whether they share the
+            # evaluation dataset.
+            if len(set(self.comm.allgather(targets.shape[0]))) != 1:
+                raise ValueError(
+                    "The dataset to evaluate the distributed global model on must be shared among all ranks."
+                )
+            tree_predictions_local = self._predict_locally(samples)
             log.info(f"[{rank}/{size}]: Calculate majority vote via histograms.")
             predicted_class_hists = self._predicted_class_hist(
                 tree_predictions_local, n_classes
             )
             majority_vote = self._calc_majority_vote_hist(predicted_class_hists)
-        # Calculate accuracies.
-        self.acc_global = (test_targets == majority_vote).mean()
-        self.acc_local = self.clf.score(test_samples, test_targets)
+            # Calculate the accuracy of the global model. Since the global model is distributed across the ranks, it can
+            # only be evaluated by processing the same data on each rank's local model and aggregating the majority vote
+            # across the ranks. Evaluating the (distributed) global model is thus only possible if all ranks use the
+            # same "local" data for the evaluation (i.e., local data == global data). Evaluating the global model on
+            # true local data (not shared with other ranks) is not possible. We thus set ``acc_global_local`` to NaN.
+            self.acc_global = (targets == majority_vote).mean()
+            self.acc_global_local = np.nan
+
+        # Calculate accuracy of local model on local dataset.
+        self.acc_local = self.clf.score(samples, targets)
         log.info(
-            f"[{rank}/{size}]: Local accuracy is {self.acc_local}, global accuracy is {self.acc_global}."
+            f"[{rank}/{size}]: Accuracy of local model on local data is {self.acc_local}.\n"
+            f"Accuracy of global model on local data is {self.acc_global_local}.\n"
+            f"Accuracy of global model on global data is {self.acc_global}."
         )

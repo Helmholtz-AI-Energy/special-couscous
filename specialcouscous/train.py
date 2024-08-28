@@ -8,8 +8,10 @@ from typing import Any
 
 import numpy as np
 import pandas
+from matplotlib import pyplot as plt
 from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.utils.validation import check_random_state
 
 from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.synthetic_classification_data import (
@@ -63,8 +65,9 @@ def store_accuracy(
     local_results : dict[str, Any]
         The local results dictionary.
     """
-    global_results[f"accuracy_{label}"] = model.acc_global
-    local_results[f"accuracy_{label}"] = model.acc_local
+    global_results[f"accuracy_global_{label}"] = model.acc_global
+    local_results[f"accuracy_global_local_{label}"] = model.acc_global_local
+    local_results[f"accuracy_local_{label}"] = model.acc_local
 
 
 def save_results_serial(
@@ -131,6 +134,9 @@ def save_results_serial(
     if save_model:  # Save model to disk.
         with open(path / (base_filename + "_classifier.pickle"), "wb") as f:
             dump(clf, f, protocol=5)
+
+    plt.close(fig_train)
+    plt.close(fig_test)
 
 
 def save_results_parallel(
@@ -212,6 +218,8 @@ def save_results_parallel(
             )
             fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
             fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
+            plt.close(fig_train)
+            plt.close(fig_test)
 
         if save_model:  # Save model to disk.
             with open(
@@ -228,9 +236,8 @@ def train_serial_on_synthetic_data(
     n_clusters_per_class: int,
     frac_informative: float,
     frac_redundant: float,
-    seed_data: int = 0,
-    seed_split: int = 0,
-    seed_model: int = 0,
+    random_state: int | np.random.RandomState = 0,
+    random_state_model: int | np.random.RandomState | None = None,
     train_split: float = 0.75,
     n_trees: int = 100,
     detailed_evaluation: bool = False,
@@ -256,12 +263,11 @@ def train_serial_on_synthetic_data(
         The fraction of informative features in the dataset.
     frac_redundant : float
         The fraction of redundant features in the dataset.
-    seed_data : int
-        The random seed used for the dataset generation.
-    seed_split : int
-        The random seed used to train-test split the data.
-    seed_model : int
-        The random seed used for the model.
+    random_state : int | np.random.RandomState
+        The random state used for dataset generation and splitting. If no model-specific random state is provided, it is
+        also used to instantiate the random forest classifier.
+    random_state_model : int | np.random.RandomState, optional
+        An optional random state used for the model.
     train_split : float
         Relative size of the train set.
     n_trees : int
@@ -279,6 +285,9 @@ def train_serial_on_synthetic_data(
     save_model : bool
         Whether the trained classifier is saved to disk (True) or not (False). Default is True.
     """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+
     configuration = locals()
     del configuration["output_dir"]
     configuration["comm_size"] = 1
@@ -303,9 +312,8 @@ def train_serial_on_synthetic_data(
         frac_redundant=frac_redundant,
         n_classes=n_classes,
         n_clusters_per_class=n_clusters_per_class,
-        random_state_generation=seed_data,
+        random_state=random_state,
         train_split=train_split,
-        random_state_split=seed_split,
     )
     train_data = SyntheticDataset(x=train_samples, y=train_targets)
     test_data = SyntheticDataset(x=test_samples, y=test_targets)
@@ -323,7 +331,14 @@ def train_serial_on_synthetic_data(
 
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
-    clf = RandomForestClassifier(n_estimators=n_trees, random_state=seed_model)
+    if random_state_model is None:
+        log.debug("Use general random state to seed classifier.")
+        random_state_model = random_state
+    else:
+        log.debug("Use model-specific random state to seed classifier.")
+        random_state_model = check_random_state(random_state_model)
+
+    clf = RandomForestClassifier(n_estimators=n_trees, random_state=random_state_model)
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
     )
@@ -367,8 +382,8 @@ def train_parallel_on_synthetic_data(
     globally_balanced: bool,
     locally_balanced: bool,
     shared_test_set: bool,
-    seed_data: int = 0,
-    seed_model: int = 0,
+    random_state: int | np.random.RandomState = 0,
+    random_state_model: int | None = None,
     mu_partition: float | str | None = None,
     mu_data: float | str | None = None,
     peak: int | None = None,
@@ -376,7 +391,7 @@ def train_parallel_on_synthetic_data(
     comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
     n_trees: int = 100,
-    global_model: bool = True,
+    shared_global_model: bool = True,
     detailed_evaluation: bool = False,
     output_dir: pathlib.Path | str = "",
     output_label: str = "",
@@ -400,12 +415,17 @@ def train_parallel_on_synthetic_data(
         Whether to use a balanced partition when assigning the dataset to ranks. If False, `mu_partition` must be
         specified.
     shared_test_set : bool
-        Whether the test set is private (not shared across subforests). If global_model == False, the test set needs to
-        be shared.
-    seed_data : int
-        The random seed, used for both the dataset generation and the partition and distribution.
-    seed_model : int
-        The random seed used for the model.
+        Whether the test set is shared across all subforests (True) or private to each rank (False).
+        If shared_global_model == False, the test set needs to be shared.
+    random_state : int | np.random.RandomState
+        The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
+        state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
+        model-specific random state is provided, it is also used to instantiate the random forest classifiers.
+    random_state_model : int, optional
+        The random seed used for the model. Can only be an integer as it must be different on each rank to ensure that
+        each local model is different. In the ``DistributedRandomForest`` constructor, a ``RandomState`` instance seeded
+        with this value is used to create a sequence of ``comm.size`` random integers, which are then used to seed a
+        different ``RandomState`` instance on each rank passed to the rank-local classifier.
     mu_partition : float | str, optional
         The μ parameter of the Skellam distribution for imbalanced class distribution. Has no effect if
         ``locally_balanced`` is True.
@@ -423,7 +443,7 @@ def train_parallel_on_synthetic_data(
         Relative size of the train set.
     n_trees : int
         The number of trees in the global forest.
-    global_model : bool
+    shared_global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
     detailed_evaluation : bool
         Whether to perform a detailed evaluation on more than just the local test set.
@@ -438,8 +458,21 @@ def train_parallel_on_synthetic_data(
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
-    if not (global_model or shared_test_set):
-        raise ValueError("Either `global_model` or `shared_test_set` must be True.")
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+    # Generate model base seed if not provided by user.
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        if comm.rank == 0:
+            log.info(f"Generated model base seed is {random_state_model}.")
+    # Note that to evaluate the global model in a meaningful way, either the model itself of the test data must be
+    # shared among all ranks. Otherwise, each rank can only test its local subforest on its private test set, making
+    # any evaluation of the global model impossible.
+    if not (shared_global_model or shared_test_set):
+        raise ValueError(
+            "Either `shared_global_model` or `shared_test_set` must be True."
+        )
 
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
@@ -463,18 +496,18 @@ def train_parallel_on_synthetic_data(
             local_train,
             local_test,
         ) = generate_and_distribute_synthetic_dataset(
-            globally_balanced,
-            locally_balanced,
-            n_samples,
-            n_features,
-            n_classes,
-            comm.rank,
-            comm.size,
-            seed_data,
-            1 - train_split,
-            mu_partition,
-            mu_data,
-            peak,
+            globally_balanced=globally_balanced,
+            locally_balanced=locally_balanced,
+            n_samples=n_samples,
+            n_features=n_features,
+            n_classes=n_classes,
+            rank=comm.rank,
+            n_ranks=comm.size,
+            random_state=random_state,
+            test_size=1 - train_split,
+            mu_partition=mu_partition,
+            mu_data=mu_data,
+            peak=peak,
             shared_test_set=shared_test_set,
         )
     store_timing(timer, global_results, local_results)
@@ -482,9 +515,9 @@ def train_parallel_on_synthetic_data(
     log.info(
         f"[{comm.rank}/{comm.size}]: Done...\n"
         f"Local train samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
-        f"Global test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}.\n"
-        f"[{comm.rank}/{comm.size}]: Labels are {local_train.y}"
+        f"Local test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}."
     )
+    log.debug(f"[{comm.rank}/{comm.size}]: Local test samples are {local_test.x}.")
 
     # -------------- Setup and train random forest --------------
     log.info(f"[{comm.rank}/{comm.size}]: Set up and train local random forest.")
@@ -492,28 +525,46 @@ def train_parallel_on_synthetic_data(
         distributed_random_forest = DistributedRandomForest(
             n_trees_global=n_trees,
             comm=comm,
-            random_state=seed_model,
-            global_model=global_model,
+            random_state=random_state_model,
+            shared_global_model=shared_global_model,
         )
     store_timing(timer, global_results, local_results)
 
     with MPITimer(comm, name="training") as timer:
-        distributed_random_forest.train(local_train.x, local_train.y, global_model)
+        distributed_random_forest.train(
+            local_train.x, local_train.y, shared_global_model
+        )
     store_timing(timer, global_results, local_results)
 
     # -------------- Evaluate random forest --------------
-    log.info(f"[{comm.rank}/{comm.size}]: Evaluate random forest.")
+    log.info(
+        f"[{comm.rank}/{comm.size}]: Evaluate random forest on test dataset with {len(local_test.x)} samples."
+    )
     with MPITimer(comm, name="test") as timer:
-        distributed_random_forest.test(
-            local_test.x, local_test.y, n_classes, global_model
+        distributed_random_forest.evaluate(
+            local_test.x, local_test.y, n_classes, shared_global_model
         )
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
 
     if detailed_evaluation:
-        distributed_random_forest.test(
-            local_train.x, local_train.y, n_classes, global_model
+        log.info(
+            f"[{comm.rank}/{comm.size}]: Additionally evaluate on train dataset with {len(local_train.x)} samples."
         )
+        if shared_global_model:
+            distributed_random_forest.evaluate(
+                local_train.x, local_train.y, n_classes, shared_global_model
+            )
+        else:
+            if comm.rank == 0:
+                log.info(
+                    "The accuracy of the distributed global model cannot "
+                    "be calculated without a shared evaluation dataset."
+                )
+            distributed_random_forest.acc_global = np.nan
+            distributed_random_forest.acc_local = distributed_random_forest.clf.score(
+                local_train.x, local_train.y
+            )
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results
         )
@@ -542,13 +593,12 @@ def train_parallel_on_balanced_synthetic_data(
     n_clusters_per_class: int,
     frac_informative: float,
     frac_redundant: float,
-    seed_data: int = 0,
-    seed_split: int = 0,
-    seed_model: int = 0,
+    random_state: int | np.random.RandomState = 0,
+    random_state_model: int | None = None,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
     n_trees: int = 100,
-    global_model: bool = True,
+    shared_global_model: bool = True,
     detailed_evaluation: bool = False,
     output_dir: pathlib.Path | str = "",
     output_label: str = "",
@@ -557,6 +607,9 @@ def train_parallel_on_balanced_synthetic_data(
 ) -> None:
     """
     Train and evaluate a distributed random forest on globally balanced synthetic data.
+
+    Note that training and test data are not distributed over the ranks but each rank sees the full dataset. Thus, the
+    train and test sets on each rank are the same.
 
     Parameters
     ----------
@@ -572,19 +625,22 @@ def train_parallel_on_balanced_synthetic_data(
         The fraction of informative features in the dataset.
     frac_redundant : float
         The fraction of redundant features in the dataset.
-    seed_data : int
-        The random seed used for the dataset generation.
-    seed_split : int
-        The random seed used to train-test split the data.
-    seed_model : int
-        The random seed used for the model.
+    random_state : int | np.random.RandomState
+        The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
+        state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
+        model-specific random state is provided, it is also used to instantiate the random forest classifiers.
+    random_state_model : int, optional
+        The random seed used for the model. Can only be an integer as it must be different on each rank to ensure that
+        each local model is different. In the ``DistributedRandomForest`` constructor, a ``RandomState`` instance seeded
+        with this value is used to create a sequence of ``comm.size`` random integers, which are then used to seed a
+        different ``RandomState`` instance on each rank passed to the rank-local classifier.
     mpi_comm : MPI.Comm
         The MPI communicator to distribute over.
     train_split : float
         Relative size of the train set.
     n_trees : int
         The number of trees in the global forest.
-    global_model : bool
+    shared_global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
     detailed_evaluation : bool
         Whether to perform a detailed evaluation on more than just the local test set.
@@ -599,6 +655,14 @@ def train_parallel_on_balanced_synthetic_data(
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+    # Generate model base seed if not provided by user.
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        if mpi_comm.rank == 0:
+            log.info(f"Generated model base seed is {random_state_model}.")
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
     configuration = locals()
@@ -628,9 +692,8 @@ def train_parallel_on_balanced_synthetic_data(
             frac_redundant=frac_redundant,
             n_classes=n_classes,
             n_clusters_per_class=n_clusters_per_class,
-            random_state_generation=seed_data,
+            random_state=random_state,
             train_split=train_split,
-            random_state_split=seed_split,
         )
 
         train_data = SyntheticDataset(x=train_samples, y=train_targets)
@@ -640,9 +703,12 @@ def train_parallel_on_balanced_synthetic_data(
 
     log.info(
         f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
-        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}.\n"
-        f"Set up classifier."
+        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}."
     )
+    log.debug(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
+    )
+    log.info("Set up classifier.")
 
     # -------------- Setup and train random forest --------------
     log.info(
@@ -652,34 +718,41 @@ def train_parallel_on_balanced_synthetic_data(
         distributed_random_forest = DistributedRandomForest(
             n_trees_global=n_trees,
             comm=mpi_comm,
-            random_state=seed_model,
-            global_model=global_model,
+            random_state=random_state_model,
+            shared_global_model=shared_global_model,
         )
     store_timing(timer, global_results, local_results)
 
     with MPITimer(mpi_comm, name="training") as timer:
-        if global_model:
+        if shared_global_model:
             timer_sync_global_model = distributed_random_forest.train(
-                train_data.x, train_data.y, global_model
+                train_data.x, train_data.y, shared_global_model
             )
             assert isinstance(timer_sync_global_model, MPITimer)
             store_timing(timer_sync_global_model, global_results, local_results)
         else:
-            distributed_random_forest.train(train_data.x, train_data.y, global_model)
+            distributed_random_forest.train(
+                train_data.x, train_data.y, shared_global_model
+            )
     store_timing(timer, global_results, local_results)
 
     # -------------- Evaluate random forest --------------
-    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest.")
+    log.info(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest on test dataset."
+    )
     with MPITimer(mpi_comm, name="test") as timer:  # Test trained model on test data.
-        distributed_random_forest.test(
-            test_data.x, test_data.y, n_classes, global_model
+        distributed_random_forest.evaluate(
+            test_data.x, test_data.y, n_classes, shared_global_model
         )
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
 
     if detailed_evaluation:  # Test trained model also on training data.
-        distributed_random_forest.test(
-            train_samples, train_targets, n_classes, global_model
+        log.info(
+            f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
+        )
+        distributed_random_forest.evaluate(
+            train_samples, train_targets, n_classes, shared_global_model
         )
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results

@@ -13,16 +13,30 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 @pytest.mark.mpi
 @pytest.mark.parametrize(
-    "global_model, private_test_set, globally_imbalanced, locally_imbalanced",
+    "shared_global_model, shared_test_set, globally_imbalanced, locally_imbalanced",
     [
+        (True, False, True, True),
         (True, False, True, False),
-        (False, False, True, True),
+        (True, False, False, True),
+        (True, False, False, False),
+        (True, True, True, True),
+        (True, True, True, False),
         (True, True, False, True),
+        (True, True, False, False),
+        (False, True, True, True),
+        (False, True, True, False),
+        (False, True, False, True),
+        (False, True, False, False),
     ],
 )
+@pytest.mark.parametrize(
+    "random_state_model",
+    [17, None],
+)
 def test_breaking_iid(
-    global_model: bool,
-    private_test_set: bool,
+    random_state_model: int,
+    shared_global_model: bool,
+    shared_test_set: bool,
     globally_imbalanced: bool,
     locally_imbalanced: bool,
 ) -> None:
@@ -31,11 +45,13 @@ def test_breaking_iid(
 
     Parameters
     ----------
-    global_model : bool
+    random_state_model: int
+        The random state used for the model.
+    shared_global_model : bool
         Whether the local models are all-gathered to one global model shared by all ranks after training.
-    private_test_set : bool
-        Whether the test set is private (not shared across subforests). If global_model == False, the test set needs to
-        be shared.
+    shared_test_set : bool
+        Whether the test set is shared across all subforests (True) or private to each rank (False).
+        If shared_global_model == False, the test set needs to be shared.
     globally_imbalanced : bool
         Whether the class distribution of the entire dataset is imbalanced.
     locally_imbalanced : bool
@@ -44,13 +60,10 @@ def test_breaking_iid(
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
     n_classes: int = 3  # Number of classes in synthetic classification data
-    random_state_data: int = 0  # Random seed used in synthetic dataset generation
+    random_state: int = 0  # Random seed used in synthetic dataset generation
 
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    random_state_forest: int = (
-        0  # Random seed used to initialize random forest classifier
-    )
     train_split: float = 0.75  # Fraction of data in the train set
     output_dir: pathlib.Path = pathlib.Path(
         "./results"
@@ -89,9 +102,9 @@ def test_breaking_iid(
 
     if comm.rank == 0:
         log.info(
-            "*************************************************************\n"
+            "*********************************************************************\n"
             "* Multi-Node Random Forest Classification of Non-IID Synthetic Data *\n"
-            "*************************************************************"
+            "*********************************************************************"
         )
     train_parallel_on_synthetic_data(
         n_samples=n_samples,
@@ -99,16 +112,16 @@ def test_breaking_iid(
         n_classes=n_classes,
         globally_balanced=not globally_imbalanced,
         locally_balanced=not locally_imbalanced,
-        shared_test_set=not private_test_set,
-        seed_data=random_state_data,
-        seed_model=random_state_forest,
+        shared_test_set=shared_test_set,
+        random_state=random_state,
+        random_state_model=random_state_model,
         mu_partition=mu_partition,
         mu_data=mu_data,
         peak=peak,
         comm=MPI.COMM_WORLD,
         train_split=train_split,
         n_trees=n_trees,
-        global_model=global_model,
+        shared_global_model=shared_global_model,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         output_label=output_label,

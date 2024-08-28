@@ -132,10 +132,10 @@ def parse_arguments() -> argparse.Namespace:
         help="Number of clusters per class",
     )
     parser.add_argument(
-        "--random_state_data",
+        "--random_state",
         type=int,
         default=0,
-        help="Random seed used in synthetic dataset generation",
+        help="Random state used for synthetic dataset generation and model instantiation.",
     )
     parser.add_argument(
         "--frac_informative",
@@ -149,12 +149,6 @@ def parse_arguments() -> argparse.Namespace:
         default=0.1,
         help="Fraction of redundant features in synthetic classification dataset",
     )
-    parser.add_argument(
-        "--random_state_split",
-        type=int,
-        default=9,
-        help="Random seed used in train-test split",
-    )
     # Model-related arguments
     parser.add_argument(
         "--n_trees",
@@ -163,10 +157,10 @@ def parse_arguments() -> argparse.Namespace:
         help="Number of trees in global random forest classifier",
     )
     parser.add_argument(
-        "--random_state_forest",
+        "--random_state_model",
         type=int,
-        default=0,
-        help="Random seed used to initialize random forest classifier",
+        default=None,
+        help="Optional random seed used to initialize the random forest classifier",
     )
     parser.add_argument(
         "--train_split",
@@ -174,11 +168,15 @@ def parse_arguments() -> argparse.Namespace:
         default=0.75,
         help="Fraction of data in the train set. The remainder makes up the test set.",
     )
-    parser.add_argument("--global_model", action="store_true")
     parser.add_argument(
-        "--private_test_set",
+        "--shared_global_model",
         action="store_true",
-        help="Whether the test set is private (not shared across subforests)",
+        help="Whether the local classifiers are all-gathered so that each rank can access the shared global model",
+    )
+    parser.add_argument(
+        "--shared_test_set",
+        action="store_true",
+        help="Whether the test set is shared across all subforests",
     )
     parser.add_argument(
         "--globally_imbalanced",

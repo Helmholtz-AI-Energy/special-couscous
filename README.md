@@ -76,6 +76,7 @@ To generate a dataset in Python, `synthetic_classification_data.generate_and_dis
 Alternatively, `rf_training_breaking_iid` can be used directly which combines the above function with random forest training and evaluation.
 
 Minimum working example:
+
 ```python3
 from mpi4py import MPI
 
@@ -99,8 +100,13 @@ peak = num_classes // 2
 locally_balanced = False
 mu_partition = 5
 
-global_dataset, local_train, local_test = generate_and_distribute_synthetic_dataset(globally_balanced, locally_balanced, num_samples, num_classes, comm.rank, comm.size, seed, test_size, mu_partition, mu_data, peak, shared_test_set=shared_test_set)
-distributed_random_forest = DistributedRandomForest(n_trees_global=n_trees, comm=comm, random_state=seed, global_model=global_model)
+global_dataset, local_train, local_test = generate_and_distribute_synthetic_dataset(globally_balanced, locally_balanced,
+                                                                                    num_samples, num_classes, comm.rank,
+                                                                                    comm.size, seed, test_size,
+                                                                                    mu_partition, mu_data, peak,
+                                                                                    shared_test_set=shared_test_set)
+distributed_random_forest = DistributedRandomForest(n_trees_global=n_trees, comm=comm, random_state=seed,
+                                                    shared_global_model=global_model)
 distributed_random_forest.train(local_train.x, local_train.y, global_model)
-distributed_random_forest.test(local_test.x, local_test.y, num_classes, global_model)
+distributed_random_forest.evaluate(local_test.x, local_test.y, num_classes, global_model)
 ```
