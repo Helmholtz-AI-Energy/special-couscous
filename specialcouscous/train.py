@@ -588,8 +588,7 @@ def train_parallel_on_balanced_synthetic_data(
     Train and evaluate a distributed random forest on globally balanced synthetic data.
 
     Note that training and test data are not distributed over the ranks but each rank sees the full dataset. Thus, the
-    test set on each rank is the same even if ``private_test_set`` is set to True as a ``RandomState`` object with the
-    same seed is used for data generation and splitting on each rank.
+    train and test sets on each rank are the same.
 
     Parameters
     ----------
