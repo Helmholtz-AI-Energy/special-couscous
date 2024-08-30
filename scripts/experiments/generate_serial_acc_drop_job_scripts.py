@@ -8,7 +8,8 @@ def generate_serial_acc_drop_job_scripts(
     wall_time: int,
     n_classes: int,
     n_trees: int,
-    random_state: int,
+    random_state_data: int,
+    random_state_model: int,
     output_path: pathlib.Path,
     submit: bool = False,
 ) -> None:
@@ -27,14 +28,17 @@ def generate_serial_acc_drop_job_scripts(
         The number of classes in the synthetic dataset.
     n_trees : int
         The number of trees to use.
-    random_state : int
+    random_state_data : int
         The random state.
     output_path : pathlib.Path
         The path to save the generated job scripts.
     submit : bool, optional
         Whether to submit jobs to the cluster. Default is False.
     """
-    job_name = f"n{log_n_samples}_m{log_n_features}_ntasks_1_seed_{random_state}"
+    job_name = (
+        f"n{log_n_samples}_m{log_n_features}_ntasks_1_dataseed_"
+        f"{random_state_data}_modelseed_{random_state_model}"
+    )
     job_script_name = f"{job_name}.sh"
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}  # Job name
@@ -62,7 +66,7 @@ N_TREES={n_trees}
 
 SCRIPT="scripts/examples/rf_serial_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/acc_drop/n${{N_SAMPLES}}_m${{N_FEATURES}}/ntasks_1_${{SLURM_JOB_ID}}/
+RESDIR="${{BASE_DIR}}"/results/acc_drop/n${{N_SAMPLES}}_m${{N_FEATURES}}/ntasks_1/${{SLURM_JOB_ID}}/
 mkdir "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
@@ -71,7 +75,8 @@ python -u ${{PYDIR}}/${{SCRIPT}} \\
     --n_features ${{N_FEATURES}} \\
     --n_trees ${{N_TREES}} \\
     --n_classes {n_classes} \\
-    --random_state {random_state} \\
+    --random_state {random_state_data} \\
+    --random_state_model {random_state_model} \\
     --detailed_evaluation \\
     --save_model \\
     --output_dir ${{RESDIR}} \\
@@ -91,22 +96,27 @@ if __name__ == "__main__":
     # Considered datasets given as pairs of (log10 <number of samples>, log10 <number of features>, wall-time):
     datasets = [(5, 3, 10), (6, 2, 30)]
     n_classes = 10
-    # Considered seeds given as pairs of (<data-related seed>, <model-related seed>):
-    seeds = [0, 1, 2, 3, 4, 5]
+    # Considered seeds:
+    seeds_data = [0, 1, 2, 3, 4]
+    seeds_model = [5, 6, 7, 8, 9]
     output_path = pathlib.Path("dropping_acc/")
 
-    for random_state in seeds:  # Loop over five different seed combinations
-        for dataset in datasets:  # Loop over considered datasets.
-            log_n_samples = dataset[0]  # Extract number of samples.
-            log_n_features = dataset[1]  # Extract number of features.
-            wall_time = dataset[2]
-            generate_serial_acc_drop_job_scripts(
-                log_n_samples=log_n_samples,
-                log_n_features=log_n_features,
-                wall_time=wall_time,
-                n_classes=n_classes,
-                n_trees=n_trees,
-                random_state=random_state,
-                output_path=output_path,
-                submit=False,
-            )
+    for random_state_data in seeds_data:  # Loop over five different dataset seeds.
+        for (
+            random_state_model
+        ) in seeds_model:  # Test five model seeds for each dataset seed.
+            for dataset in datasets:  # Loop over considered datasets.
+                log_n_samples = dataset[0]  # Extract number of samples.
+                log_n_features = dataset[1]  # Extract number of features.
+                wall_time = dataset[2]
+                generate_serial_acc_drop_job_scripts(
+                    log_n_samples=log_n_samples,
+                    log_n_features=log_n_features,
+                    wall_time=wall_time,
+                    n_classes=n_classes,
+                    n_trees=n_trees,
+                    random_state_data=random_state_data,
+                    random_state_model=random_state_model,
+                    output_path=output_path,
+                    submit=False,
+                )
