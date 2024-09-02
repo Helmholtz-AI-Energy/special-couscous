@@ -53,6 +53,7 @@ def generate_parallel_acc_drop_job_scripts(
 #SBATCH --nodes=1                     # Number of nodes
 #SBATCH --ntasks-per-node={n_tasks}   # Number of tasks per node
 #SBATCH --cpus-per-task={n_trees//n_tasks}   # Number of tasks per node
+#SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
@@ -63,9 +64,6 @@ ml purge              # Unload all currently loaded modules.
 ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
-
-N_SAMPLES={10**log_n_samples}
-N_FEATURES={10**log_n_features}
 
 SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic.py"
 

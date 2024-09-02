@@ -47,7 +47,7 @@ def generate_serial_acc_drop_job_scripts(
 #SBATCH --time={wall_time}          # Wall-clock time limit
 #SBATCH --cpus-per-task=76     # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL        # Notify user by email when certain event types occur
-
+#SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
@@ -58,11 +58,6 @@ ml purge              # Unload all currently loaded modules.
 ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
-
-# Set hyperparameters of synthetic dataset and random forest model.
-{10**log_n_samples}
-N_FEATURES={10**log_n_features}
-N_TREES={n_trees}
 
 SCRIPT="special-couscous/scripts/examples/rf_serial_synthetic.py"
 
