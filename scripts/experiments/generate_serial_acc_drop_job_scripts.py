@@ -59,11 +59,6 @@ ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
 
-# Set hyperparameters of synthetic dataset and random forest model.
-{10**log_n_samples}
-N_FEATURES={10**log_n_features}
-N_TREES={n_trees}
-
 SCRIPT="special-couscous/scripts/examples/rf_serial_synthetic.py"
 
 RESDIR="${{BASE_DIR}}"/results/acc_drop/n{log_n_samples}_m{log_n_features}/ntasks_1/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/

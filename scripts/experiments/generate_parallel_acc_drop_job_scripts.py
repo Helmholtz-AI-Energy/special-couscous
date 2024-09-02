@@ -64,9 +64,6 @@ ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
 
-N_SAMPLES={10**log_n_samples}
-N_FEATURES={10**log_n_features}
-
 SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic.py"
 
 RESDIR="${{BASE_DIR}}"/results/acc_drop/n{log_n_samples}_m{log_n_features}/ntasks_${{SLURM_NPROCS}}/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/
