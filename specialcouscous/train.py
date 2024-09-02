@@ -289,9 +289,6 @@ def train_serial_on_synthetic_data(
     save_model : bool
         Whether the trained classifier is saved to disk (True) or not (False). Default is True.
     """
-    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
-    random_state = check_random_state(random_state)
-
     configuration = locals()
     del configuration["output_dir"]
     configuration["comm_size"] = 1
@@ -300,7 +297,8 @@ def train_serial_on_synthetic_data(
         "comm_rank": "global",
         "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
     }
-
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
     # Generate data.
     log.info("Generating data...")
     data_generation_start = time.perf_counter()
