@@ -43,7 +43,6 @@ def generate_serial_acc_drop_job_scripts(
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}  # Job name
 #SBATCH --partition=cpuonly    # Queue for resource allocation
-#SBATCH --mem=501600mb         # Memory required per node
 #SBATCH --time={wall_time}          # Wall-clock time limit
 #SBATCH --cpus-per-task=76     # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL        # Notify user by email when certain event types occur
