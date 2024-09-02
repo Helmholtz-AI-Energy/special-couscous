@@ -48,32 +48,32 @@ def generate_serial_acc_drop_job_scripts(
 #SBATCH --cpus-per-task=76     # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL        # Notify user by email when certain event types occur
 
+
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-special-couscous/}}
+BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
 
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
-export PYDIR=${{BASE_DIR}}/special-couscous/specialcouscous
 
 ml purge              # Unload all currently loaded modules.
 ml load compiler/gnu  # Load required modules.
-ml load mpi/openmpi
-source "${{BASE_DIR}}"/special-couscous-venv/bin/activate  # Activate venv.
+ml load mpi/openmpi/4.1
+source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
 
 # Set hyperparameters of synthetic dataset and random forest model.
-N_SAMPLES={10**log_n_samples}
+{10**log_n_samples}
 N_FEATURES={10**log_n_features}
 N_TREES={n_trees}
 
-SCRIPT="scripts/examples/rf_serial_synthetic.py"
+SCRIPT="special-couscous/scripts/examples/rf_serial_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/acc_drop/n${{N_SAMPLES}}_m${{N_FEATURES}}/ntasks_1/${{SLURM_JOB_ID}}/
-mkdir "${{RESDIR}}"
+RESDIR="${{BASE_DIR}}"/results/acc_drop/n{log_n_samples}_m{log_n_features}/ntasks_1/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/
+mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-python -u ${{PYDIR}}/${{SCRIPT}} \\
-    --n_samples ${{N_SAMPLES}} \\
-    --n_features ${{N_FEATURES}} \\
-    --n_trees ${{N_TREES}} \\
+python -u ${{BASE_DIR}}/${{SCRIPT}} \\
+    --n_samples {10**log_n_samples} \\
+    --n_features {10**log_n_features} \\
+    --n_trees {n_trees} \\
     --n_classes {n_classes} \\
     --random_state {random_state_data} \\
     --random_state_model {random_state_model} \\
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     # Considered seeds:
     seeds_data = [0, 1, 2, 3, 4]
     seeds_model = [5, 6, 7, 8, 9]
-    output_path = pathlib.Path("dropping_acc/")
+    output_path = pathlib.Path("acc_drop/")
 
     for random_state_data in seeds_data:  # Loop over five different dataset seeds.
         for (
