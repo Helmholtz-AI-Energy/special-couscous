@@ -187,10 +187,14 @@ def save_results_parallel(
     gathered_class_frequencies_train = train_data.allgather_class_frequencies(mpi_comm)
     gathered_class_frequencies_test = test_data.allgather_class_frequencies(mpi_comm)
     if output_dir:
-        path, base_filename = construct_output_path(
-            output_dir, output_label, experiment_id
-        )
-
+        if mpi_comm.rank == 0:
+            path, base_filename = construct_output_path(
+                output_dir, output_label, experiment_id
+            )
+        else:
+            path, base_filename = pathlib.Path(""), ""
+        path = pathlib.Path(mpi_comm.bcast(path, root=0))
+        base_filename = mpi_comm.bcast(base_filename, root=0)
         if mpi_comm.rank == 0:
             # Convert arrays back into dicts, then into dataframe.
             gathered_local_results = [
@@ -458,14 +462,6 @@ def train_parallel_on_synthetic_data(
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
-    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
-    random_state = check_random_state(random_state)
-    # Generate model base seed if not provided by user.
-    assert isinstance(random_state, np.random.RandomState)
-    if random_state_model is None:
-        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
-        if comm.rank == 0:
-            log.info(f"Generated model base seed is {random_state_model}.")
     # Note that to evaluate the global model in a meaningful way, either the model itself of the test data must be
     # shared among all ranks. Otherwise, each rank can only test its local subforest on its private test set, making
     # any evaluation of the global model impossible.
@@ -486,6 +482,14 @@ def train_parallel_on_synthetic_data(
         "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
     }
     local_results: dict[str, Any] = {"comm_rank": comm.rank}
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+    # Generate model base seed if not provided by user.
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        if comm.rank == 0:
+            log.info(f"Generated model base seed is {random_state_model}.")
 
     # -------------- Generate and distribute data --------------
     if comm.rank == 0:
@@ -655,14 +659,6 @@ def train_parallel_on_balanced_synthetic_data(
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
     """
-    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
-    random_state = check_random_state(random_state)
-    # Generate model base seed if not provided by user.
-    assert isinstance(random_state, np.random.RandomState)
-    if random_state_model is None:
-        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
-        if mpi_comm.rank == 0:
-            log.info(f"Generated model base seed is {random_state_model}.")
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
     configuration = locals()
@@ -675,6 +671,14 @@ def train_parallel_on_balanced_synthetic_data(
         "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
     }
     local_results: dict[str, Any] = {"comm_rank": mpi_comm.rank}
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+    # Generate model base seed if not provided by user.
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        if mpi_comm.rank == 0:
+            log.info(f"Generated model base seed is {random_state_model}.")
 
     # -------------- Generate and distribute data --------------
     if mpi_comm.rank == 0:
