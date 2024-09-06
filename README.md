@@ -2,7 +2,7 @@
 # Distributed Random Forests in Python with MPI
 
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-blue)](https://opensource.org/licenses/BSD-3-Clause)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![](https://img.shields.io/badge/Contact-marie.weiel%40kit.edu-blue)](mailto:marie.weiel@kit.edu)
 ![](./coverage.svg)
