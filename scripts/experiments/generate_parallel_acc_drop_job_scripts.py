@@ -1,3 +1,4 @@
+import os
 import pathlib
 import subprocess
 
@@ -45,15 +46,16 @@ def generate_parallel_acc_drop_job_scripts(
         f"{random_state_data}_modelseed_{random_state_model}"
     )
     job_script_name = f"{job_name}.sh"
+    memory = 243200 if n_tasks < 76 else 501600
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
 #SBATCH --time={wall_time}:00         # Wall-clock time limit
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes=1                     # Number of nodes
+#SBATCH --mem={memory}
 #SBATCH --ntasks-per-node={n_tasks}   # Number of tasks per node
 #SBATCH --cpus-per-task={n_trees//n_tasks}   # Number of tasks per node
-#SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
@@ -67,7 +69,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/acc_drop/n{log_n_samples}_m{log_n_features}/ntasks_${{SLURM_NPROCS}}/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/
+RESDIR="${{BASE_DIR}}"/results/acc_drop/rank_based_seeds/n{log_n_samples}_m{log_n_features}/ntasks_${{SLURM_NPROCS}}/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
@@ -87,7 +89,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     with open(output_path / job_script_name, "wt") as f:
         f.write(script_content)
     if submit:
-        subprocess.run(f"sbatch {job_script_name}", shell=True)
+        subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
 
 
 if __name__ == "__main__":
@@ -99,7 +101,8 @@ if __name__ == "__main__":
     # Considered seeds:
     seeds_data = [0, 1, 2, 3, 4]
     seeds_model = [5, 6, 7, 8, 9]
-    output_path = pathlib.Path("./acc_drop/")
+    output_path = pathlib.Path("./acc_drop/parallel")
+    os.makedirs(output_path, exist_ok=True)
 
     for random_state_data in seeds_data:  # Loop over five different dataset seeds.
         for (

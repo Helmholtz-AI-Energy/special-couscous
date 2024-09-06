@@ -1,3 +1,4 @@
+import os
 import pathlib
 import subprocess
 
@@ -43,11 +44,9 @@ def generate_serial_acc_drop_job_scripts(
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}  # Job name
 #SBATCH --partition=cpuonly    # Queue for resource allocation
-#SBATCH --mem=501600mb         # Memory required per node
 #SBATCH --time={wall_time}          # Wall-clock time limit
 #SBATCH --cpus-per-task=76     # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL        # Notify user by email when certain event types occur
-#SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
@@ -61,7 +60,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/rf_serial_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/acc_drop/n{log_n_samples}_m{log_n_features}/ntasks_1/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/
+RESDIR="${{BASE_DIR}}"/results/acc_drop/rank_based_seeds/n{log_n_samples}_m{log_n_features}/ntasks_1/${{SLURM_JOB_ID}}_{random_state_data}_{random_state_model}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
@@ -83,7 +82,7 @@ python -u ${{BASE_DIR}}/${{SCRIPT}} \\
         f.write(script_content)
     # Possibly submit script to cluster.
     if submit:
-        subprocess.run(f"sbatch {job_script_name}", shell=True)
+        subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
 
 
 if __name__ == "__main__":
@@ -94,7 +93,8 @@ if __name__ == "__main__":
     # Considered seeds:
     seeds_data = [0, 1, 2, 3, 4]
     seeds_model = [5, 6, 7, 8, 9]
-    output_path = pathlib.Path("acc_drop/")
+    output_path = pathlib.Path("./acc_drop/serial")
+    os.makedirs(output_path, exist_ok=True)
 
     for random_state_data in seeds_data:  # Loop over five different dataset seeds.
         for (
