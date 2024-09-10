@@ -632,6 +632,8 @@ class SyntheticDataset:
             random_state=random_state,
             **make_classification_kwargs,
         )
+        x = x.astype(np.float32)
+        y = y.astype(np.float32)
         return SyntheticDataset(x, y, n_samples, n_classes)
 
     @classmethod
