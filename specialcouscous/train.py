@@ -139,6 +139,74 @@ def save_results_serial(
     plt.close(fig_test)
 
 
+def get_output_path(
+    comm: MPI.Comm,
+    output_dir: str | pathlib.Path,
+    output_label: str = "",
+    experiment_id: str = "",
+) -> tuple[pathlib.Path, str]:
+    """
+    Create output directory to save model checkpoints (and configuration + evaluation results later on).
+
+    Parameters
+    ----------
+    comm : MPI.Comm
+        The MPI communicator.
+    output_dir : str | pathlib.Path
+        The root output directory.
+    output_label : str, optional
+        Optional label for the csv file, added to the name after the timestamp. Default is an empty string.
+    experiment_id : str, optional
+        If this is given, the file is placed in a further subdirectory of that name, i.e.,
+        'output_path / year / year-month / date / experiment_id / <filename>.csv'. This can be used to group multiple
+        runs of an experiment. Default is an empty string.
+
+    Returns
+    -------
+    pathlib.Path
+        The full output directory path.
+    str
+        The global base file name for this run.
+    """
+    # Create globally unique full output path and base file name only on root.
+    # Otherwise, each rank would create its own UUID.
+    if comm.rank == 0:
+        path, base_filename = construct_output_path(
+            output_dir, output_label, experiment_id
+        )
+    else:
+        path, base_filename = pathlib.Path(""), ""
+    # Broadcast to all ranks and return the same path and base file name on all ranks.
+    return pathlib.Path(comm.bcast(path, root=0)), comm.bcast(base_filename, root=0)
+
+
+def save_model_parallel(
+    mpi_comm: MPI.Comm,
+    clf: RandomForestClassifier,
+    path: pathlib.Path,
+    base_filename: str,
+) -> None:
+    """
+    Save rank-local random forest classifiers to output directory.
+
+    Parameters
+    ----------
+    mpi_comm : MPI.Comm
+        The MPI communicator to use.
+    clf : RandomForestClassifier
+        The local trained random forest classifier.
+    path : pathlib.Path
+        The output directory to save results to.
+    base_filename : str
+        The base file name, including UUID.
+    """
+    with open(
+        path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
+        "wb",
+    ) as f:
+        dump(clf, f, protocol=5)
+
+
 def save_results_parallel(
     mpi_comm: MPI.Comm,
     local_results: dict[str, Any],
@@ -147,10 +215,8 @@ def save_results_parallel(
     clf: RandomForestClassifier,
     train_data: SyntheticDataset,
     test_data: SyntheticDataset,
-    output_dir: str | pathlib.Path = "",
-    output_label: str = "",
-    experiment_id: str = "",
-    save_model: bool = True,
+    output_path: pathlib.Path,
+    base_filename: str,
 ) -> None:
     """
     Save results of distributed random forest training to output directory.
@@ -171,14 +237,10 @@ def save_results_parallel(
         The synthetic training dataset.
     test_data : SyntheticDataset
         The synthetic test dataset.
-    output_dir : str | pathlib.Path
+    output_path : pathlib.Path
         The output directory to save results to.
-    output_label : str
-        Optional label for the output files.
-    experiment_id : str
-        Optional subdirectory name to collect related result in. Will be created automatically.
-    save_model : bool
-        Whether to save the trained random forest classifier model to the output directory.
+    base_filename : str
+        The base file name, including UUID.
     """
     key_order = sorted(local_results.keys())
     local_results_array = np.array([local_results[key] for key in key_order])
@@ -186,51 +248,37 @@ def save_results_parallel(
     gathered_local_results = mpi_comm.gather(local_results_array)
     gathered_class_frequencies_train = train_data.allgather_class_frequencies(mpi_comm)
     gathered_class_frequencies_test = test_data.allgather_class_frequencies(mpi_comm)
-    if output_dir:
-        if mpi_comm.rank == 0:
-            path, base_filename = construct_output_path(
-                output_dir, output_label, experiment_id
-            )
-        else:
-            path, base_filename = pathlib.Path(""), ""
-        path = pathlib.Path(mpi_comm.bcast(path, root=0))
-        base_filename = mpi_comm.bcast(base_filename, root=0)
-        if mpi_comm.rank == 0:
-            # Convert arrays back into dicts, then into dataframe.
-            gathered_local_results = [
-                dict(zip(key_order, gathered_values))
-                for gathered_values in gathered_local_results
-            ]
-            results_df = pandas.DataFrame(gathered_local_results + [global_results])
+    if mpi_comm.rank == 0:
+        # Convert arrays back into dicts, then into dataframe.
+        gathered_local_results = [
+            dict(zip(key_order, gathered_values))
+            for gathered_values in gathered_local_results
+        ]
+        results_df = pandas.DataFrame(gathered_local_results + [global_results])
 
-            # Add configuration as columns.
-            for key, value in configuration.items():
-                results_df[key] = value
+        # Add configuration as columns.
+        for key, value in configuration.items():
+            results_df[key] = value
 
-            save_dataframe(results_df, path / (base_filename + "_results.csv"))
-            (
-                fig_train,
-                _,
-            ) = SyntheticDataset.plot_local_class_distributions(
-                gathered_class_frequencies_train
-            )
-            (
-                fig_test,
-                _,
-            ) = SyntheticDataset.plot_local_class_distributions(
-                gathered_class_frequencies_test
-            )
-            fig_train.savefig(path / (base_filename + "_class_distribution_train.pdf"))
-            fig_test.savefig(path / (base_filename + "_class_distribution_test.pdf"))
-            plt.close(fig_train)
-            plt.close(fig_test)
-
-        if save_model:  # Save model to disk.
-            with open(
-                path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
-                "wb",
-            ) as f:
-                dump(clf, f, protocol=5)
+        save_dataframe(results_df, output_path / (base_filename + "_results.csv"))
+        (
+            fig_train,
+            _,
+        ) = SyntheticDataset.plot_local_class_distributions(
+            gathered_class_frequencies_train
+        )
+        (
+            fig_test,
+            _,
+        ) = SyntheticDataset.plot_local_class_distributions(
+            gathered_class_frequencies_test
+        )
+        fig_train.savefig(
+            output_path / (base_filename + "_class_distribution_train.pdf")
+        )
+        fig_test.savefig(output_path / (base_filename + "_class_distribution_test.pdf"))
+        plt.close(fig_train)
+        plt.close(fig_test)
 
 
 def train_serial_on_synthetic_data(
@@ -538,6 +586,13 @@ def train_parallel_on_synthetic_data(
         )
     store_timing(timer, global_results, local_results)
 
+    # Create output directory to save model checkpoints (and configuration + evaluation results later on).
+    path, base_filename = get_output_path(comm, output_dir, output_label, experiment_id)
+
+    # Save model to disk.
+    if save_model:
+        save_model_parallel(comm, distributed_random_forest.clf, path, base_filename)
+
     # -------------- Evaluate random forest --------------
     log.info(
         f"[{comm.rank}/{comm.size}]: Evaluate random forest on test dataset with {len(local_test.x)} samples."
@@ -581,10 +636,8 @@ def train_parallel_on_synthetic_data(
         distributed_random_forest.clf,
         local_train,
         local_test,
-        output_dir,
-        output_label,
-        experiment_id,
-        save_model,
+        path,
+        base_filename,
     )
 
 
@@ -738,6 +791,17 @@ def train_parallel_on_balanced_synthetic_data(
             )
     store_timing(timer, global_results, local_results)
 
+    # Create output directory to save model checkpoints (and configuration + evaluation results later on).
+    path, base_filename = get_output_path(
+        mpi_comm, output_dir, output_label, experiment_id
+    )
+
+    # Save model to disk.
+    if save_model:
+        save_model_parallel(
+            mpi_comm, distributed_random_forest.clf, path, base_filename
+        )
+
     # -------------- Evaluate random forest --------------
     log.info(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest on test dataset."
@@ -770,8 +834,6 @@ def train_parallel_on_balanced_synthetic_data(
         distributed_random_forest.clf,
         train_data,
         test_data,
-        output_dir,
-        output_label,
-        experiment_id,
-        save_model,
+        path,
+        base_filename,
     )
