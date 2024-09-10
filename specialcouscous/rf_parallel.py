@@ -182,7 +182,9 @@ class DistributedRandomForest:
         numpy.ndarray
             The predictions of each sub estimator on the samples.
         """
-        return np.array([tree.predict(samples) for tree in self.trees], dtype="H")
+        return np.array(
+            [tree.predict(samples, check_input=False) for tree in self.trees], dtype="H"
+        )
 
     @staticmethod
     def _calc_majority_vote(tree_wise_predictions: np.ndarray) -> np.ndarray:
