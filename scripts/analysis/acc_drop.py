@@ -1,5 +1,6 @@
 import os
 import pathlib
+import sys
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
@@ -7,10 +8,8 @@ import pandas as pd
 
 pd.set_option("display.max_rows", None)
 
-# Define the root directory where your results are stored.
-root_dir = (
-    "/Users/marieweiel/Projects/special-couscous/results/acc_drop/robust_seeds/n5_m3"
-)
+# Get the root directory where results are stored from command line.
+root_dir = sys.argv[1]
 data_set = root_dir.split(os.sep)[-1]
 # Dictionary to store the values grouped by (dataset, number_of_tasks, dataseed)
 results = defaultdict(list)
