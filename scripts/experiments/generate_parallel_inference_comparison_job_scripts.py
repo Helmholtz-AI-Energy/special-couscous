@@ -61,12 +61,12 @@ def generate_parallel_inference_comparison_job_scripts(
         32,
         64,
     ]:  # Weak scaling type experiment (with shared global model)
-        n_trees = n_trees * n_nodes  # Number of trees is scaled with number of nodes.
+        n_trees_global = n_trees * n_nodes  # Number of trees is scaled with number of nodes.
         time = 3600  # All experiments should take approx. the same time (in min).
         mem = 243200  # Use standard nodes.
 
         print(
-            f"Current config uses {n_nodes} nodes and {n_trees} trees. Wall-clock time is {time / 60}h."
+            f"Current config uses {n_nodes} nodes and {n_trees_global} trees. Wall-clock time is {time / 60}h."
         )
 
         job_name = (
@@ -103,7 +103,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --n_samples {10**log_n_samples} \\
     --n_features {10**log_n_features} \\
     --n_classes {n_classes} \\
-    --n_trees {n_trees} \\
+    --n_trees {n_trees_global} \\
     --random_state {data_seed} \\
     --random_state_model {model_seed} \\
     --output_dir ${{RESDIR}} \\
@@ -116,7 +116,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
         with open(output_path / job_script_name, "wt") as f:
             f.write(script_content)
         if submit:
-            subprocess.run(f"sbatch {job_script_name}", shell=True)
+            subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
 
 
 if __name__ == "__main__":
