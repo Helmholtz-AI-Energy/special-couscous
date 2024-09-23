@@ -7,40 +7,53 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
     build:
-        runs-on: ubuntu-latest
+        strategy:
+          matrix:
+            os: ["ubuntu-latest", "macos-latest"]
+            python-version: [ "3.9", "3.10", "3.11", "3.12" ]
+            mpi: [ "openmpi" ]  # "mpich", "intelmpi"
+#            exclude:
+#              - os: "macos-latest"
+#                mpi: "intelmpi"
+
+        runs-on: ${{ matrix.os }}
+
         steps:
-            - uses: actions/checkout@v4
-            - name: Set up MPI
-              uses: mpi4py/setup-mpi@v1
-              with:
-                mpi: 'openmpi'
+          - name: Check out repository
+            uses: actions/checkout@v4
 
-            - name: Set up Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: '3.10'
+          - name: Setup MPI ${{ matrix.mpi }}
+            uses: mpi4py/setup-mpi@v1
+            with:
+              mpi: ${{ matrix.mpi }}
 
-            - name: Install dependencies
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install ."[dev]"
+          - name: Set up Python ${{ matrix.python-version }}
+            uses: actions/setup-python@v5
+            with:
+              python-version: ${{ matrix.python-version }}
 
-            - name: Test with pytest and measure coverage
-              run: |
-                coverage run --rcfile=./pyproject.toml -m pytest
-                mpirun -n 4 coverage run --rcfile=./pyproject.toml -m mpi4py -m pytest --with-mpi
-                coverage combine
-                coverage report -m --format markdown > cov_report.txt
-                coverage xml
+          - name: Install dependencies
+            run: |
+                python -m pip install --upgrade pip
+                pip install ."[dev]"
 
-            - name: Upload coverage reports to Codecov
-              uses: codecov/codecov-action@v4.0.1
-              with:
-                token: ${{ secrets.CODECOV_TOKEN }}
+          - name: Test with pytest and measure coverage
+            run: |
+              coverage run --rcfile=./pyproject.toml -m pytest
+              mpirun -n 4 coverage run --rcfile=./pyproject.toml -m mpi4py -m pytest --with-mpi
+              coverage combine
+              coverage report -m --format markdown > cov_report.txt
+              coverage xml
 
-            - name: Post coverage report to PR
-              uses: marocchino/sticky-pull-request-comment@v2
-              with:
-                path: cov_report.txt
+          - name: Upload coverage reports to Codecov
+            uses: codecov/codecov-action@v4.0.1
+            with:
+              token: ${{ secrets.CODECOV_TOKEN }}
+
+          - name: Post coverage report to PR
+            uses: marocchino/sticky-pull-request-comment@v2
+            with:
+              path: cov_report.txt
