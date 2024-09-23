@@ -61,7 +61,9 @@ def generate_parallel_inference_comparison_job_scripts(
         32,
         64,
     ]:  # Weak scaling type experiment (with shared global model)
-        n_trees_global = n_trees * n_nodes  # Number of trees is scaled with number of nodes.
+        n_trees_global = (
+            n_trees * n_nodes
+        )  # Number of trees is scaled with number of nodes.
         time = 3600  # All experiments should take approx. the same time (in min).
         mem = 243200  # Use standard nodes.
 

@@ -6,8 +6,6 @@ from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
-from specialcouscous.utils.timing import MPITimer
-
 log = logging.getLogger(__name__)  # Get logger instance.
 
 
@@ -325,8 +323,7 @@ class DistributedRandomForest:
         self,
         train_samples: np.ndarray,
         train_targets: np.ndarray,
-        shared_global_model: bool = True,
-    ) -> None | MPITimer:
+    ) -> None:
         """
         Train random forest model in parallel.
 
@@ -336,13 +333,6 @@ class DistributedRandomForest:
             The rank-local train samples.
         train_targets : numpy.ndarray
             The corresponding train targets.
-        shared_global_model : bool
-            Whether the global model shall be shared among all ranks (True) or not (False).
-
-        Returns
-        -------
-        None | MPITimer
-            A distributed MPI timer (if ``shared_global_model`` is True).
         """
         # Set up communicator.
         rank, size = self.comm.rank, self.comm.size
@@ -354,16 +344,17 @@ class DistributedRandomForest:
             train_samples=train_samples,
             train_targets=train_targets,
         )
-        if not shared_global_model:
-            return None
-        with MPITimer(self.comm, name="all-gathering model") as timer:
-            log.info(
-                f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
-            )
-            trees = self._allgather_subforests_tree_by_tree()
-            log.info(f"[{rank}/{size}]: {len(trees)} trees in global forest.")
-            self.trees = trees
-            return timer
+
+    def build_shared_global_model(self) -> None:
+        """Build global shared random forest model from rank-local classifiers."""
+        # Set up communicator.
+        rank, size = self.comm.rank, self.comm.size
+        log.info(
+            f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
+        )
+        # Construct globally shared list of all trees.
+        self.trees = self._allgather_subforests_tree_by_tree()
+        log.info(f"[{rank}/{size}]: {len(self.trees)} trees in global forest.")
 
     def evaluate(
         self,
