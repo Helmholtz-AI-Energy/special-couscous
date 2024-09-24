@@ -325,7 +325,7 @@ class DistributedRandomForest:
         train_targets: np.ndarray,
     ) -> None:
         """
-        Train random forest model in parallel.
+        Train distributed random forest model in parallel.
 
         Parameters
         ----------
@@ -338,7 +338,7 @@ class DistributedRandomForest:
         rank, size = self.comm.rank, self.comm.size
         # Set up and train local forest.
         log.info(
-            f"[{rank}/{size}]: Set up and train local random forest with {self.n_trees_local} trees."
+            f"[{rank}/{size}]: Set up and train rank-local random forest with {self.n_trees_local} trees."
         )
         self.clf = self._train_local_classifier(
             train_samples=train_samples,
@@ -352,7 +352,7 @@ class DistributedRandomForest:
         log.info(
             f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
         )
-        # Construct globally shared list of all trees.
+        # Construct shared global model as globally shared list of all trees.
         self.trees = self._allgather_subforests_tree_by_tree()
         log.info(f"[{rank}/{size}]: {len(self.trees)} trees in global forest.")
 
