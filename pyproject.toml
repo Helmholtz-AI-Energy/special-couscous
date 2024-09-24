@@ -43,6 +43,13 @@ dev = [
     "sphinxemoji",
 ]
 
+test = [
+    "coverage",
+    "pytest",
+    "pytest-cov",
+    "pytest-mpi"
+]
+
 [project.urls]
 Homepage = "https://github.com/Helmholtz-AI-Energy/special-couscous"
 Issues = "https://github.com/Helmholtz-AI-Energy/special-couscous/issues"
