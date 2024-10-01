@@ -235,7 +235,6 @@ if __name__ == "__main__":
     # )
     ax1.set_yscale("log", base=2)
     ax1.set_ylabel("Time / min", fontweight="bold")
-    # ax1.set_xlabel("Number of nodes", fontweight="bold")
     ax1.grid(True)
     ax1.legend(loc="lower right", fontsize="small")
 
