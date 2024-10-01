@@ -64,7 +64,7 @@ def generate_parallel_inference_comparison_job_scripts(
         n_trees_global = (
             n_trees * n_nodes
         )  # Number of trees is scaled with number of nodes.
-        time = 3600  # All experiments should take approx. the same time (in min).
+        time = 120  # All experiments should take approx. the same time (in min).
         mem = 243200  # Use standard nodes.
 
         print(
@@ -97,7 +97,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/shared_global_model/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
+RESDIR="${{BASE_DIR}}"/results/inference_flavor/shared_global_model/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
@@ -122,11 +122,11 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
 
 
 if __name__ == "__main__":
-    data_sets = [(6, 4, 800), (7, 3, 224)]
+    data_sets = [(5, 3, 76), (6, 2, 76)]
     data_seed = 0
     model_seeds = [1, 2, 3]
     n_classes = 10
-    output_path = pathlib.Path("./inference_flavor/")
+    output_path = pathlib.Path("./inference_flavor_shared_model/")
     os.makedirs(output_path, exist_ok=True)
     for random_state_model in model_seeds:
         for data_set in data_sets:
