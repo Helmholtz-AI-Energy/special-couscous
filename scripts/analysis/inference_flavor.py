@@ -233,7 +233,7 @@ if __name__ == "__main__":
     #     linewidths=1.3,
     #     zorder=20,
     # )
-    ax1.set_yscale("log")
+    ax1.set_yscale("log", base=2)
     ax1.set_ylabel("Time / min", fontweight="bold")
     # ax1.set_xlabel("Number of nodes", fontweight="bold")
     ax1.grid(True)
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             1.5 * results_df_shared_model["Time for evaluation"].max() / 60,
         ]
     )
-    ax2.set_yscale("log")
+    ax2.set_yscale("log", base=2)
 
     # Overall time
     # Individual data points
@@ -350,7 +350,7 @@ if __name__ == "__main__":
             1.6 * results_df_shared_model["Memory used"].max(),
         ]
     )
-    ax3.set_yscale("log")
+    ax3.set_yscale("log", base=2)
     ax3.set_ylabel("Memory / GB", fontweight="bold")
     ax3.set_xlabel("Number of nodes", fontweight="bold")
     ax3.grid(True)
@@ -375,7 +375,7 @@ if __name__ == "__main__":
         linewidths=1.3,
         zorder=20,
     )
-    ax4.set_yscale("log")
+    ax4.set_yscale("log", base=2)
     ax4.set_xlabel("Number of nodes", fontweight="bold")
     ax4.set_ylim(
         [
