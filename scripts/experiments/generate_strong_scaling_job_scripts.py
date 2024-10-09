@@ -61,9 +61,10 @@ def generate_strong_scaling_job_scripts(
         time = int(
             limit / n_nodes * 1.2
         )  # Run time should decrease with increasing number of nodes.
-        mem = (
-            486400 if n_nodes != 64 else 243200
-        )  # Use high-memory nodes (except for 64-node experiment).
+        # mem = (
+        #    486400 if n_nodes != 64 else 243200
+        # )  # Use high-memory nodes (except for 64-node experiment).
+        mem = 243200
         print(
             f"Current config uses {n_nodes} nodes and {n_trees} trees. Wall-clock time is {time / 60}h."
         )
@@ -112,7 +113,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
         with open(output_path / job_script_name, "wt") as f:
             f.write(script_content)
         if submit:
-            subprocess.run(f"sbatch {job_script_name}", shell=True)
+            subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
 
 
 if __name__ == "__main__":
