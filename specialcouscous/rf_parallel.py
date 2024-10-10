@@ -361,7 +361,7 @@ class DistributedRandomForest:
         samples: np.ndarray,
         targets: np.ndarray,
         n_classes: int,
-        shared_global_model: bool = True,
+        shared_global_model: bool = False,
     ) -> None:
         """
         Evaluate the trained global random forest.
@@ -375,7 +375,7 @@ class DistributedRandomForest:
         n_classes : int
             The number of classes in the dataset.
         shared_global_model : bool
-            Whether the global model is shared among all ranks (True) or not (False). Default is True.
+            Whether the global model is shared among all ranks (True) or not (False). Default is False.
         """
         rank, size = self.comm.rank, self.comm.size
         if shared_global_model:  # Global model is shared.
