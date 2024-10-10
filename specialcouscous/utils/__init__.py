@@ -257,4 +257,11 @@ def parse_arguments() -> argparse.Namespace:
         help="Logging level.",
     )
 
+    parser.add_argument(
+        "--checkpoint_path",
+        type=pathlib.Path,
+        default=pathlib.Path("./"),
+        help="Path to the checkpoint directory containing the local model pickle files to load.",
+    )
+
     return parser.parse_args()
