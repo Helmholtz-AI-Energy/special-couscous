@@ -470,6 +470,7 @@ if __name__ == "__main__":
     )
     # Ensure the layout is tight so labels don't overlap
     plt.tight_layout()
+    # plt.subplots_adjust(wspace=0, hspace=0)
     #
     # Save the figure
     plt.savefig(
