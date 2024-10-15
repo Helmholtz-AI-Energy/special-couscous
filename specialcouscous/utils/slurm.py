@@ -147,3 +147,31 @@ def time_to_seconds(time_str: str) -> float | None:
         return float(total_seconds)
     else:
         return None  # Return None for invalid time strings.
+
+
+def expand_range(s: str) -> list[str]:
+    """
+    Expand a range string of compute nodes into a list of individual nodes.
+
+    Parameters
+    ----------
+    s : str
+        The string to expand into a list of compute nodes, as extracted from the job output file.
+
+    Returns
+    -------
+    list[str]
+        The expanded list of compute nodes.
+    """
+    nodes = []
+    # Extract the content inside the square brackets
+    match = re.search(r"\[(.*?)\]", s)
+    if match:
+        ranges = match.group(1).split(",")
+        for r in ranges:
+            if "-" in r:  # Handle ranges like 0041-0042
+                start, end = r.split("-")
+                nodes.extend([f"{int(i):04}" for i in range(int(start), int(end) + 1)])
+            else:  # Handle individual nodes like 0016
+                nodes.append(f"{int(r):04}")
+    return nodes
