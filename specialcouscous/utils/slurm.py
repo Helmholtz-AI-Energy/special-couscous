@@ -149,7 +149,7 @@ def time_to_seconds(time_str: str) -> float | None:
         return None  # Return None for invalid time strings.
 
 
-def expand_range(s: str) -> list[str]:
+def expand_node_range(s: str) -> list[str]:
     """
     Expand a range string of compute nodes into a list of individual nodes.
 
