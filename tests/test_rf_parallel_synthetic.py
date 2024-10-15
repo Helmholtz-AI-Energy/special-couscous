@@ -35,6 +35,7 @@ def test_parallel_synthetic(random_state_model: int) -> None:
     frac_redundant: float = (
         0.1  # Fraction of redundant features in synthetic classification dataset
     )
+    random_state: int = 9  # Random state for synthetic data generation and splitting
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
     output_dir: pathlib.Path = pathlib.Path(
@@ -77,7 +78,7 @@ def test_parallel_synthetic(random_state_model: int) -> None:
         n_clusters_per_class=n_clusters_per_class,
         frac_informative=frac_informative,
         frac_redundant=frac_redundant,
-        random_state=9,
+        random_state=random_state,
         random_state_model=random_state_model,
         mpi_comm=comm,
         n_trees=n_trees,
