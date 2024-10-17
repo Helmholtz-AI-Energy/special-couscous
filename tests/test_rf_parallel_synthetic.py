@@ -16,7 +16,9 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
-def test_parallel_synthetic(random_state_model: int, mpi_tmp_path: pathlib.Path) -> None:
+def test_parallel_synthetic(
+    random_state_model: int, mpi_tmp_path: pathlib.Path
+) -> None:
     """
     Test parallel training of random forest on synthetic data.
 

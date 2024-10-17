@@ -22,7 +22,9 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
-def test_evaluate_from_checkpoint(random_state_model: int , mpi_tmp_path: pathlib.Path) -> None:
+def test_evaluate_from_checkpoint(
+    random_state_model: int, mpi_tmp_path: pathlib.Path
+) -> None:
     """
     Test parallel evaluation of random forest from pickled model checkpoints.
 
@@ -106,8 +108,7 @@ def test_evaluate_from_checkpoint(random_state_model: int , mpi_tmp_path: pathli
         output_path=output_dir, experiment_id=experiment_id
     )
     if comm.rank == 0:
-        log.info(
-            f"EVALUATION: Checkpoint path is {checkpoint_path}.")
+        log.info(f"EVALUATION: Checkpoint path is {checkpoint_path}.")
 
     evaluate_parallel_from_checkpoint(
         n_samples=n_samples,
