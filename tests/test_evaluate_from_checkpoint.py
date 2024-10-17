@@ -22,7 +22,7 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
-def test_evaluate_from_checkpoint(random_state_model: int) -> None:
+def test_evaluate_from_checkpoint(random_state_model: int , mpi_tmp_path: pathlib.Path) -> None:
     """
     Test parallel evaluation of random forest from pickled model checkpoints.
 
@@ -31,8 +31,10 @@ def test_evaluate_from_checkpoint(random_state_model: int) -> None:
 
     Parameters
     ----------
-    random_state_model: int
+    random_state_model : int
         The random state used for the model.
+    mpi_tmp_path : pathlib.Path
+        The temporary folder used for storing results.
     """
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
@@ -48,9 +50,7 @@ def test_evaluate_from_checkpoint(random_state_model: int) -> None:
     train_split: float = 0.75  # Fraction of original dataset used for training
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    output_dir: pathlib.Path = pathlib.Path(
-        "./results"
-    )  # Directory to write results to
+    output_dir: pathlib.Path = mpi_tmp_path  # Directory to write results to
     experiment_id: str = (
         pathlib.Path(
             __file__
@@ -59,7 +59,7 @@ def test_evaluate_from_checkpoint(random_state_model: int) -> None:
     save_model: bool = True
     shared_global_model: bool = True
     detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
-    log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
+    log_path: pathlib.Path = mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
         f"{log_path}/{pathlib.Path(__file__).stem}.log"
@@ -80,7 +80,7 @@ def test_evaluate_from_checkpoint(random_state_model: int) -> None:
         log.info(
             "*************************************************************\n"
             "* Multi-Node Random Forest Classification of Synthetic Data *\n"
-            "*************************************************************"
+            "*************************************************************\nTRAINING"
         )
 
     train_parallel_on_balanced_synthetic_data(
@@ -101,11 +101,13 @@ def test_evaluate_from_checkpoint(random_state_model: int) -> None:
         experiment_id=experiment_id,
         save_model=save_model,
     )
-
+    comm.barrier()
     checkpoint_path, _ = construct_output_path(
         output_path=output_dir, experiment_id=experiment_id
     )
-    print(checkpoint_path)
+    if comm.rank == 0:
+        log.info(
+            f"EVALUATION: Checkpoint path is {checkpoint_path}.")
 
     evaluate_parallel_from_checkpoint(
         n_samples=n_samples,
@@ -144,15 +146,10 @@ def test_evaluate_from_checkpoint(random_state_model: int) -> None:
         "accuracy_global_train",
     ]
 
-    # for result_csv_df in result_csv_dfs:
-    #     print(len(result_csv_df.columns), result_csv_df.columns)
-    # print(columns_to_compare in result_csv_df.columns)
-
     for result_df in result_csv_dfs:
         pd.testing.assert_frame_equal(
             result_df[columns_to_compare], result_csv_dfs[0][columns_to_compare]
         )
-
-    if comm.rank == 0:
-        log_file.unlink()
-        shutil.rmtree(output_dir)
+    comm.barrier()
+    # Remove all files generated during test in temporary directory.
+    shutil.rmtree(str(mpi_tmp_path), ignore_errors=True)
