@@ -15,9 +15,7 @@ def generate_parallel_evaluation_from_ckpt_job_scripts(
     submit: bool = False,
 ) -> None:
     """
-    Generate the job scripts for the inference flavor comparison experiments.
-
-    These experiments basically correspond to a weak scaling experiment series with shared global model.
+    Generate the job scripts for parallel evaluation of weak scaling experiments from pickled model checkpoints.
 
     NOTE: We estimated 1500 and 450 trees to be trainable in serial in 3 days for 1M samples with 10k features and 10M
     samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline.
@@ -66,7 +64,7 @@ def generate_parallel_evaluation_from_ckpt_job_scripts(
         n_trees_global = (
             n_trees * n_nodes
         )  # Number of trees is scaled with number of nodes.
-        time = 120  # All experiments should take approx. the same time (in min).
+        time = 360  # All experiments should take approx. the same time (in min).
         mem = 243200  # Use standard nodes.
 
         print(
@@ -155,7 +153,7 @@ if __name__ == "__main__":
     data_seed = 0
     model_seeds = [2, 3]
     n_classes = 10
-    output_path = pathlib.Path("./evaluation/")
+    output_path = pathlib.Path("./evaluate_from_ckpt/")
     os.makedirs(output_path, exist_ok=True)
     for data_set in data_sets:
         log_n_samples = data_set[0]
