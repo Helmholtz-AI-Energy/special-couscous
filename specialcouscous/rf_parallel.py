@@ -6,8 +6,6 @@ from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
-from specialcouscous.utils.timing import MPITimer
-
 log = logging.getLogger(__name__)  # Get logger instance.
 
 
@@ -182,7 +180,9 @@ class DistributedRandomForest:
         numpy.ndarray
             The predictions of each sub estimator on the samples.
         """
-        return np.array([tree.predict(samples) for tree in self.trees], dtype="H")
+        return np.array(
+            [tree.predict(samples, check_input=False) for tree in self.trees], dtype="H"
+        )
 
     @staticmethod
     def _calc_majority_vote(tree_wise_predictions: np.ndarray) -> np.ndarray:
@@ -323,10 +323,9 @@ class DistributedRandomForest:
         self,
         train_samples: np.ndarray,
         train_targets: np.ndarray,
-        shared_global_model: bool = True,
-    ) -> None | MPITimer:
+    ) -> None:
         """
-        Train random forest model in parallel.
+        Train distributed random forest model in parallel.
 
         Parameters
         ----------
@@ -334,41 +333,35 @@ class DistributedRandomForest:
             The rank-local train samples.
         train_targets : numpy.ndarray
             The corresponding train targets.
-        shared_global_model : bool
-            Whether the global model shall be shared among all ranks (True) or not (False).
-
-        Returns
-        -------
-        None | MPITimer
-            A distributed MPI timer (if ``shared_global_model`` is True).
         """
         # Set up communicator.
         rank, size = self.comm.rank, self.comm.size
         # Set up and train local forest.
         log.info(
-            f"[{rank}/{size}]: Set up and train local random forest with {self.n_trees_local} trees."
+            f"[{rank}/{size}]: Set up and train rank-local random forest with {self.n_trees_local} trees."
         )
         self.clf = self._train_local_classifier(
             train_samples=train_samples,
             train_targets=train_targets,
         )
-        if not shared_global_model:
-            return None
-        with MPITimer(self.comm, name="all-gathering model") as timer:
-            log.info(
-                f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
-            )
-            trees = self._allgather_subforests_tree_by_tree()
-            log.info(f"[{rank}/{size}]: {len(trees)} trees in global forest.")
-            self.trees = trees
-            return timer
+
+    def build_shared_global_model(self) -> None:
+        """Build global shared random forest model from rank-local classifiers."""
+        # Set up communicator.
+        rank, size = self.comm.rank, self.comm.size
+        log.info(
+            f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
+        )
+        # Construct shared global model as globally shared list of all trees.
+        self.trees = self._allgather_subforests_tree_by_tree()
+        log.info(f"[{rank}/{size}]: {len(self.trees)} trees in global forest.")
 
     def evaluate(
         self,
         samples: np.ndarray,
         targets: np.ndarray,
         n_classes: int,
-        shared_global_model: bool = True,
+        shared_global_model: bool = False,
     ) -> None:
         """
         Evaluate the trained global random forest.
@@ -382,7 +375,7 @@ class DistributedRandomForest:
         n_classes : int
             The number of classes in the dataset.
         shared_global_model : bool
-            Whether the global model is shared among all ranks (True) or not (False). Default is True.
+            Whether the global model is shared among all ranks (True) or not (False). Default is False.
         """
         rank, size = self.comm.rank, self.comm.size
         if shared_global_model:  # Global model is shared.

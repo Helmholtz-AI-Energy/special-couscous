@@ -1,12 +1,18 @@
+import glob
 import logging
 import pathlib
 import shutil
 
+import pandas as pd
 import pytest
 from mpi4py import MPI
 
-from specialcouscous.train import train_parallel_on_balanced_synthetic_data
+from specialcouscous.train import (
+    evaluate_parallel_from_checkpoint,
+    train_parallel_on_balanced_synthetic_data,
+)
 from specialcouscous.utils import set_logger_config
+from specialcouscous.utils.result_handling import construct_output_path
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
 
@@ -16,15 +22,18 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
-def test_parallel_synthetic(
+def test_evaluate_from_checkpoint(
     random_state_model: int, mpi_tmp_path: pathlib.Path
 ) -> None:
     """
-    Test parallel training of random forest on synthetic data.
+    Test parallel evaluation of random forest from pickled model checkpoints.
+
+    First, run parallel training on balanced synthetic data and evaluate model. Then, generate data redundantly, load
+    model checkpoints and evaluate loaded model on the regenerated balanced synthetic data.
 
     Parameters
     ----------
-    random_state_model: int
+    random_state_model : int
         The random state used for the model.
     mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
@@ -40,11 +49,14 @@ def test_parallel_synthetic(
         0.1  # Fraction of redundant features in synthetic classification dataset
     )
     random_state: int = 9  # Random state for synthetic data generation and splitting
+    train_split: float = 0.75  # Fraction of original dataset used for training
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
     output_dir: pathlib.Path = mpi_tmp_path  # Directory to write results to
     experiment_id: str = (
-        "test_parallel_rf"  # Optional subdirectory name to collect related result in
+        pathlib.Path(
+            __file__
+        ).stem  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
     shared_global_model: bool = True
@@ -70,7 +82,7 @@ def test_parallel_synthetic(
         log.info(
             "*************************************************************\n"
             "* Multi-Node Random Forest Classification of Synthetic Data *\n"
-            "*************************************************************"
+            "*************************************************************\nTRAINING"
         )
 
     train_parallel_on_balanced_synthetic_data(
@@ -83,6 +95,7 @@ def test_parallel_synthetic(
         random_state=random_state,
         random_state_model=random_state_model,
         mpi_comm=comm,
+        train_split=train_split,
         n_trees=n_trees,
         shared_global_model=shared_global_model,
         detailed_evaluation=detailed_evaluation,
@@ -90,6 +103,54 @@ def test_parallel_synthetic(
         experiment_id=experiment_id,
         save_model=save_model,
     )
+    comm.barrier()
+    checkpoint_path, _ = construct_output_path(
+        output_path=output_dir, experiment_id=experiment_id
+    )
+    if comm.rank == 0:
+        log.info(f"EVALUATION: Checkpoint path is {checkpoint_path}.")
+
+    evaluate_parallel_from_checkpoint(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        n_clusters_per_class=n_clusters_per_class,
+        frac_informative=frac_informative,
+        frac_redundant=frac_redundant,
+        random_state=random_state,
+        checkpoint_path=checkpoint_path,
+        random_state_model=random_state_model,
+        mpi_comm=comm,
+        train_split=train_split,
+        n_trees=n_trees,
+        detailed_evaluation=detailed_evaluation,
+        output_dir=output_dir,
+        experiment_id=experiment_id,
+    )
+    comm.barrier()
+    # Get all result CSV files in output directory.
+    result_csv_files = glob.glob(str(checkpoint_path) + "/*.csv")
+
+    # Load result CSV files and convert into dataframe.
+    result_csv_dfs = []
+    for result_csv_file in result_csv_files:
+        # result_df = pd.read_csv(result_csv_file)
+        result_csv_dfs.append(pd.read_csv(result_csv_file).fillna(0))
+
+    assert len(result_csv_files) == len(result_csv_dfs) == 2
+    # Only compare the following columns of the result dataframes.
+    columns_to_compare = [
+        "accuracy_local_test",
+        "accuracy_local_train",
+        "comm_rank",
+        "accuracy_global_test",
+        "accuracy_global_train",
+    ]
+
+    for result_df in result_csv_dfs:
+        pd.testing.assert_frame_equal(
+            result_df[columns_to_compare], result_csv_dfs[0][columns_to_compare]
+        )
     comm.barrier()
     # Remove all files generated during test in temporary directory.
     shutil.rmtree(str(mpi_tmp_path), ignore_errors=True)

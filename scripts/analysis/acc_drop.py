@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 import sys
 from collections import defaultdict
 
@@ -52,18 +53,45 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
                     global_test_accuracy
                 )
 
+print(results)
+
+for dirpath, dirnames, filenames in os.walk(root_dir):
+    for filename in filenames:
+        if filename.endswith(".out"):
+            parts = dirpath.split(os.sep)
+            number_of_tasks = int(parts[-2].split("_")[1])
+            data_seed = int(parts[-1].split("_")[1])  # Extract data seed from path.
+            model_seed = int(parts[-1].split("_")[2])  # Extract model seed from path.
+            pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
+            with open(
+                os.path.join(dirpath, filename), "r"
+            ) as file:  # Load input text from the file.
+                input_text = file.read()
+                print(dirpath)
+            energy_match = re.search(pattern_energy, input_text)
+            energy_consumed = float(energy_match.group(0))  # type:ignore
+            print(f"Energy Consumed: {energy_consumed:.2f} Watthours")
+            results[(data_set, number_of_tasks, data_seed, model_seed)].append(
+                energy_consumed
+            )
+
+print(results)
+
 # Save the results to a pandas dataframe.
 results_df = pd.DataFrame(
-    [(k[0], k[1], k[2], k[3], v[0]) for k, v in results.items()],
+    [(k[0], k[1], k[2], k[3], v[0], v[1]) for k, v in results.items()],
     columns=[
         "Dataset",
         "Number of tasks",
         "Data seed",
         "Model seed",
         "Global test accuracy",
+        "Energy consumed",
     ],
 )
 results_df = results_df.sort_values(by=["Number of tasks", "Data seed", "Model seed"])
+
+overall_energy = results_df["Energy consumed"].sum()
 
 avg_data_seeds = (
     results_df.groupby(["Number of tasks", "Data seed"])
@@ -78,7 +106,7 @@ avg_n_tasks = (
 )
 print(avg_n_tasks)
 
-plt.figure(figsize=(10, 6))
+f, ax = plt.subplots(figsize=(10, 6))
 plt.grid(True)
 
 # Plot individual test accuracy vs number of tasks as small dots
@@ -128,6 +156,16 @@ plt.title(
     fontweight="bold",
 )
 plt.legend(loc="lower left", fontsize="small")
+energy_str = f"Overall {(overall_energy / 1000):.2f} kWh consumed"
+ax.text(
+    0.75,
+    0.95,
+    energy_str,
+    transform=ax.transAxes,
+    fontsize="small",
+    verticalalignment="top",
+    fontweight="bold",
+)
 # plt.legend(loc='upper left', bbox_to_anchor=(0.5, 0.82), fontsize="small")
 plt.savefig(pathlib.Path(root_dir) / f"{data_set}_acc_drop.png")
 

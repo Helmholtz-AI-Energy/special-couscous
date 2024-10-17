@@ -4,9 +4,9 @@
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-blue)](https://opensource.org/licenses/BSD-3-Clause)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![codecov](https://codecov.io/gh/Helmholtz-AI-Energy/special-couscous/graph/badge.svg?token=ISGFUW08BK)](https://codecov.io/gh/Helmholtz-AI-Energy/special-couscous)
 [![](https://img.shields.io/badge/Contact-marie.weiel%40kit.edu-blue)](mailto:marie.weiel@kit.edu)
-![](./coverage.svg)
-
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/Helmholtz-AI-Energy/special-couscous/main.svg)](https://results.pre-commit.ci/latest/github/Helmholtz-AI-Energy/special-couscous/main)
 ``specialcouscous`` is a Python package for large-scale distributed training and inference of random forests on
 supercomputers. It uses the message passing interface (MPI) for communication between parallel processes.
 
