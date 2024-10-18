@@ -1039,6 +1039,7 @@ def evaluate_parallel_from_checkpoint(
         if detailed_evaluation:  # Only keep training data for detailed evalution.
             train_data = SyntheticDataset(x=train_samples, y=train_targets)
         else:  # Delete otherwise.
+            log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Delete training data.")
             del train_samples, train_targets
             train_data = None
         test_data = SyntheticDataset(x=test_samples, y=test_targets)
