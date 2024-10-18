@@ -632,6 +632,8 @@ class SyntheticDataset:
             random_state=random_state,
             **make_classification_kwargs,
         )
+        x = x.astype(np.float32)
+        y = y.astype(np.float32)
         return SyntheticDataset(x, y, n_samples, n_classes)
 
     @classmethod
@@ -1188,6 +1190,8 @@ def make_classification_dataset(
         n_clusters_per_class=n_clusters_per_class,
         random_state=random_state,
     )
+    targets = targets.astype(np.float32)
+    samples = samples.astype(np.float32)
     # Split into train and test set.
     return train_test_split(
         samples, targets, test_size=1 - train_split, random_state=random_state

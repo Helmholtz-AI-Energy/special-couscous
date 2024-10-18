@@ -31,12 +31,12 @@ def mix_colors(
     numpy.ndarray
         The mixed color as rgb.
     """
-    ratios = np.ones(len(colors)) if ratios is None else np.array(ratios)
-    ratios = ratios.reshape(len(colors), 1)
-    ratios /= ratios.sum()
+    ratios_array = np.ones(len(colors)) if ratios is None else np.array(ratios)
+    ratios_array = ratios_array.reshape(len(colors), 1)
+    ratios_array /= ratios_array.sum()
 
     rgb_colors = np.array([matplotlib.colors.to_rgb(color) for color in colors])
-    return (ratios * rgb_colors).sum(axis=0)
+    return (ratios_array * rgb_colors).sum(axis=0)
 
 
 def mix_with_white(

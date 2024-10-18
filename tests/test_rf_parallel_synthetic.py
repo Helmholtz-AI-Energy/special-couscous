@@ -16,7 +16,9 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
-def test_parallel_synthetic(random_state_model: int) -> None:
+def test_parallel_synthetic(
+    random_state_model: int, mpi_tmp_path: pathlib.Path
+) -> None:
     """
     Test parallel training of random forest on synthetic data.
 
@@ -24,6 +26,8 @@ def test_parallel_synthetic(random_state_model: int) -> None:
     ----------
     random_state_model: int
         The random state used for the model.
+    mpi_tmp_path : pathlib.Path
+        The temporary folder used for storing results.
     """
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
@@ -35,18 +39,17 @@ def test_parallel_synthetic(random_state_model: int) -> None:
     frac_redundant: float = (
         0.1  # Fraction of redundant features in synthetic classification dataset
     )
+    random_state: int = 9  # Random state for synthetic data generation and splitting
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    output_dir: pathlib.Path = pathlib.Path(
-        "./results"
-    )  # Directory to write results to
+    output_dir: pathlib.Path = mpi_tmp_path  # Directory to write results to
     experiment_id: str = (
         "test_parallel_rf"  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
     shared_global_model: bool = True
     detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
-    log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
+    log_path: pathlib.Path = mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
         f"{log_path}/{pathlib.Path(__file__).stem}.log"
@@ -77,7 +80,7 @@ def test_parallel_synthetic(random_state_model: int) -> None:
         n_clusters_per_class=n_clusters_per_class,
         frac_informative=frac_informative,
         frac_redundant=frac_redundant,
-        random_state=9,
+        random_state=random_state,
         random_state_model=random_state_model,
         mpi_comm=comm,
         n_trees=n_trees,
@@ -87,6 +90,6 @@ def test_parallel_synthetic(random_state_model: int) -> None:
         experiment_id=experiment_id,
         save_model=save_model,
     )
-    if comm.rank == 0:
-        log_file.unlink()
-        shutil.rmtree(output_dir)
+    comm.barrier()
+    # Remove all files generated during test in temporary directory.
+    shutil.rmtree(str(mpi_tmp_path), ignore_errors=True)
