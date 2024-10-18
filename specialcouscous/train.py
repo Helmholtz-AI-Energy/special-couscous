@@ -1032,17 +1032,20 @@ def evaluate_parallel_from_checkpoint(
             f""
             f"First test sample is:\n{test_samples[0]}\nLast test sample is:\n{test_samples[-1]}"
         )
-        train_data = SyntheticDataset(x=train_samples, y=train_targets)
+        log.info(
+            f"Done\nTrain samples and targets have shapes {train_samples.shape} and {train_targets.shape}.\n"
+            f"Test samples and targets have shapes {test_samples.shape} and {test_targets.shape}."
+        )
+        if detailed_evaluation:  # Only keep training data for detailed evalution.
+            train_data = SyntheticDataset(x=train_samples, y=train_targets)
+        else:  # Delete otherwise.
+            del train_samples, train_targets
+            train_data = None
         test_data = SyntheticDataset(x=test_samples, y=test_targets)
+        log.debug(
+            f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
+        )
     store_timing(timer, global_results, local_results)
-
-    log.info(
-        f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
-        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}."
-    )
-    log.debug(
-        f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
-    )
 
     # -------------- Set up distributed random forest --------------
     log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Set up classifier.")
@@ -1114,8 +1117,8 @@ def evaluate_parallel_from_checkpoint(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
         distributed_random_forest.evaluate(
-            samples=train_data.x,
-            targets=train_data.y,
+            samples=train_data.x,  # type:ignore
+            targets=train_data.y,  # type:ignore
             n_classes=n_classes,
             shared_global_model=False,
         )
