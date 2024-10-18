@@ -212,10 +212,10 @@ def save_results_parallel(
     local_results: dict[str, Any],
     global_results: dict[str, Any],
     configuration: dict[str, Any],
-    train_data: SyntheticDataset,
-    test_data: SyntheticDataset,
     output_path: pathlib.Path,
     base_filename: str,
+    test_data: SyntheticDataset | None = None,
+    train_data: SyntheticDataset | None = None,
 ) -> None:
     """
     Save results of distributed random forest training to output directory.
@@ -230,21 +230,18 @@ def save_results_parallel(
         The global results.
     configuration : dict[str, Any]
         The experiment configuration.
-    train_data : SyntheticDataset
-        The synthetic training dataset.
-    test_data : SyntheticDataset
-        The synthetic test dataset.
     output_path : pathlib.Path
         The output directory to save results to.
     base_filename : str
         The base file name, including UUID.
+    test_data : SyntheticDataset | None
+        The synthetic test dataset.
+    train_data : SyntheticDataset | None
+        The synthetic training dataset.
     """
     key_order = sorted(local_results.keys())
     local_results_array = np.array([local_results[key] for key in key_order])
-
     gathered_local_results = mpi_comm.gather(local_results_array)
-    gathered_class_frequencies_train = train_data.allgather_class_frequencies(mpi_comm)
-    gathered_class_frequencies_test = test_data.allgather_class_frequencies(mpi_comm)
     if mpi_comm.rank == 0:
         # Convert arrays back into dicts, then into dataframe.
         gathered_local_results = [
@@ -258,24 +255,37 @@ def save_results_parallel(
             results_df[key] = value
 
         save_dataframe(results_df, output_path / (base_filename + "_results.csv"))
-        (
-            fig_train,
-            _,
-        ) = SyntheticDataset.plot_local_class_distributions(
-            gathered_class_frequencies_train
+
+    if train_data:
+        gathered_class_frequencies_train = train_data.allgather_class_frequencies(
+            mpi_comm
         )
-        (
-            fig_test,
-            _,
-        ) = SyntheticDataset.plot_local_class_distributions(
-            gathered_class_frequencies_test
+        if mpi_comm.rank == 0:
+            (
+                fig_train,
+                _,
+            ) = SyntheticDataset.plot_local_class_distributions(
+                gathered_class_frequencies_train
+            )
+            fig_train.savefig(
+                output_path / (base_filename + "_class_distribution_train.pdf")
+            )
+            plt.close(fig_train)
+    if test_data:
+        gathered_class_frequencies_test = test_data.allgather_class_frequencies(
+            mpi_comm
         )
-        fig_train.savefig(
-            output_path / (base_filename + "_class_distribution_train.pdf")
-        )
-        fig_test.savefig(output_path / (base_filename + "_class_distribution_test.pdf"))
-        plt.close(fig_train)
-        plt.close(fig_test)
+        if mpi_comm.rank == 0:
+            (
+                fig_test,
+                _,
+            ) = SyntheticDataset.plot_local_class_distributions(
+                gathered_class_frequencies_test
+            )
+            fig_test.savefig(
+                output_path / (base_filename + "_class_distribution_test.pdf")
+            )
+            plt.close(fig_test)
 
 
 def train_serial_on_synthetic_data(
@@ -599,10 +609,10 @@ def train_parallel_on_synthetic_data(
         local_results=local_results,
         global_results=global_results,
         configuration=configuration,
-        train_data=local_train,
-        test_data=local_test,
         output_path=path,
         base_filename=base_filename,
+        test_data=local_test,
+        train_data=local_train,
     )
     # -------------- Build shared global model (if applicable) --------------
     if shared_global_model:
@@ -628,10 +638,10 @@ def train_parallel_on_synthetic_data(
         local_results=local_results,
         global_results=global_results,
         configuration=configuration,
-        train_data=local_train,
-        test_data=local_test,
         output_path=path,
         base_filename=base_filename,
+        test_data=local_test,
+        train_data=local_train,
     )
 
     # -------------- Evaluate trained model also on training data (if applicable) --------------
@@ -663,10 +673,10 @@ def train_parallel_on_synthetic_data(
             local_results=local_results,
             global_results=global_results,
             configuration=configuration,
-            train_data=local_train,
-            test_data=local_test,
             output_path=path,
             base_filename=base_filename,
+            test_data=local_test,
+            train_data=local_train,
         )
 
 
@@ -841,10 +851,10 @@ def train_parallel_on_balanced_synthetic_data(
         local_results=local_results,
         global_results=global_results,
         configuration=configuration,
-        train_data=train_data,
-        test_data=test_data,
         output_path=path,
         base_filename=base_filename,
+        test_data=test_data,
+        train_data=train_data,
     )
     # -------------- Build shared global model (if applicable) --------------
     if shared_global_model:
@@ -874,10 +884,10 @@ def train_parallel_on_balanced_synthetic_data(
         local_results=local_results,
         global_results=global_results,
         configuration=configuration,
-        train_data=train_data,
-        test_data=test_data,
         output_path=path,
         base_filename=base_filename,
+        test_data=test_data,
+        train_data=train_data,
     )
 
     # -------------- Evaluate trained model also on training data (if applicable) --------------
@@ -898,10 +908,10 @@ def train_parallel_on_balanced_synthetic_data(
             local_results=local_results,
             global_results=global_results,
             configuration=configuration,
-            train_data=train_data,
-            test_data=test_data,
             output_path=path,
             base_filename=base_filename,
+            test_data=test_data,
+            train_data=train_data,
         )
 
 
@@ -1062,10 +1072,10 @@ def evaluate_parallel_from_checkpoint(
         local_results=local_results,
         global_results=global_results,
         configuration=configuration,
-        train_data=train_data,
-        test_data=test_data,
         output_path=path,
         base_filename=base_filename,
+        test_data=test_data,
+        train_data=train_data,
     )
 
     # -------------- Evaluate random forest --------------
@@ -1093,10 +1103,10 @@ def evaluate_parallel_from_checkpoint(
         local_results=local_results,
         global_results=global_results,
         configuration=configuration,
-        train_data=train_data,
-        test_data=test_data,
         output_path=path,
         base_filename=base_filename,
+        test_data=test_data,
+        train_data=train_data,
     )
 
     # -------------- Evaluate trained model also on training data (if applicable) --------------
@@ -1120,8 +1130,8 @@ def evaluate_parallel_from_checkpoint(
             local_results=local_results,
             global_results=global_results,
             configuration=configuration,
-            train_data=train_data,
-            test_data=test_data,
             output_path=path,
             base_filename=base_filename,
+            test_data=test_data,
+            train_data=train_data,
         )
