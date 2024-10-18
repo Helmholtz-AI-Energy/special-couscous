@@ -22,8 +22,12 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
+@pytest.mark.parametrize(
+    "detailed_evaluation",
+    [True, False],
+)
 def test_evaluate_from_checkpoint(
-    random_state_model: int, mpi_tmp_path: pathlib.Path
+    random_state_model: int, detailed_evaluation: bool, mpi_tmp_path: pathlib.Path
 ) -> None:
     """
     Test parallel evaluation of random forest from pickled model checkpoints.
@@ -35,6 +39,8 @@ def test_evaluate_from_checkpoint(
     ----------
     random_state_model : int
         The random state used for the model.
+    detailed_evaluation : bool
+        Whether to additionally evaluate the model on the training dataset.
     mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
@@ -59,8 +65,7 @@ def test_evaluate_from_checkpoint(
         ).stem  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
-    shared_global_model: bool = True
-    detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
+    shared_global_model: bool = False
     log_path: pathlib.Path = mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
@@ -139,13 +144,20 @@ def test_evaluate_from_checkpoint(
 
     assert len(result_csv_files) == len(result_csv_dfs) == 2
     # Only compare the following columns of the result dataframes.
-    columns_to_compare = [
-        "accuracy_local_test",
-        "accuracy_local_train",
-        "comm_rank",
-        "accuracy_global_test",
-        "accuracy_global_train",
-    ]
+    if detailed_evaluation:
+        columns_to_compare = [
+            "accuracy_local_test",
+            "accuracy_local_train",
+            "comm_rank",
+            "accuracy_global_test",
+            "accuracy_global_train",
+        ]
+    else:
+        columns_to_compare = [
+            "accuracy_local_test",
+            "comm_rank",
+            "accuracy_global_test",
+        ]
 
     for result_df in result_csv_dfs:
         pd.testing.assert_frame_equal(
