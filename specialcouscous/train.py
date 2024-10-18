@@ -1,4 +1,3 @@
-import glob
 import logging
 import os
 import pathlib
@@ -1046,12 +1045,8 @@ def evaluate_parallel_from_checkpoint(
         )
     store_timing(timer, global_results, local_results)
 
-    rank_str = f"_rank_{mpi_comm.rank}.pickle"
-    checkpoints = glob.glob(str(checkpoint_path) + "/*.pickle")
-    local_checkpoint = next(ckpt for ckpt in checkpoints if rank_str in ckpt)
-    with open(local_checkpoint, "rb") as f:
-        distributed_random_forest.clf = pickle.load(f)
-        log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Loaded {local_checkpoint}.")
+    # Load pickled model checkpoints.
+    distributed_random_forest.load_checkpoints(checkpoint_path)
 
     # Create output directory to save model checkpoints (and configuration + evaluation results later on).
     path, base_filename = get_output_path(

@@ -1,4 +1,7 @@
+import glob
 import logging
+import pathlib
+import pickle
 
 import numpy as np
 import sklearn.tree
@@ -165,6 +168,24 @@ class DistributedRandomForest:
         )
         clf.fit(train_samples, train_targets)
         return clf
+
+    def load_checkpoints(self, checkpoint_path: str | pathlib.Path) -> None:
+        """
+        Initialize rank-local subforests from pickled model checkpoints.
+
+        Parameters
+        ----------
+        checkpoint_path : str | pathlib.Path
+            Path to the checkpoint directory containing the local model pickle files to load. There should only be one
+            valid checkpoint file for each rank, i.e., one file with the suffix "_rank_{comm.rank}.pickle}".
+        """
+        checkpoints = glob.glob(str(checkpoint_path) + "/*.pickle")
+        local_checkpoint = next(
+            ckpt for ckpt in checkpoints if f"_rank_{self.comm.rank}.pickle" in ckpt
+        )
+        with open(local_checkpoint, "rb") as f:
+            self.clf = pickle.load(f)
+            log.info(f"[{self.comm.rank}/{self.comm.size}]: Loaded {local_checkpoint}.")
 
     def _predict_tree_by_tree(self, samples: np.ndarray) -> np.ndarray:
         """
