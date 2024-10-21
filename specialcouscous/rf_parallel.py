@@ -1,4 +1,7 @@
+import glob
 import logging
+import pathlib
+import pickle
 
 import numpy as np
 import sklearn.tree
@@ -33,7 +36,7 @@ class DistributedRandomForest:
         The final number of rank-local trees.
     n_trees_remainder : int
         The remaining number of trees to distribute.
-    random_state : int
+    random_state : int | None
         The rank-local random state of each local random forest classifier.
     trees : list[sklearn.tree.DecisionTreeClassifier]
         A list of all trees in the global random forest model.
@@ -50,7 +53,7 @@ class DistributedRandomForest:
         self,
         n_trees_global: int,
         comm: MPI.Comm,
-        random_state: int,
+        random_state: int | None = None,
         shared_global_model: bool = True,
         add_rank: bool = False,
     ) -> None:
@@ -79,31 +82,35 @@ class DistributedRandomForest:
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
-        if add_rank:
-            # Add the local rank to the provided base seed to obtain a rank-specific integer seed. Convert this seed to
-            # a rank-specific ``np.random.RandomState`` instance. This ensures that each local subforest is different.
-            local_seed = random_state + self.comm.rank
-            log.info(
-                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+        if random_state:  # Particular random state is provided
+            if add_rank:
+                # Add the local rank to the provided base seed to obtain a rank-specific integer seed. Convert this seed to
+                # a rank-specific ``np.random.RandomState`` instance. This ensures that each local subforest is different.
+                local_seed = random_state + self.comm.rank
+                log.info(
+                    f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+                )
+                self.random_state = check_random_state(local_seed)
+            else:
+                # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
+                # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
+                # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring
+                # that each rank-local subforest is different.
+                base_random_state = check_random_state(random_state)
+                local_seeds = base_random_state.randint(
+                    low=0, high=2**32 - 1, size=self.comm.size
+                )  # NOTE: The seed range here is the maximum range possible.
+                local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
+                log.info(
+                    f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+                )
+                self.random_state = check_random_state(local_seed)
+            log.debug(
+                f"Random state of model is: {self.random_state.get_state(legacy=True)}"
             )
-            self.random_state = check_random_state(local_seed)
-        else:
-            # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
-            # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
-            # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring
-            # that each rank-local subforest is different.
-            base_random_state = check_random_state(random_state)
-            local_seeds = base_random_state.randint(
-                low=0, high=2**32 - 1, size=self.comm.size
-            )  # NOTE: The seed range here is the maximum range possible.
-            local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
-            log.info(
-                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
-            )
-            self.random_state = check_random_state(local_seed)
-        log.debug(
-            f"Random state of model is: {self.random_state.get_state(legacy=True)}"
-        )
+        else:  # Random state is None
+            self.random_state = random_state
+
         self.shared_global_model = shared_global_model
         self.clf: RandomForestClassifier  # Local random forest classifier
         self.trees: list[
@@ -165,6 +172,24 @@ class DistributedRandomForest:
         )
         clf.fit(train_samples, train_targets)
         return clf
+
+    def load_checkpoints(self, checkpoint_path: str | pathlib.Path) -> None:
+        """
+        Initialize rank-local subforests from pickled model checkpoints.
+
+        Parameters
+        ----------
+        checkpoint_path : str | pathlib.Path
+            Path to the checkpoint directory containing the local model pickle files to load. There should only be one
+            valid checkpoint file for each rank, i.e., one file with the suffix "_rank_{comm.rank}.pickle}".
+        """
+        checkpoints = glob.glob(str(checkpoint_path) + "/*.pickle")
+        local_checkpoint = next(
+            ckpt for ckpt in checkpoints if f"_rank_{self.comm.rank}.pickle" in ckpt
+        )
+        with open(local_checkpoint, "rb") as f:
+            self.clf = pickle.load(f)
+            log.info(f"[{self.comm.rank}/{self.comm.size}]: Loaded {local_checkpoint}.")
 
     def _predict_tree_by_tree(self, samples: np.ndarray) -> np.ndarray:
         """
@@ -361,7 +386,7 @@ class DistributedRandomForest:
         samples: np.ndarray,
         targets: np.ndarray,
         n_classes: int,
-        shared_global_model: bool = True,
+        shared_global_model: bool = False,
     ) -> None:
         """
         Evaluate the trained global random forest.
@@ -375,7 +400,7 @@ class DistributedRandomForest:
         n_classes : int
             The number of classes in the dataset.
         shared_global_model : bool
-            Whether the global model is shared among all ranks (True) or not (False). Default is True.
+            Whether the global model is shared among all ranks (True) or not (False). Default is False.
         """
         rank, size = self.comm.rank, self.comm.size
         if shared_global_model:  # Global model is shared.

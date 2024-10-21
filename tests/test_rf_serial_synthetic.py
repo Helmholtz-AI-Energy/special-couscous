@@ -11,8 +11,15 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
 @pytest.mark.mpi_skip
-def test_serial_synthetic() -> None:
-    """Test serial training of random forest on synthetic data."""
+def test_serial_synthetic(tmp_path: pathlib.Path) -> None:
+    """
+    Test serial training of random forest on synthetic data.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        The temporary folder used for storing results.
+    """
     # Data-related arguments
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
@@ -27,14 +34,12 @@ def test_serial_synthetic() -> None:
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
     detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
-    output_dir: pathlib.Path = pathlib.Path(
-        "./results"
-    )  # Directory to write results to
+    output_dir: pathlib.Path = tmp_path  # Directory to write results to
     experiment_id: str = (
         "test_serial_rf"  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
-    log_path: pathlib.Path = pathlib.Path("./")  # Path to the log directory
+    log_path: pathlib.Path = tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
         f"{log_path}/{pathlib.Path(__file__).stem}.log"
@@ -69,5 +74,6 @@ def test_serial_synthetic() -> None:
         experiment_id=experiment_id,
         save_model=save_model,
     )
-    log_file.unlink()
-    shutil.rmtree(output_dir)
+
+    # Remove all files generated during test in temporary directory.
+    shutil.rmtree(str(tmp_path), ignore_errors=True)

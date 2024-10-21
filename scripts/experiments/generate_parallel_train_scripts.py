@@ -54,17 +54,17 @@ def generate_parallel_inference_comparison_job_scripts(
         Whether to submit jobs to the cluster. Default is False.
     """
     for n_nodes in [
-        2,
-        4,
-        8,
-        16,
-        32,
+        #        2,
+        #        4,
+        #        8,
+        #        16,
+        #        32,
         64,
     ]:  # Weak scaling type experiment (with shared global model)
         n_trees_global = (
             n_trees * n_nodes
         )  # Number of trees is scaled with number of nodes.
-        time = 120  # All experiments should take approx. the same time (in min).
+        time = 3600  # All experiments should take approx. the same time (in min).
         mem = 243200  # Use standard nodes.
 
         print(
@@ -84,6 +84,7 @@ def generate_parallel_inference_comparison_job_scripts(
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}             # Number of nodes
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
+#SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
@@ -97,7 +98,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/inference_flavor/shared_global_model/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
+RESDIR="${{BASE_DIR}}"/results/train/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
@@ -111,8 +112,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --output_dir ${{RESDIR}} \\
     --output_label ${{SLURM_JOB_ID}} \\
     --detailed_evaluation \\
-    --save_model \\
-    --shared_global_model
+    --save_model
                                 """
 
         with open(output_path / job_script_name, "wt") as f:
@@ -122,11 +122,11 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
 
 
 if __name__ == "__main__":
-    data_sets = [(5, 3, 76), (6, 2, 76)]
+    data_sets = [(6, 4, 800), (7, 3, 224)]
     data_seed = 0
-    model_seeds = [1, 2, 3]
+    model_seeds = [2, 3]  # [1, 2, 3]
     n_classes = 10
-    output_path = pathlib.Path("./inference_flavor_shared_model/")
+    output_path = pathlib.Path("./train/")
     os.makedirs(output_path, exist_ok=True)
     for random_state_model in model_seeds:
         for data_set in data_sets:
@@ -142,5 +142,5 @@ if __name__ == "__main__":
                 data_seed=data_seed,
                 model_seed=random_state_model,
                 output_path=output_path,
-                submit=False,
+                submit=True,
             )
