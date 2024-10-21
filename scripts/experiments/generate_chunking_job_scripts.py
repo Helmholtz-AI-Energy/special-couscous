@@ -63,9 +63,7 @@ def generate_chunking_job_scripts(
             f"Current config uses {n_nodes} nodes and {n_trees} trees. Wall-clock time is {time / 60}h."
         )
 
-        job_name = (
-            f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_modelseed_{model_seed}"
-        )
+        job_name = f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_{data_seed}_{model_seed}"
         job_script_name = f"{job_name}.sh"
         script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
@@ -118,8 +116,8 @@ if __name__ == "__main__":
         (6, 4, 1600),
         (7, 3, 448),
     ]  # Baseline problem as (`log_n_samples`, `log_n_features`, `n_trees`)
-    data_seed = 0  # Data seed to use
-    model_seeds = [1, 2, 3]  # Model seeds to use
+    data_seeds = [0, 1, 2]  # Data seed to use
+    model_seeds = [3, 4, 5]  # Model seeds to use
     n_classes = 10  # Number of classes to use
     output_path = pathlib.Path(
         "./chunking/"
@@ -127,19 +125,20 @@ if __name__ == "__main__":
     os.makedirs(output_path, exist_ok=True)
 
     # Loop over all considered configurations.
-    for random_state_model in model_seeds:
-        for data_set in data_sets:
-            log_n_samples = data_set[0]
-            log_n_features = data_set[1]
-            n_trees = data_set[2]
-            # Generate job scripts and possibly submit them to the cluster.
-            generate_chunking_job_scripts(
-                log_n_samples=log_n_samples,
-                log_n_features=log_n_features,
-                n_classes=n_classes,
-                n_trees=n_trees,
-                data_seed=data_seed,
-                model_seed=random_state_model,
-                output_path=output_path,
-                submit=False,
-            )
+    for random_state_data in data_seeds:
+        for random_state_model in model_seeds:
+            for data_set in data_sets:
+                log_n_samples = data_set[0]
+                log_n_features = data_set[1]
+                n_trees = data_set[2]
+                # Generate job scripts and possibly submit them to the cluster.
+                generate_chunking_job_scripts(
+                    log_n_samples=log_n_samples,
+                    log_n_features=log_n_features,
+                    n_classes=n_classes,
+                    n_trees=n_trees,
+                    data_seed=random_state_data,
+                    model_seed=random_state_model,
+                    output_path=output_path,
+                    submit=False,
+                )
