@@ -292,12 +292,11 @@ def train_serial_on_synthetic_data(
     n_samples: int,
     n_features: int,
     n_classes: int,
-    n_clusters_per_class: int,
-    frac_informative: float,
-    frac_redundant: float,
     random_state: int | np.random.RandomState = 0,
     random_state_model: int | np.random.RandomState | None = None,
+    make_classification_kwargs: dict[str, Any] = {},
     train_split: float = 0.75,
+    stratified_train_test: bool = False,
     n_trees: int = 100,
     detailed_evaluation: bool = False,
     output_dir: str | pathlib.Path | None = None,
@@ -316,19 +315,17 @@ def train_serial_on_synthetic_data(
         The number of features in the dataset.
     n_classes : int
         The number of classes in the dataset.
-    n_clusters_per_class : int
-        The number of clusters per class in the dataset.
-    frac_informative : float
-        The fraction of informative features in the dataset.
-    frac_redundant : float
-        The fraction of redundant features in the dataset.
     random_state : int | np.random.RandomState
         The random state used for dataset generation and splitting. If no model-specific random state is provided, it is
         also used to instantiate the random forest classifier.
     random_state_model : int | np.random.RandomState, optional
         An optional random state used for the model.
+    make_classification_kwargs : dict[str, Any], optional
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
     train_split : float
         Relative size of the train set.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels. Default is False.
     n_trees : int
         The number of trees in the global forest.
     detailed_evaluation : bool
@@ -354,6 +351,13 @@ def train_serial_on_synthetic_data(
     }
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
+
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        log.info(f"Generated model base seed is {random_state_model}.")
+        seed = check_random_state(random_state_model).randint(low=0, high=2**32 - 1)
+
     # Generate data.
     log.info("Generating data...")
     data_generation_start = time.perf_counter()
@@ -365,12 +369,11 @@ def train_serial_on_synthetic_data(
     ) = make_classification_dataset(
         n_samples=n_samples,
         n_features=n_features,
-        frac_informative=frac_informative,
-        frac_redundant=frac_redundant,
         n_classes=n_classes,
-        n_clusters_per_class=n_clusters_per_class,
+        make_classification_kwargs=make_classification_kwargs,
         random_state=random_state,
         train_split=train_split,
+        stratified_train_test=stratified_train_test,
     )
     train_data = SyntheticDataset(x=train_samples, y=train_targets)
     test_data = SyntheticDataset(x=test_samples, y=test_targets)
@@ -380,22 +383,17 @@ def train_serial_on_synthetic_data(
 
     log.info(
         f"Done\nTrain samples and targets have shapes {train_samples.shape} and {train_targets.shape}.\n"
-        f"First three elements are: {train_samples[:3]} and {train_targets[:3]}\n"
+        f"First train sample is: \n{train_samples[0]}\nLast train sample is:\n {train_samples[-1]}\n"
         f"Test samples and targets have shapes {test_samples.shape} and {test_targets.shape}.\n"
-        f"First three elements are: {test_samples[:3]} and {test_targets[:3]}\n"
+        f"First test sample is:\n {test_samples[0]}\nLast test sample is:\n{test_samples[-1]}\n"
         f"Set up classifier."
     )
 
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
-    if random_state_model is None:
-        log.debug("Use general random state to seed classifier.")
-        random_state_model = random_state
-    else:
-        log.debug("Use model-specific random state to seed classifier.")
-        random_state_model = check_random_state(random_state_model)
-
-    clf = RandomForestClassifier(n_estimators=n_trees, random_state=random_state_model)
+    clf = RandomForestClassifier(
+        n_estimators=n_trees, random_state=check_random_state(seed)
+    )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
     )
@@ -444,9 +442,10 @@ def train_parallel_on_synthetic_data(
     mu_partition: float | str | None = None,
     mu_data: float | str | None = None,
     peak: int | None = None,
-    make_classification_kwargs: dict[str, Any] | None = None,
+    make_classification_kwargs: dict[str, Any] = {},
     comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
+    stratified_train_test: bool = False,
     n_trees: int = 100,
     shared_global_model: bool = True,
     detailed_evaluation: bool = False,
@@ -498,6 +497,8 @@ def train_parallel_on_synthetic_data(
         The MPI communicator to distribute over.
     train_split : float
         Relative size of the train set.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels.
     n_trees : int
         The number of trees in the global forest.
     shared_global_model : bool
@@ -535,8 +536,13 @@ def train_parallel_on_synthetic_data(
         "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
     }
     local_results: dict[str, Any] = {"comm_rank": comm.rank}
+
+    log.debug(f"[{comm.rank}/{comm.size}]: Passed random state is {random_state}.")
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
+    log.debug(
+        f"[{comm.rank}/{comm.size}]: The generated random state is:\n{random_state.get_state(legacy=True)}"
+    )
     # Generate model base seed if not provided by user.
     assert isinstance(random_state, np.random.RandomState)
     if random_state_model is None:
@@ -565,10 +571,16 @@ def train_parallel_on_synthetic_data(
             mu_partition=mu_partition,
             mu_data=mu_data,
             peak=peak,
+            make_classification_kwargs=make_classification_kwargs,
             shared_test_set=shared_test_set,
+            stratified_train_test=stratified_train_test,
         )
     store_timing(timer, global_results, local_results)
-
+    log.debug(
+        f"First train sample is:\n{local_train.x[0]}\nLast train sample is:\n{local_train.x[-1]}\n"
+        f""
+        f"First test sample is:\n{local_test.x[0]}\nLast test sample is:\n{local_test.x[-1]}"
+    )
     log.info(
         f"[{comm.rank}/{comm.size}]: Done...\n"
         f"Local train samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
@@ -684,13 +696,12 @@ def train_parallel_on_balanced_synthetic_data(
     n_samples: int,
     n_features: int,
     n_classes: int,
-    n_clusters_per_class: int,
-    frac_informative: float,
-    frac_redundant: float,
+    make_classification_kwargs: dict[str, Any] = {},
     random_state: int | np.random.RandomState = 0,
     random_state_model: int | None = None,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
+    stratified_train_test: bool = False,
     n_trees: int = 100,
     shared_global_model: bool = True,
     detailed_evaluation: bool = False,
@@ -713,12 +724,8 @@ def train_parallel_on_balanced_synthetic_data(
         The number of features in the dataset.
     n_classes : int
         The number of classes in the dataset.
-    n_clusters_per_class : int
-        The number of clusters per class in the dataset.
-    frac_informative : float
-        The fraction of informative features in the dataset.
-    frac_redundant : float
-        The fraction of redundant features in the dataset.
+    make_classification_kwargs : dict[str, Any], optional
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
     random_state : int | np.random.RandomState
         The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
         state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
@@ -732,6 +739,8 @@ def train_parallel_on_balanced_synthetic_data(
         The MPI communicator to distribute over.
     train_split : float
         Relative size of the train set.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels.
     n_trees : int
         The number of trees in the global forest.
     shared_global_model : bool
@@ -761,8 +770,8 @@ def train_parallel_on_balanced_synthetic_data(
         "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
     }
     local_results: dict[str, Any] = {"comm_rank": mpi_comm.rank}
-    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
 
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     log.debug(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: Passed random state is {random_state}."
     )
@@ -770,7 +779,6 @@ def train_parallel_on_balanced_synthetic_data(
     log.debug(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: The generated random state is:\n{random_state.get_state(legacy=True)}"
     )
-
     # Generate model base seed if not provided by user.
     assert isinstance(random_state, np.random.RandomState)
     if random_state_model is None:
@@ -790,12 +798,11 @@ def train_parallel_on_balanced_synthetic_data(
         ) = make_classification_dataset(
             n_samples=n_samples,
             n_features=n_features,
-            frac_informative=frac_informative,
-            frac_redundant=frac_redundant,
             n_classes=n_classes,
-            n_clusters_per_class=n_clusters_per_class,
+            make_classification_kwargs=make_classification_kwargs,
             random_state=random_state,
             train_split=train_split,
+            stratified_train_test=stratified_train_test,
         )
         log.debug(
             f"First train sample is:\n{train_samples[0]}\nLast train sample is:\n{train_samples[-1]}\n"
@@ -809,8 +816,7 @@ def train_parallel_on_balanced_synthetic_data(
         f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
         f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}."
     )
-    # return train_data, test_data
-    # UP UNTIL HERE: Train and test data are identical for train and eval script!!!
+
     log.debug(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
     )
@@ -919,14 +925,13 @@ def evaluate_parallel_from_checkpoint(
     n_samples: int,
     n_features: int,
     n_classes: int,
-    n_clusters_per_class: int,
-    frac_informative: float,
-    frac_redundant: float,
+    make_classification_kwargs: dict[str, Any] = {},
     random_state: int | np.random.RandomState = 0,
     checkpoint_path: str | pathlib.Path = pathlib.Path("./"),
     random_state_model: int | None = None,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
+    stratified_train_test: bool = False,
     n_trees: int = 100,
     detailed_evaluation: bool = False,
     output_dir: pathlib.Path | str = "",
@@ -947,12 +952,8 @@ def evaluate_parallel_from_checkpoint(
         The number of features in the dataset.
     n_classes : int
         The number of classes in the dataset.
-    n_clusters_per_class : int
-        The number of clusters per class in the dataset.
-    frac_informative : float
-        The fraction of informative features in the dataset.
-    frac_redundant : float
-        The fraction of redundant features in the dataset.
+    make_classification_kwargs : dict[str, Any], optional
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
     random_state : int | np.random.RandomState
         The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
         state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
@@ -968,6 +969,8 @@ def evaluate_parallel_from_checkpoint(
         The MPI communicator to distribute over.
     train_split : float
         Relative size of the train set.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels. Default is False.
     n_trees : int
         The number of trees in the global forest.
     detailed_evaluation : bool
@@ -1020,12 +1023,11 @@ def evaluate_parallel_from_checkpoint(
         ) = make_classification_dataset(
             n_samples=n_samples,
             n_features=n_features,
-            frac_informative=frac_informative,
-            frac_redundant=frac_redundant,
             n_classes=n_classes,
-            n_clusters_per_class=n_clusters_per_class,
+            make_classification_kwargs=make_classification_kwargs,
             random_state=random_state,
             train_split=train_split,
+            stratified_train_test=stratified_train_test,
         )
         log.debug(
             f"First train sample is:\n{train_samples[0]}\nLast train sample is:\n{train_samples[-1]}\n"

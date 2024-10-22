@@ -26,8 +26,20 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "detailed_evaluation",
     [True, False],
 )
+@pytest.mark.parametrize(
+    "flip_y",
+    [0.0, 0.01],
+)
+@pytest.mark.parametrize(
+    "stratified_train_test",
+    [True, False],
+)
 def test_evaluate_from_checkpoint(
-    random_state_model: int, detailed_evaluation: bool, mpi_tmp_path: pathlib.Path
+    random_state_model: int,
+    detailed_evaluation: bool,
+    flip_y: float,
+    stratified_train_test: bool,
+    mpi_tmp_path: pathlib.Path,
 ) -> None:
     """
     Test parallel evaluation of random forest from pickled model checkpoints.
@@ -41,6 +53,10 @@ def test_evaluate_from_checkpoint(
         The random state used for the model.
     detailed_evaluation : bool
         Whether to additionally evaluate the model on the training dataset.
+    flip_y: float
+        The fraction of samples whose class is assigned randomly.
+    stratified_train_test: bool
+        Whether to stratify the train-test split with the class labels.
     mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
@@ -94,13 +110,17 @@ def test_evaluate_from_checkpoint(
         n_samples=n_samples,
         n_features=n_features,
         n_classes=n_classes,
-        n_clusters_per_class=n_clusters_per_class,
-        frac_informative=frac_informative,
-        frac_redundant=frac_redundant,
+        make_classification_kwargs={
+            "n_clusters_per_class": n_clusters_per_class,
+            "n_informative": int(frac_informative * n_features),
+            "n_redundant": int(frac_redundant * n_features),
+            "flip_y": flip_y,
+        },
         random_state=random_state,
         random_state_model=random_state_model,
         mpi_comm=comm,
         train_split=train_split,
+        stratified_train_test=stratified_train_test,
         n_trees=n_trees,
         shared_global_model=shared_global_model,
         detailed_evaluation=detailed_evaluation,
@@ -119,14 +139,18 @@ def test_evaluate_from_checkpoint(
         n_samples=n_samples,
         n_features=n_features,
         n_classes=n_classes,
-        n_clusters_per_class=n_clusters_per_class,
-        frac_informative=frac_informative,
-        frac_redundant=frac_redundant,
+        make_classification_kwargs={
+            "n_clusters_per_class": n_clusters_per_class,
+            "n_informative": int(frac_informative * n_features),
+            "n_redundant": int(frac_redundant * n_features),
+            "flip_y": flip_y,
+        },
         random_state=random_state,
         checkpoint_path=checkpoint_path,
         random_state_model=random_state_model,
         mpi_comm=comm,
         train_split=train_split,
+        stratified_train_test=stratified_train_test,
         n_trees=n_trees,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,

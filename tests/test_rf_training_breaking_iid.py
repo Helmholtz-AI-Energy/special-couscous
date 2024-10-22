@@ -33,12 +33,22 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
+@pytest.mark.parametrize(
+    "flip_y",
+    [0.0, 0.01],
+)
+@pytest.mark.parametrize(
+    "stratified_train_test",
+    [True, False],
+)
 def test_breaking_iid(
     random_state_model: int,
     shared_global_model: bool,
     shared_test_set: bool,
     globally_imbalanced: bool,
     locally_imbalanced: bool,
+    flip_y: float,
+    stratified_train_test: bool,
     mpi_tmp_path: pathlib.Path,
 ) -> None:
     """
@@ -57,12 +67,23 @@ def test_breaking_iid(
         Whether the class distribution of the entire dataset is imbalanced.
     locally_imbalanced : bool
         Whether to use an imbalanced partition when assigning the dataset to ranks.
+    flip_y: float
+        The fraction of samples whose class is assigned randomly.
+    stratified_train_test: bool
+        Whether to stratify the train-test split with the class labels.
     mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
     n_samples: int = 1000  # Number of samples in synthetic classification data
     n_features: int = 100  # Number of features in synthetic classification data
     n_classes: int = 3  # Number of classes in synthetic classification data
+    n_clusters_per_class: int = 1  # Number of clusters per class
+    frac_informative: float = (
+        0.1  # Fraction of informative features in synthetic classification dataset
+    )
+    frac_redundant: float = (
+        0.1  # Fraction of redundant features in synthetic classification dataset
+    )
     random_state: int = 0  # Random seed used in synthetic dataset generation
 
     # Model-related arguments
@@ -103,9 +124,9 @@ def test_breaking_iid(
 
     if comm.rank == 0:
         log.info(
-            "*********************************************************************\n"
-            "* Multi-Node Random Forest Classification of Non-IID Synthetic Data *\n"
-            "*********************************************************************"
+            "**********************************************************************\n"
+            "* Distributed Random Forest Classification of Non-IID Synthetic Data *\n"
+            "**********************************************************************"
         )
     train_parallel_on_synthetic_data(
         n_samples=n_samples,
@@ -119,8 +140,15 @@ def test_breaking_iid(
         mu_partition=mu_partition,
         mu_data=mu_data,
         peak=peak,
+        make_classification_kwargs={
+            "n_clusters_per_class": n_clusters_per_class,
+            "n_informative": int(frac_informative * n_features),
+            "n_redundant": int(frac_redundant * n_features),
+            "flip_y": flip_y,
+        },
         comm=MPI.COMM_WORLD,
         train_split=train_split,
+        stratified_train_test=stratified_train_test,
         n_trees=n_trees,
         shared_global_model=shared_global_model,
         detailed_evaluation=detailed_evaluation,
