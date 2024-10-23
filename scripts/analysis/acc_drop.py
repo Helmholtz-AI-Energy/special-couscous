@@ -56,10 +56,10 @@ for filename in pathlib.Path(root_dir).glob("**/*.out"):
     number_of_tasks = int(parts[-3].split("_")[1])
     data_seed = int(parts[-2].split("_")[1])  # Extract data seed from path.
     model_seed = int(parts[-2].split("_")[2])  # Extract model seed from path.
-    pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
     with open(os.path.join(filename), "r") as file:  # Load input text from the file.
         input_text = file.read()
         print(f"Currently considered: {filename}")
+    pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
     energy_match = re.search(pattern_energy, input_text)
     energy_consumed = float(energy_match.group(0))  # type:ignore
     print(f"Energy Consumed: {energy_consumed:.2f} Watthours")
