@@ -49,10 +49,10 @@ def get_results_df(
     pd.DataFrame
         The dataframe containing the results averaged over model seeds for each number of nodes.
     """
-    # Dictionary to store the values grouped by (dataset, number_of_tasks, dataseed)
+    # Dictionary to store the values grouped by (dataset, number_of_tasks, data seed)
     results = defaultdict(list)
 
-    # The specific column you want to average in the CSV files
+    # Columns to extract from the CSV files:
     target_columns = [
         "time_sec_data_generation",
         "time_sec_forest_creation",
@@ -61,55 +61,45 @@ def get_results_df(
         "time_sec_test",
     ]
 
-    # Walk through the directory structure to find CSV files
-    for dirpath, dirnames, filenames in os.walk(path_to_root):
-        for filename in filenames:
-            if filename.endswith(".csv"):
-                # Extract relevant information from the directory structure
-                parts = dirpath.split(os.sep)
-                number_of_tasks = int(parts[-2].split("_")[1])
-                model_seed = int(
-                    parts[-1].split("_")[2]
-                )  # Extract model seed from path.
-                # Read the CSV file into a pandas dataframe.
-                file_path = os.path.join(dirpath, filename)
-                df = pd.read_csv(file_path)
+    # Loop over all CSV files in root directory.
+    for filename in pathlib.Path(path_to_root).glob("**/*.csv"):
+        # Extract relevant information from the path.
+        parts = str(filename).split(os.sep)
+        number_of_tasks = int(parts[-3].split("_")[1])  # Number of tasks
+        model_seed = int(parts[-2].split("_")[2])  # Model seed
+        # Read the CSV file into a dataframe.
+        df = pd.read_csv(filename)
 
-                # Extract the value from the target column and store it
-                # Parallel runs:
-                for column in target_columns:
-                    if column in df.columns:
-                        result = df.loc[df["comm_rank"] == "global", column].values[0]
-                    else:
-                        result = np.nan
-                    results[(data_set, number_of_tasks, model_seed)].append(result)
+        # Extract the value from the target column and store it
+        # Parallel runs:
+        for column in target_columns:
+            if column in df.columns:
+                result = df.loc[df["comm_rank"] == "global", column].values[0]
+            else:
+                result = np.nan
+            results[(data_set, number_of_tasks, model_seed)].append(result)
 
-    for dirpath, dirnames, filenames in os.walk(path_to_root):
-        for filename in filenames:
-            if filename.endswith(".out"):
-                parts = dirpath.split(os.sep)
-                number_of_tasks = int(parts[-2].split("_")[1])
-                model_seed = int(
-                    parts[-1].split("_")[2]
-                )  # Extract model seed from path.
-                pattern_memory = r"Memory Utilized:\s*([0-9]+\.?[0-9]*)\s*(MB|GB|TB)"
-                pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
-                with open(
-                    os.path.join(dirpath, filename), "r"
-                ) as file:  # Load input text from the file.
-                    input_text = file.read()
-                    print(dirpath)
-                memory_match = re.search(pattern_memory, input_text)
-                energy_match = re.search(pattern_energy, input_text)
-                memory_utilized = memory_match.group(1)  # type:ignore
-                energy_consumed = float(energy_match.group(0))  # type:ignore
-                unit = memory_match.group(2)  # type:ignore
-                memory_in_gb = convert_to_gb(memory_utilized, unit)
-                print(
-                    f"Memory Utilized: {memory_in_gb:.2f} GB\nEnergy Consumed: {energy_consumed:.2f} Watthours"
-                )
-                results[(data_set, number_of_tasks, model_seed)].append(memory_in_gb)
-                results[(data_set, number_of_tasks, model_seed)].append(energy_consumed)
+    # Loop over all SLURM output files in root directory.
+    for filename in pathlib.Path(path_to_root).glob("**/*.out"):
+        parts = str(filename).split(os.sep)
+        number_of_tasks = int(parts[-3].split("_")[1])  # Number of tasks
+        model_seed = int(parts[-2].split("_")[2])  # Model seed
+        pattern_memory = r"Memory Utilized:\s*([0-9]+\.?[0-9]*)\s*(MB|GB|TB)"
+        pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
+        with open(filename, "r") as file:  # Load input text from the file.
+            print(f"Currently considered: {filename}")
+            input_text = file.read()
+        memory_match = re.search(pattern_memory, input_text)
+        energy_match = re.search(pattern_energy, input_text)
+        memory_utilized = memory_match.group(1)  # type:ignore
+        energy_consumed = float(energy_match.group(0))  # type:ignore
+        unit = memory_match.group(2)  # type:ignore
+        memory_in_gb = convert_to_gb(memory_utilized, unit)
+        print(
+            f"Memory Utilized: {memory_in_gb:.2f} GB\nEnergy Consumed: {energy_consumed:.2f} Watthours"
+        )
+        results[(data_set, number_of_tasks, model_seed)].append(memory_in_gb)
+        results[(data_set, number_of_tasks, model_seed)].append(energy_consumed)
 
     # Save the results to a pandas dataframe.
     results_df = pd.DataFrame(
@@ -213,32 +203,6 @@ if __name__ == "__main__":
             1.5 * results_df_shared_model["Time for evaluation"].max() / 60,
         ]
     )
-    # Overall time
-    # Individual data points
-    # ax1.scatter(
-    #     [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
-    #     results_df_no_shared_model["Overall time"] / 60,
-    #     label="Evaluate model",
-    #     marker=".",
-    #     color="red",
-    #     zorder=10,
-    #     alpha=0.5,
-    # )
-    # # Average
-    # ax1.scatter(
-    #     [
-    #         str(n_tasks)
-    #         for n_tasks in avg_times_n_tasks_no_shared_model["Number of nodes"]
-    #     ],
-    #     avg_times_n_tasks_no_shared_model["Overall time"] / 60,
-    #     label="Overall time",
-    #     s=80,
-    #     marker="X",
-    #     facecolor="none",
-    #     edgecolor="red",
-    #     linewidths=1.3,
-    #     zorder=20,
-    # )
     ax1.set_yscale("log", base=2)
     ax1.set_ylabel("Time / min", fontweight="bold")
     ax1.grid(True)
@@ -298,30 +262,6 @@ if __name__ == "__main__":
         ]
     )
     ax2.set_yscale("log", base=2)
-
-    # Overall time
-    # Individual data points
-    # ax2.scatter(
-    #     [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
-    #     results_df_shared_model["Overall time"] / 60,
-    #     label="Evaluate model",
-    #     marker=".",
-    #     color="red",
-    #     zorder=10,
-    #     alpha=0.5,
-    # )
-    # # Average
-    # ax2.scatter(
-    #     [str(n_tasks) for n_tasks in avg_times_n_tasks_shared_model["Number of nodes"]],
-    #     avg_times_n_tasks_shared_model["Overall time"] / 60,
-    #     label="Overall time",
-    #     s=80,
-    #     marker="X",
-    #     facecolor="none",
-    #     edgecolor="red",
-    #     linewidths=1.3,
-    #     zorder=20,
-    # )
     ax2.grid(True)
     ax2.legend(loc="lower right", fontsize="x-small")
 
@@ -468,14 +408,10 @@ if __name__ == "__main__":
         verticalalignment="top",
         fontweight="bold",
     )
-    # Ensure the layout is tight so labels don't overlap
     plt.tight_layout()
-    # plt.subplots_adjust(wspace=0, hspace=0)
-    #
-    # Save the figure
     plt.savefig(
         pathlib.Path(root_dir_no_shared_model) / f"{data_set}_inference_flavor.png"
-    )
+    )  # Save the figure.
 
     print(
         f"Overall energy consumed (no shared model): {(energy_no_shared_model/1000):.2f} kWh"
@@ -483,6 +419,4 @@ if __name__ == "__main__":
     print(
         f"Overall energy consumed (shared model): {(energy_shared_model/1000):.2f} kWh"
     )
-
-    # Show the plot
-    plt.show()
+    plt.show()  # Show the plot.
