@@ -42,4 +42,4 @@ if __name__ == "__main__":
         "hkn[0257,0259]",
     ]
     overlap = find_node_overlap(nodes_list)
-    print("Overlapping nodes:", overlap)  # Output the overlapping nodes
+    print("Overlapping nodes:", overlap)
