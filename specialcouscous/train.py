@@ -924,6 +924,7 @@ def evaluate_parallel_from_checkpoint(
     frac_redundant: float,
     random_state: int | np.random.RandomState = 0,
     checkpoint_path: str | pathlib.Path = pathlib.Path("./"),
+    checkpoint_uid: str = "",
     random_state_model: int | None = None,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
@@ -959,6 +960,8 @@ def evaluate_parallel_from_checkpoint(
         model-specific random state is provided, it is also used to instantiate the random forest classifiers.
     checkpoint_path : pathlib.Path | str
         The directory containing the pickled local model checkpoints to load.
+    checkpoint_uid : str
+        The considered run's unique identifier. Used to identify the correct checkpoints to load.
     random_state_model : int, optional
         The random seed used for the model. Can only be an integer as it must be different on each rank to ensure that
         each local model is different. In the ``DistributedRandomForest`` constructor, a ``RandomState`` instance seeded
@@ -1059,7 +1062,7 @@ def evaluate_parallel_from_checkpoint(
     store_timing(timer, global_results, local_results)
 
     # Load pickled model checkpoints.
-    distributed_random_forest.load_checkpoints(checkpoint_path)
+    distributed_random_forest.load_checkpoints(checkpoint_path, checkpoint_uid)
 
     # Create output directory to save model checkpoints (and configuration + evaluation results later on).
     path, base_filename = get_output_path(

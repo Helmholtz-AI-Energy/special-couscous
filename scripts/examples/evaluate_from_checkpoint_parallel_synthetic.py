@@ -43,6 +43,7 @@ if __name__ == "__main__":
         frac_redundant=args.frac_redundant,
         random_state=args.random_state,
         checkpoint_path=args.checkpoint_path,
+        checkpoint_uid=args.checkpoint_uid,
         random_state_model=args.random_state_model,
         mpi_comm=comm,
         train_split=args.train_split,

@@ -108,12 +108,11 @@ def test_evaluate_from_checkpoint(
         save_model=save_model,
     )
     comm.barrier()
-    checkpoint_path, _ = construct_output_path(
+    checkpoint_path, base_filename = construct_output_path(
         output_path=output_dir, experiment_id=experiment_id
     )
     if comm.rank == 0:
         log.info(f"EVALUATION: Checkpoint path is {checkpoint_path}.")
-
     evaluate_parallel_from_checkpoint(
         n_samples=n_samples,
         n_features=n_features,
