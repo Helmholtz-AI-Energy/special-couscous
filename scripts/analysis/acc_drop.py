@@ -62,12 +62,12 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
             number_of_tasks = int(parts[-2].split("_")[1])
             data_seed = int(parts[-1].split("_")[1])  # Extract data seed from path.
             model_seed = int(parts[-1].split("_")[2])  # Extract model seed from path.
-            pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
             with open(
                 os.path.join(dirpath, filename), "r"
             ) as file:  # Load input text from the file.
                 input_text = file.read()
                 print(dirpath)
+            pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
             energy_match = re.search(pattern_energy, input_text)
             energy_consumed = float(energy_match.group(0))  # type:ignore
             print(f"Energy Consumed: {energy_consumed:.2f} Watthours")
