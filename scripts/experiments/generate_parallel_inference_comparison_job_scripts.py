@@ -16,23 +16,11 @@ def generate_parallel_inference_comparison_job_scripts(
     """
     Generate the job scripts for the inference flavor comparison experiments.
 
-    These experiments basically correspond to a weak scaling experiment series with shared global model.
+    These experiments basically correspond to a weak scaling experiment series with and without shared global model.
+    As this series is only about comparing the inference flavors in terms of their runtime, we used smaller datasets
+    instead of the usual n6m4 and n7m3 baselines to save computes, i.e.:
 
-    NOTE: We estimated 1500 and 450 trees to be trainable in serial in 3 days for 1M samples with 10k features and 10M
-    samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline.
-    With number of samples n, number of features m, and number of trees t:
-
-    Strong scaling:
-    n6m4 baseline (n, m, t) = (10^6, 10^4, 1600) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 448)
-
-    Weak scaling:
-    n6m4 baseline (n, m, t) = (10^6, 10^4, 800) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 224)
-
-    NOTE: All strong-scaling experiments used high-memory nodes, i.e., #SBATCH --mem=486400mb, except for the 64-node
-    experiment which used the normal nodes. This is due to the fact that HoreKa has only 32 high-memory nodes. However,
-    as the problem size per node decreases with increasing number of nodes in strong scaling, this was not a problem here
-    but only for weak scaling. That is why the base problem size of weak scaling is only half the base problem size of
-    strong scaling.
+    n5m3 baseline: (n, m, t) = (10^5, 10^3, 76) and n6m2 baseline: (n, m, t) = (10^6, 10^2, 76)
 
     Parameters
     ----------
@@ -66,11 +54,9 @@ def generate_parallel_inference_comparison_job_scripts(
         )  # Number of trees is scaled with number of nodes.
         time = 120  # All experiments should take approx. the same time (in min).
         mem = 243200  # Use standard nodes.
-
         print(
             f"Current config uses {n_nodes} nodes and {n_trees_global} trees. Wall-clock time is {time / 60}h."
         )
-
         job_name = (
             f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_modelseed_{model_seed}"
         )
@@ -114,7 +100,6 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --save_model \\
     --shared_global_model
                                 """
-
         with open(output_path / job_script_name, "wt") as f:
             f.write(script_content)
         if submit:
@@ -122,17 +107,20 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
 
 
 if __name__ == "__main__":
-    data_sets = [(5, 3, 76), (6, 2, 76)]
-    data_seed = 0
-    model_seeds = [1, 2, 3]
-    n_classes = 10
+    data_sets = [
+        (5, 3),
+        (6, 2),
+    ]  # Baselines to consider for inference flavor comparison
+    n_trees = 76
+    data_seed = 0  # Random state for synthetic dataset generation
+    n_classes = 10  # Number of classes in synthetic dataset
+    model_seeds = [1, 2, 3]  # Random states for model instantiation
     output_path = pathlib.Path("./inference_flavor_shared_model/")
     os.makedirs(output_path, exist_ok=True)
     for random_state_model in model_seeds:
         for data_set in data_sets:
             log_n_samples = data_set[0]
             log_n_features = data_set[1]
-            n_trees = data_set[2]
             # Generate job scripts and possibly submit them to the cluster.
             generate_parallel_inference_comparison_job_scripts(
                 log_n_samples=log_n_samples,
