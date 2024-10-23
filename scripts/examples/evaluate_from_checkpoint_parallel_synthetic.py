@@ -27,13 +27,13 @@ if __name__ == "__main__":
 
     if comm.rank == 0:
         log.info(
-            "**********************************************************************\n"
-            "* Multi-Node Random Forest Classification of Balanced Synthetic Data *\n"
-            "**********************************************************************\n"
+            "********************** ************************************************\n"
+            "* Distributed Random Forest Classification of Balanced Synthetic Data *\n"
+            "*********************** ***********************************************\n"
             f"Hyperparameters used are:\n{args}"
         )
 
-    # Train distributed random forest on balanced synthetic classification data.
+    # Evaluate distributed random forest on balanced synthetic classification data using pickled model checkpoints.
     evaluate_parallel_from_checkpoint(
         n_samples=args.n_samples,
         n_features=args.n_features,
