@@ -1,6 +1,5 @@
 import logging
 import pathlib
-import shutil
 
 import pytest
 from mpi4py import MPI
@@ -39,7 +38,7 @@ def test_breaking_iid(
     shared_test_set: bool,
     globally_imbalanced: bool,
     locally_imbalanced: bool,
-    mpi_tmp_path: pathlib.Path,
+    clean_mpi_tmp_path: pathlib.Path,
 ) -> None:
     """
     Test parallel training of random forest on imbalanced synthetic data.
@@ -57,7 +56,7 @@ def test_breaking_iid(
         Whether the class distribution of the entire dataset is imbalanced.
     locally_imbalanced : bool
         Whether to use an imbalanced partition when assigning the dataset to ranks.
-    mpi_tmp_path : pathlib.Path
+    clean_mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
     n_samples: int = 1000  # Number of samples in synthetic classification data
@@ -68,7 +67,7 @@ def test_breaking_iid(
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
     train_split: float = 0.75  # Fraction of data in the train set
-    output_dir: pathlib.Path = mpi_tmp_path  # Directory to write results to
+    output_dir: pathlib.Path = clean_mpi_tmp_path  # Directory to write results to
     output_label: str = ""  # Optional label for the output files
     experiment_id: str = (
         "test_breaking_iid"  # Optional subdirectory name to collect related result in
@@ -84,7 +83,7 @@ def test_breaking_iid(
     )
     detailed_evaluation: bool = True
     save_model: bool = True
-    log_path: pathlib.Path = mpi_tmp_path  # Path to the log directory
+    log_path: pathlib.Path = clean_mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
         f"{log_path}/{pathlib.Path(__file__).stem}.log"
@@ -103,9 +102,9 @@ def test_breaking_iid(
 
     if comm.rank == 0:
         log.info(
-            "*********************************************************************\n"
-            "* Multi-Node Random Forest Classification of Non-IID Synthetic Data *\n"
-            "*********************************************************************"
+            "**********************************************************************\n"
+            "* Distributed Random Forest Classification of Non-IID Synthetic Data *\n"
+            "**********************************************************************"
         )
     train_parallel_on_synthetic_data(
         n_samples=n_samples,
@@ -130,5 +129,3 @@ def test_breaking_iid(
         save_model=save_model,
     )
     comm.barrier()
-    # Remove all files generated during test in temporary directory.
-    shutil.rmtree(str(mpi_tmp_path), ignore_errors=True)

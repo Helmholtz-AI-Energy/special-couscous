@@ -1,7 +1,6 @@
 import glob
 import logging
 import pathlib
-import shutil
 
 import pandas as pd
 import pytest
@@ -27,7 +26,7 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     [True, False],
 )
 def test_evaluate_from_checkpoint(
-    random_state_model: int, detailed_evaluation: bool, mpi_tmp_path: pathlib.Path
+    random_state_model: int, detailed_evaluation: bool, clean_mpi_tmp_path: pathlib.Path
 ) -> None:
     """
     Test parallel evaluation of random forest from pickled model checkpoints.
@@ -41,7 +40,7 @@ def test_evaluate_from_checkpoint(
         The random state used for the model.
     detailed_evaluation : bool
         Whether to additionally evaluate the model on the training dataset.
-    mpi_tmp_path : pathlib.Path
+    clean_mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
     n_samples: int = 1000  # Number of samples in synthetic classification data
@@ -58,7 +57,7 @@ def test_evaluate_from_checkpoint(
     train_split: float = 0.75  # Fraction of original dataset used for training
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    output_dir: pathlib.Path = mpi_tmp_path  # Directory to write results to
+    output_dir: pathlib.Path = clean_mpi_tmp_path  # Directory to write results to
     experiment_id: str = (
         pathlib.Path(
             __file__
@@ -66,7 +65,7 @@ def test_evaluate_from_checkpoint(
     )
     save_model: bool = True
     shared_global_model: bool = False
-    log_path: pathlib.Path = mpi_tmp_path  # Path to the log directory
+    log_path: pathlib.Path = clean_mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
         f"{log_path}/{pathlib.Path(__file__).stem}.log"
@@ -85,9 +84,9 @@ def test_evaluate_from_checkpoint(
 
     if comm.rank == 0:
         log.info(
-            "*************************************************************\n"
-            "* Multi-Node Random Forest Classification of Synthetic Data *\n"
-            "*************************************************************\nTRAINING"
+            "**************************************************************\n"
+            "* Distributed Random Forest Classification of Synthetic Data *\n"
+            "**************************************************************\nTRAINING"
         )
 
     train_parallel_on_balanced_synthetic_data(
@@ -164,5 +163,3 @@ def test_evaluate_from_checkpoint(
             result_df[columns_to_compare], result_csv_dfs[0][columns_to_compare]
         )
     comm.barrier()
-    # Remove all files generated during test in temporary directory.
-    shutil.rmtree(str(mpi_tmp_path), ignore_errors=True)

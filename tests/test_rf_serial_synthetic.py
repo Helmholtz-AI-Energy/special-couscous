@@ -1,6 +1,5 @@
 import logging
 import pathlib
-import shutil
 
 import pytest
 
@@ -55,9 +54,9 @@ def test_serial_synthetic(tmp_path: pathlib.Path) -> None:
     )
 
     log.info(
-        "**************************************************************\n"
-        "* Single-Node Random Forest Classification of Synthetic Data *\n"
-        "**************************************************************"
+        "*********************************************************\n"
+        "* Serial Random Forest Classification of Synthetic Data *\n"
+        "*********************************************************"
     )
 
     train_serial_on_synthetic_data(
@@ -74,6 +73,3 @@ def test_serial_synthetic(tmp_path: pathlib.Path) -> None:
         experiment_id=experiment_id,
         save_model=save_model,
     )
-
-    # Remove all files generated during test in temporary directory.
-    shutil.rmtree(str(tmp_path), ignore_errors=True)
