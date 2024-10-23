@@ -12,11 +12,6 @@ from specialcouscous.utils.slurm import time_to_seconds
 
 pd.set_option("display.max_rows", None)
 
-# Get the root directory where results are stored from command line.
-root_dir = sys.argv[1]
-data_set = root_dir.split(os.sep)[-1]
-flavor = root_dir.split(os.sep)[-2].replace("_", " ")
-
 
 def get_results_df(
     root_dir: Union[str, pathlib.Path],
@@ -37,60 +32,47 @@ def get_results_df(
     # Dictionary to store the values grouped by (dataset, number_of_tasks, dataseed)
     results = defaultdict(list)
 
-    # Walk through the directory structure to find CSV files
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        for filename in filenames:
-            if filename.endswith(".csv"):
-                # Extract relevant information from the directory structure
-                parts = dirpath.split(os.sep)
-                number_of_tasks = int(parts[-2].split("_")[1])
-                model_seed = int(
-                    parts[-1].split("_")[2]
-                )  # Extract model seed from path.
-                print(f"{data_set}: {number_of_tasks} tasks, model seed {model_seed}")
-                # Read the CSV file into a pandas dataframe.
-                file_path = os.path.join(dirpath, filename)
-                print(file_path)
-                df = pd.read_csv(file_path)
+    # Loop over CSV files in root directory.
+    for filename in pathlib.Path(root_dir).glob("**/*.csv"):
+        # Extract relevant information from the directory structure
+        print(f"Currently considered: {filename}")
+        parts = str(filename).split(os.sep)
+        number_of_tasks = int(parts[-3].split("_")[1])
+        model_seed = int(parts[-2].split("_")[2])  # Extract model seed from path.
+        print(f"{data_set}: {number_of_tasks} tasks, model seed {model_seed}")
+        # Read the CSV file into a pandas dataframe.
+        df = pd.read_csv(filename)
 
-                # Extract the value from the target column and store it
-                # Parallel runs:
-                if "accuracy_global_test" in df.columns:
-                    global_test_accuracy = df.loc[
-                        df["comm_rank"] == "global", "accuracy_global_test"
-                    ].values[0]
+        # Extract the value from the target column and store it
+        if "accuracy_global_test" in df.columns:  # Parallel runs
+            global_test_accuracy = df.loc[
+                df["comm_rank"] == "global", "accuracy_global_test"
+            ].values[0]
+        elif "accuracy_test" in df.columns:  # Serial runs
+            global_test_accuracy = df["accuracy_test"].values[0]
+        else:
+            raise ValueError("No valid test accuracy column in dataframe!")
 
-                if "accuracy_test" in df.columns:
-                    global_test_accuracy = df["accuracy_test"].values[0]
+        print(f"Global test accuracy: {global_test_accuracy}")
+        results[(data_set, number_of_tasks, model_seed)].append(global_test_accuracy)
 
-                print(f"Global test accuracy: {global_test_accuracy}")
-                results[(data_set, number_of_tasks, model_seed)].append(
-                    global_test_accuracy
-                )
+    # Loop over SLURM output files in root directory.
+    for filename in pathlib.Path(root_dir).glob("**/*.out"):
+        print(f"Currently considered: {filename}")
+        parts = str(filename).split(os.sep)
+        number_of_tasks = int(parts[-3].split("_")[1])
+        model_seed = int(parts[-2].split("_")[2])
+        pattern_wall_clock_time = r"Job Wall-clock time: (\d+:\d+:\d+|\d+-\d+:\d+:\d+)"
+        with open(filename, "r") as file:  # Load input text from the file.
+            input_text = file.read()
+        # Extract wall-clock time.
+        wall_clock_time = time_to_seconds(
+            re.search(pattern_wall_clock_time, input_text).group(1)  # type:ignore
+        )
+        print(f"Wall-clock time: {wall_clock_time} s")
+        results[(data_set, number_of_tasks, model_seed)].append(wall_clock_time)
 
-    for dirpath, dirnames, filenames in os.walk(root_dir):
-        for filename in filenames:
-            if filename.endswith(".out"):
-                parts = dirpath.split(os.sep)
-                number_of_tasks = int(parts[-2].split("_")[1])
-                model_seed = int(
-                    parts[-1].split("_")[2]
-                )  # Extract model seed from path.
-                pattern_wall_clock_time = (
-                    r"Job Wall-clock time: (\d+:\d+:\d+|\d+-\d+:\d+:\d+)"
-                )
-                with open(
-                    os.path.join(dirpath, filename), "r"
-                ) as file:  # Load input text from the file.
-                    input_text = file.read()
-                # Extract wall-clock time.
-                wall_clock_time = time_to_seconds(
-                    re.search(pattern_wall_clock_time, input_text).group(1)  # type:ignore
-                )
-                print(f"Wall-clock time: {wall_clock_time} s")
-                results[(data_set, number_of_tasks, model_seed)].append(wall_clock_time)
-
-    # Save the results to a pandas dataframe.
+    # Save the results to a dataframe.
     results_df = pd.DataFrame(
         [(k[0], k[1], k[2], v[0], v[1]) for k, v in results.items()],
         columns=[
@@ -112,9 +94,7 @@ if __name__ == "__main__":
     data_set = root_dir_no_shared_model.split(os.sep)[-1]
 
     results_df_no_shared_model = get_results_df(root_dir_no_shared_model)
-    # energy_no_shared_model = results_df_no_shared_model["Energy consumed"].sum()
     results_df_shared_model = get_results_df(root_dir_shared_model)
-    # energy_shared_model = results_df_shared_model["Energy consumed"].sum()
 
     avg_acc_n_tasks_no_shared_model = (
         results_df_no_shared_model.groupby(["Number of nodes"])
@@ -225,8 +205,7 @@ if __name__ == "__main__":
     # Plot wall-clock time vs number of tasks
     ax3.scatter(
         [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
-        results_df_no_shared_model["Wall-clock time"]
-        / 60,  # Assuming 'Wall-clock time' column exists
+        results_df_no_shared_model["Wall-clock time"] / 60,
         label="Individual wall-clock times",
         marker=".",
         color="k",
@@ -248,7 +227,6 @@ if __name__ == "__main__":
         zorder=20,
     )
     ax3.set_ylabel("Wall-clock time / min", fontweight="bold")
-    # ax3.legend(loc="upper left", fontsize="x-small")
     ax3.grid(True)
     ax3.set_ylim(
         [
@@ -261,8 +239,7 @@ if __name__ == "__main__":
     # Plot wall-clock time vs number of tasks (right y-axis)
     ax4.scatter(
         [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
-        results_df_shared_model["Wall-clock time"]
-        / 60,  # Assuming 'Wall-clock time' column exists
+        results_df_shared_model["Wall-clock time"] / 60,
         label="Individual wall-clock times",
         marker=".",
         color="k",
@@ -271,8 +248,7 @@ if __name__ == "__main__":
     )
     ax4.scatter(
         [str(n_tasks) for n_tasks in avg_time_n_tasks_shared_model["Number of nodes"]],
-        avg_time_n_tasks_shared_model["Wall-clock time"]
-        / 60,  # Assuming 'Wall-clock time' column exists
+        avg_time_n_tasks_shared_model["Wall-clock time"] / 60,
         label="Average over all model seeds",
         s=80,
         marker="X",
@@ -308,8 +284,6 @@ if __name__ == "__main__":
         linewidths=1.3,
         zorder=15,
     )
-
-    # Customize the right y-axis (wall-clock time)
     ax5.set_ylabel("Efficiency", fontweight="bold")
     ax5.set_xlabel("Number of nodes", fontweight="bold")
     ax5.grid(True)
@@ -347,8 +321,6 @@ if __name__ == "__main__":
         linewidths=1.3,
         zorder=15,
     )
-
-    # Customize the right y-axis (wall-clock time)
     ax6.set_xlabel("Number of nodes", fontweight="bold")
     ax6.grid(True)
     ax6.set_ylim(
@@ -369,18 +341,6 @@ if __name__ == "__main__":
             ).max(),
         ]
     )
-    # energy_str = f"Overall {(energy_shared_model/1000):.2f} kWh consumed"
-    # ax6.text(
-    #     0.05, 0.95, energy_str, transform=ax6.transAxes, fontsize="x-small", verticalalignment="top", fontweight="bold"
-    # )
-    # Ensure the layout is tight so labels don't overlap
     plt.tight_layout()
-    #
-    # Save the figure
     plt.savefig(pathlib.Path(root_dir_no_shared_model) / f"{data_set}_weak_scaling.png")
-
-    # print(f"Overall energy consumed (no shared model): {(energy_no_shared_model/1000):.2f} kWh")
-    # print(f"Overall energy consumed (shared model): {(energy_shared_model/1000):.2f} kWh")
-
-    # Show the plot
     plt.show()

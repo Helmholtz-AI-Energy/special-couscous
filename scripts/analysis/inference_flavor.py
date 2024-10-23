@@ -63,6 +63,7 @@ def get_results_df(
 
     # Loop over all CSV files in root directory.
     for filename in pathlib.Path(path_to_root).glob("**/*.csv"):
+        print(f"Currently considered: {filename}")
         # Extract relevant information from the path.
         parts = str(filename).split(os.sep)
         number_of_tasks = int(parts[-3].split("_")[1])  # Number of tasks
@@ -81,6 +82,7 @@ def get_results_df(
 
     # Loop over all SLURM output files in root directory.
     for filename in pathlib.Path(path_to_root).glob("**/*.out"):
+        print(f"Currently considered: {filename}")
         parts = str(filename).split(os.sep)
         number_of_tasks = int(parts[-3].split("_")[1])  # Number of tasks
         model_seed = int(parts[-2].split("_")[2])  # Model seed
