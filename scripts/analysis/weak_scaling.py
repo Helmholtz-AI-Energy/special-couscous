@@ -19,7 +19,8 @@ flavor = root_dir.split(os.sep)[-2].replace("_", " ")
 results = defaultdict(list)
 
 # The specific column you want to average in the CSV files
-target_columns = ["accuracy_global_test", "accuracy_test"]
+# target_columns = ["accuracy_global_test", "accuracy_test"]
+target_columns = ["accuracy_global_test", "accuracy_local_test", "accuracy_test"]
 
 # Walk through the directory structure to find CSV files
 for dirpath, dirnames, filenames in os.walk(root_dir):
