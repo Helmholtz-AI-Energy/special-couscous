@@ -257,4 +257,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Logging level.",
     )
 
+    parser.add_argument(
+        "--checkpoint_path",
+        type=pathlib.Path,
+        default=pathlib.Path("./"),
+        help="Path to the checkpoint directory containing the local model pickle files to load.",
+    )
+
+    parser.add_argument(
+        "--checkpoint_uid",
+        type=str,
+        default="",
+        help="The considered run's unique identifier. Used to identify the correct checkpoints to load.",
+    )
+
     return parser.parse_args()

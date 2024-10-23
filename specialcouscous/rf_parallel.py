@@ -1,12 +1,13 @@
+import glob
 import logging
+import pathlib
+import pickle
 
 import numpy as np
 import sklearn.tree
 from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
-
-from specialcouscous.utils.timing import MPITimer
 
 log = logging.getLogger(__name__)  # Get logger instance.
 
@@ -35,7 +36,7 @@ class DistributedRandomForest:
         The final number of rank-local trees.
     n_trees_remainder : int
         The remaining number of trees to distribute.
-    random_state : int
+    random_state : int | None
         The rank-local random state of each local random forest classifier.
     trees : list[sklearn.tree.DecisionTreeClassifier]
         A list of all trees in the global random forest model.
@@ -52,7 +53,7 @@ class DistributedRandomForest:
         self,
         n_trees_global: int,
         comm: MPI.Comm,
-        random_state: int,
+        random_state: int | None = None,
         shared_global_model: bool = True,
         add_rank: bool = False,
     ) -> None:
@@ -81,31 +82,35 @@ class DistributedRandomForest:
             self.n_trees_remainder,
             self.n_trees_local,
         ) = self._distribute_trees()
-        if add_rank:
-            # Add the local rank to the provided base seed to obtain a rank-specific integer seed. Convert this seed to
-            # a rank-specific ``np.random.RandomState`` instance. This ensures that each local subforest is different.
-            local_seed = random_state + self.comm.rank
-            log.info(
-                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+        if random_state:  # Particular random state is provided
+            if add_rank:
+                # Add the local rank to the provided base seed to obtain a rank-specific integer seed. Convert this seed to
+                # a rank-specific ``np.random.RandomState`` instance. This ensures that each local subforest is different.
+                local_seed = random_state + self.comm.rank
+                log.info(
+                    f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+                )
+                self.random_state = check_random_state(local_seed)
+            else:
+                # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
+                # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
+                # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring
+                # that each rank-local subforest is different.
+                base_random_state = check_random_state(random_state)
+                local_seeds = base_random_state.randint(
+                    low=0, high=2**32 - 1, size=self.comm.size
+                )  # NOTE: The seed range here is the maximum range possible.
+                local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
+                log.info(
+                    f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
+                )
+                self.random_state = check_random_state(local_seed)
+            log.debug(
+                f"Random state of model is: {self.random_state.get_state(legacy=True)}"
             )
-            self.random_state = check_random_state(local_seed)
-        else:
-            # Convert the model base seed into a ``np.random.RandomState`` instance (the same on each rank). This
-            # ``RandomState`` instance is used to generate a sequence of ``self.comm.size`` random integers. The random
-            # integer at position ``self.comm.rank`` is used to seed a rank-local ``RandomState`` instance, ensuring
-            # that each rank-local subforest is different.
-            base_random_state = check_random_state(random_state)
-            local_seeds = base_random_state.randint(
-                low=0, high=2**32 - 1, size=self.comm.size
-            )  # NOTE: The seed range here is the maximum range possible.
-            local_seed = local_seeds[self.comm.rank]  # Extract rank-local seed.
-            log.info(
-                f"[{self.comm.rank}/{self.comm.size}] Use {local_seed} to seed the rank-local `RandomState` instance."
-            )
-            self.random_state = check_random_state(local_seed)
-        log.debug(
-            f"Random state of model is: {self.random_state.get_state(legacy=True)}"
-        )
+        else:  # Random state is None
+            self.random_state = random_state
+
         self.shared_global_model = shared_global_model
         self.clf: RandomForestClassifier  # Local random forest classifier
         self.trees: list[
@@ -168,6 +173,33 @@ class DistributedRandomForest:
         clf.fit(train_samples, train_targets)
         return clf
 
+    def load_checkpoints(
+        self, checkpoint_path: str | pathlib.Path, uid: str = ""
+    ) -> None:
+        """
+        Initialize rank-local subforests from pickled model checkpoints.
+
+        Parameters
+        ----------
+        checkpoint_path : str | pathlib.Path
+            Path to the checkpoint directory containing the local model pickle files to load. There should only be one
+            valid checkpoint file for each rank, i.e., one file with the suffix "_rank_{comm.rank}.pickle}".
+        uid : str
+            The considered run's unique identifier
+        """
+        checkpoints = glob.glob(
+            str(checkpoint_path) + f"/*{uid}_classifier_rank_{self.comm.rank}.pickle"
+        )
+        if len(checkpoints) > 1:
+            raise ValueError(
+                f"More than one local checkpoints found for rank {self.comm.rank}!"
+            )
+        if len(checkpoints) == 0:
+            raise ValueError(f"No local checkpoints found for rank {self.comm.rank}!")
+        with open(checkpoints[0], "rb") as f:
+            self.clf = pickle.load(f)
+            log.info(f"[{self.comm.rank}/{self.comm.size}]: Loaded {checkpoints[0]}.")
+
     def _predict_tree_by_tree(self, samples: np.ndarray) -> np.ndarray:
         """
         Get predictions of all sub estimators in the random forest.
@@ -182,7 +214,9 @@ class DistributedRandomForest:
         numpy.ndarray
             The predictions of each sub estimator on the samples.
         """
-        return np.array([tree.predict(samples) for tree in self.trees], dtype="H")
+        return np.array(
+            [tree.predict(samples, check_input=False) for tree in self.trees], dtype="H"
+        )
 
     @staticmethod
     def _calc_majority_vote(tree_wise_predictions: np.ndarray) -> np.ndarray:
@@ -323,10 +357,9 @@ class DistributedRandomForest:
         self,
         train_samples: np.ndarray,
         train_targets: np.ndarray,
-        shared_global_model: bool = True,
-    ) -> None | MPITimer:
+    ) -> None:
         """
-        Train random forest model in parallel.
+        Train distributed random forest model in parallel.
 
         Parameters
         ----------
@@ -334,41 +367,35 @@ class DistributedRandomForest:
             The rank-local train samples.
         train_targets : numpy.ndarray
             The corresponding train targets.
-        shared_global_model : bool
-            Whether the global model shall be shared among all ranks (True) or not (False).
-
-        Returns
-        -------
-        None | MPITimer
-            A distributed MPI timer (if ``shared_global_model`` is True).
         """
         # Set up communicator.
         rank, size = self.comm.rank, self.comm.size
         # Set up and train local forest.
         log.info(
-            f"[{rank}/{size}]: Set up and train local random forest with {self.n_trees_local} trees."
+            f"[{rank}/{size}]: Set up and train rank-local random forest with {self.n_trees_local} trees."
         )
         self.clf = self._train_local_classifier(
             train_samples=train_samples,
             train_targets=train_targets,
         )
-        if not shared_global_model:
-            return None
-        with MPITimer(self.comm, name="all-gathering model") as timer:
-            log.info(
-                f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
-            )
-            trees = self._allgather_subforests_tree_by_tree()
-            log.info(f"[{rank}/{size}]: {len(trees)} trees in global forest.")
-            self.trees = trees
-            return timer
+
+    def build_shared_global_model(self) -> None:
+        """Build global shared random forest model from rank-local classifiers."""
+        # Set up communicator.
+        rank, size = self.comm.rank, self.comm.size
+        log.info(
+            f"[{rank}/{size}]: Sync global forest by all-gathering local forests tree by tree."
+        )
+        # Construct shared global model as globally shared list of all trees.
+        self.trees = self._allgather_subforests_tree_by_tree()
+        log.info(f"[{rank}/{size}]: {len(self.trees)} trees in global forest.")
 
     def evaluate(
         self,
         samples: np.ndarray,
         targets: np.ndarray,
         n_classes: int,
-        shared_global_model: bool = True,
+        shared_global_model: bool = False,
     ) -> None:
         """
         Evaluate the trained global random forest.
@@ -382,7 +409,7 @@ class DistributedRandomForest:
         n_classes : int
             The number of classes in the dataset.
         shared_global_model : bool
-            Whether the global model is shared among all ranks (True) or not (False). Default is True.
+            Whether the global model is shared among all ranks (True) or not (False). Default is False.
         """
         rank, size = self.comm.rank, self.comm.size
         if shared_global_model:  # Global model is shared.
