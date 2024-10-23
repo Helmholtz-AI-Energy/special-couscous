@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 
 
-def generate_parallel_inference_comparison_job_scripts(
+def generate_parallel_weak_scaling_job_scripts(
     log_n_samples: int,
     log_n_features: int,
     n_classes: int,
@@ -14,25 +14,14 @@ def generate_parallel_inference_comparison_job_scripts(
     submit: bool = False,
 ) -> None:
     """
-    Generate the job scripts for the inference flavor comparison experiments.
+    Generate the job scripts for the weak scaling experiments.
 
-    These experiments basically correspond to a weak scaling experiment series with shared global model.
-
-    NOTE: We estimated 1500 and 450 trees to be trainable in serial in 3 days for 1M samples with 10k features and 10M
-    samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline.
     With number of samples n, number of features m, and number of trees t:
-
-    Strong scaling:
-    n6m4 baseline (n, m, t) = (10^6, 10^4, 1600) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 448)
-
-    Weak scaling:
     n6m4 baseline (n, m, t) = (10^6, 10^4, 800) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 224)
 
-    NOTE: All strong-scaling experiments used high-memory nodes, i.e., #SBATCH --mem=486400mb, except for the 64-node
-    experiment which used the normal nodes. This is due to the fact that HoreKa has only 32 high-memory nodes. However,
-    as the problem size per node decreases with increasing number of nodes in strong scaling, this was not a problem here
-    but only for weak scaling. That is why the base problem size of weak scaling is only half the base problem size of
-    strong scaling.
+    NOTE: As we can construct accuracy statistics for all parallelization levels up to 32 nodes from the 64-node
+    experiment checkpoints, we only conducted one run for each parallelization level, except for 64 nodes with three
+    runs each using a different model seed.
 
     Parameters
     ----------
@@ -54,11 +43,11 @@ def generate_parallel_inference_comparison_job_scripts(
         Whether to submit jobs to the cluster. Default is False.
     """
     for n_nodes in [
-        #        2,
-        #        4,
-        #        8,
-        #        16,
-        #        32,
+        2,
+        4,
+        8,
+        16,
+        32,
         64,
     ]:  # Weak scaling type experiment (with shared global model)
         n_trees_global = (
@@ -124,7 +113,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
 if __name__ == "__main__":
     data_sets = [(6, 4, 800), (7, 3, 224)]
     data_seed = 0
-    model_seeds = [2, 3]  # [1, 2, 3]
+    model_seeds = [1, 2, 3]
     n_classes = 10
     output_path = pathlib.Path("./train/")
     os.makedirs(output_path, exist_ok=True)
@@ -134,7 +123,7 @@ if __name__ == "__main__":
             log_n_features = data_set[1]
             n_trees = data_set[2]
             # Generate job scripts and possibly submit them to the cluster.
-            generate_parallel_inference_comparison_job_scripts(
+            generate_parallel_weak_scaling_job_scripts(
                 log_n_samples=log_n_samples,
                 log_n_features=log_n_features,
                 n_trees=n_trees,
@@ -142,5 +131,5 @@ if __name__ == "__main__":
                 data_seed=data_seed,
                 model_seed=random_state_model,
                 output_path=output_path,
-                submit=True,
+                submit=False,
             )

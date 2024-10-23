@@ -29,10 +29,9 @@ def generate_strong_scaling_job_scripts(
     Weak scaling:
     n6m4 baseline (n, m, t) = (10^6, 10^4, 800) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 224)
 
-    NOTE: All strong-scaling experiments used high-memory nodes, i.e., #SBATCH --mem=486400mb, except for the 64-node
-    experiment which used the normal nodes. This is due to the fact that HoreKa has only 32 high-memory nodes. However,
-    as the problem size per node decreases with increasing number of nodes in strong scaling, this was not a problem here
-    but only for weak scaling. That is why the base problem size of weak scaling is only half the base problem size of
+    NOTE: The serial strong-scaling experiments need to use high-memory nodes, i.e., #SBATCH --mem=486400mb. All other
+    parallelization levels can use normal nodes as the problem size per node decreases with increasing number of nodes
+    in strong scaling. That is why the base problem size of weak scaling is only half the base problem size of
     strong scaling.
 
     Parameters
