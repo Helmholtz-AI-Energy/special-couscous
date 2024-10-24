@@ -1,6 +1,5 @@
 import logging
 import pathlib
-import shutil
 
 import pytest
 
@@ -92,6 +91,3 @@ def test_serial_synthetic(
         save_model=save_model,
         stratified_train_test=stratified_train_test,
     )
-
-    # Remove all files generated during test in temporary directory.
-    shutil.rmtree(str(tmp_path), ignore_errors=True)

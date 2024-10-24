@@ -1,35 +1,45 @@
 from specialcouscous.utils.slurm import expand_node_range
 
-# Input strings
-nodes_list = [
-    # NODE LISTS OF FAILED JOBS
-    # "hkn[0016,0037,0041-0042,0045-0048,0050-0051,0053,0055-0057,0061-0062,0064-0072,0114,0117,0121-0122,0124-0126,0136,0169,0171,0201-0203,0206,0209,0218-0219,0222,0249-0251,0253,0255-0257,0259,0261,0265,0267-0268,0304,0330,0842,1021,1058,1061-1063,1067]",
-    # "hkn[0257,0259]",
-    # "hkn[0023-0030,0032-0033,0035,0114,0116,0118,0123-0124,0230,0232-0236,0239-0240,0242-0252,0254,0256-0257,0259-0263,0265-0266,0321-0322,0325-0327,0329,0331-0336,1049,1051-1053,1056,1059,1067]",
-    # "hkn[0058-0059,0069,0235,0239,0257,0259-0263,0265-0266,1049,1053,1060]",
-    # "hkn[0019,0023-0033,0035,0130-0131,0133-0134,0137,0139-0145,0147-0148,0230,0232-0236,0239-0240,0242-0252,0254,0256-0257,0259-0263,0265-0267,1049-1055]",
-    # "hkn[0102,0106,0114,0116,0146,0167,0246-0252,0254,1056,1059]",
-    # Potential overlap
-    # "hkn[0114,0249,0250,0251,0257,0259]",
-    # Reduced overlap
-    "hkn[0249,0250,0251,0257,0259]",
-    # JOBS THAT WORKED
-    # "hkn[0019,0023-0031,0036,0057-0062,0064-0066,0068-0070,0072,0141-0143,0169,0171,0230,0232-0236,0238-0239,0242-0243,0248,1010,1015-1016,1018-1020,1022-1025,1028-1029,1032-1040,1043-1044,1046]",
-    # "hkn[0025,0029-0031,0036,0041,0057-0062,0064,0070,0072,0141-0148,0169,0171,0230,0232-0235,0238-0239,0242,0271,0314,0324,1005,1007,1010,1015-1016,1018-1020,1022-1025,1028-1029,1032,1034-1040,1043-1044,1046,1049,1051,1053]"
-    # "hkn[0019,0023-0031,0036,0057-0062,0064-0066,0068-0070,0072,0141-0144,0169,0171,0230,0232-0236,0238-0239,0242-0243,0248,1010,1015-1016,1018-1020,1022-1025,1028-1029,1032,1034-1040,1043-1044,1046]"
-    # "hkn[0019,0027-0033,0114-0124,0127-0137,0139-0141,0144-0145,0147,0209-0210,0212-0220,0222-0223,0227,0229-0230,1049-1060]"
-    # "hkn[0057-0061,0070,0149-0151,0156,0171,0230,0232,0235-0236,0239,0242-0243,0248,1010,1018,1020,1022,1025,1029,1032,1038-1040,1043-1044,1046]"
-    # "hkn[0058-0059,0061,0063-0066,0068-0070,0112,0115,0117,0120-0122,0127-0129,0132,0135,0169-0170,0172,1010,1015-1019,1021,1026]"
-    # "hkn[0023-0025,0028-0030,0032-0033,0035,0070,0118,0123-0124,0127,0230,0232-0233,0236,0240,0242-0244,0321-0322,0325-0326,0329,0331-0335]"
-    # "hkn[0057-0061,0070,0129-0134,0137,0144-0145,0147,0230,0232,0235-0236,0239,0242-0243,0248,1029,1032,1038-1040,1043-1044,1046]"
-    # "hkn[0038,0044,0058,0070,0149-0151,0156-0157,0206-0207,0230,0232,0235-0236,0239,0242-0243,0248,0308,0316,0328,1010,1018,1020,1022,1025,1029,1032,1043-1044,1065]"
-    # "hkn[0063-0066,0068,0112,0115,0117,0120-0122,0128,0132,0135,0143-0144,0169-0170,0172,0218,0222,1010,1015-1019,1026,1050,1054-1055,1057]"
-]
 
-expanded_nodes_list = [
-    set(expand_node_range(nodes)) for nodes in nodes_list
-]  # Expand ranges
-overlap = sorted(
-    set.intersection(*expanded_nodes_list)
-)  # Find the intersection (overlap)
-print("Overlapping nodes:", overlap)  # Output the overlapping nodes
+def find_node_overlap(nodes_list: list[str]) -> list[str]:
+    """
+    Identify overlapping nodes across multiple HoreKa compute jobs.
+
+    This script helps analyze compute jobs run on the HoreKa supercomputer by identifying overlaps in the lists of compute
+    nodes used. Each compute job's output file includes a summary of the nodes utilized at the end of the run. By comparing
+    these node lists across different jobs, this script identifies which nodes were consistently involved.
+
+    This can be particularly useful for troubleshooting failed jobs, as overlapping nodes in multiple failed jobs may
+    indicate problematic compute nodes. Such nodes can then be excluded in future jobs using the "SBATCH --exclude" option.
+
+    Additionally, comparing the node overlap between failed and successful jobs can help refine the list, removing
+    functional nodes that were used in successful jobs, thereby narrowing down the potential source of failure.
+
+    Parameters
+    ----------
+    nodes_list : list[str]
+        List of compute node lists to compare. Format must be: "hkn[0169,0171,0201-0203"
+
+    Returns
+    -------
+    list[str]
+        A list of nodes used in all jobs.
+    """
+    expanded_nodes_list = [
+        set(expand_node_range(nodes)) for nodes in nodes_list
+    ]  # Expand ranges.
+    return sorted(
+        set.intersection(*expanded_nodes_list)
+    )  # Return the intersection (overlap).
+
+
+if __name__ == "__main__":
+    # Input strings
+    nodes_list = [
+        # Enter node lists of compute jobs to identify their node overlap (and thus potentially broken nodes).
+        # Example:
+        "hkn[0169,0171,0201-0203,0206,0209,0218-0219,0222,0249-0251,0253,0255-0257,0259,0261,0265,0267-0268,0304,0330]",
+        "hkn[0257,0259]",
+    ]
+    overlap = find_node_overlap(nodes_list)
+    print("Overlapping nodes:", overlap)

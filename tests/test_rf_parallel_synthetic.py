@@ -1,6 +1,5 @@
 import logging
 import pathlib
-import shutil
 
 import pytest
 from mpi4py import MPI
@@ -33,7 +32,7 @@ def test_parallel_synthetic(
     flip_y: float,
     stratified_train_test: bool,
     shared_global_model: bool,
-    mpi_tmp_path: pathlib.Path,
+    clean_mpi_tmp_path: pathlib.Path,
 ) -> None:
     """
     Test parallel training of random forest on synthetic data.
@@ -48,7 +47,7 @@ def test_parallel_synthetic(
         Whether to stratify the train-test split with the class labels.
     shared_global_model: bool
         Whether to build a shared global model.
-    mpi_tmp_path : pathlib.Path
+    clean_mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
     n_samples: int = 1000  # Number of samples in synthetic classification data
@@ -64,13 +63,13 @@ def test_parallel_synthetic(
     random_state: int = 9  # Random state for synthetic data generation and splitting
     # Model-related arguments
     n_trees: int = 100  # Number of trees in global random forest classifier
-    output_dir: pathlib.Path = mpi_tmp_path  # Directory to write results to
+    output_dir: pathlib.Path = clean_mpi_tmp_path  # Directory to write results to
     experiment_id: str = (
         "test_parallel_rf"  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
     detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
-    log_path: pathlib.Path = mpi_tmp_path  # Path to the log directory
+    log_path: pathlib.Path = clean_mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
     log_file: pathlib.Path = pathlib.Path(
         f"{log_path}/{pathlib.Path(__file__).stem}.log"
@@ -115,5 +114,3 @@ def test_parallel_synthetic(
         save_model=save_model,
     )
     comm.barrier()
-    # Remove all files generated during test in temporary directory.
-    shutil.rmtree(str(mpi_tmp_path), ignore_errors=True)
