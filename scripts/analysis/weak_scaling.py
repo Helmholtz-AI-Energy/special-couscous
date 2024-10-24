@@ -21,6 +21,7 @@ if __name__ == "__main__":
     results = defaultdict(list)
     target_columns = [
         "accuracy_global_test",
+        "accuracy_local_test",
         "accuracy_test",
     ]  # Columns to extract from the CSV files
 

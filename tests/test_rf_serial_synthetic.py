@@ -9,13 +9,27 @@ from specialcouscous.utils import set_logger_config
 log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
+@pytest.mark.parametrize(
+    "flip_y",
+    [0.0, 0.01],
+)
+@pytest.mark.parametrize(
+    "stratified_train_test",
+    [True, False],
+)
 @pytest.mark.mpi_skip
-def test_serial_synthetic(tmp_path: pathlib.Path) -> None:
+def test_serial_synthetic(
+    flip_y: float, stratified_train_test: bool, tmp_path: pathlib.Path
+) -> None:
     """
     Test serial training of random forest on synthetic data.
 
     Parameters
     ----------
+    flip_y: float
+        The fraction of samples whose class is assigned randomly.
+    stratified_train_test: bool
+        Whether to stratify the train-test split with the class labels.
     tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
@@ -63,13 +77,17 @@ def test_serial_synthetic(tmp_path: pathlib.Path) -> None:
         n_samples=n_samples,
         n_features=n_features,
         n_classes=n_classes,
-        n_clusters_per_class=n_clusters_per_class,
-        frac_informative=frac_informative,
-        frac_redundant=frac_redundant,
+        make_classification_kwargs={
+            "n_clusters_per_class": n_clusters_per_class,
+            "n_informative": int(frac_informative * n_features),
+            "n_redundant": int(frac_redundant * n_features),
+            "flip_y": flip_y,
+        },
         random_state=9,
         n_trees=n_trees,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         experiment_id=experiment_id,
         save_model=save_model,
+        stratified_train_test=stratified_train_test,
     )
