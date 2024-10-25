@@ -17,9 +17,13 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "stratified_train_test",
     [True, False],
 )
+@pytest.mark.parametrize("random_state_model", [17, None])
 @pytest.mark.mpi_skip
 def test_serial_synthetic(
-    flip_y: float, stratified_train_test: bool, tmp_path: pathlib.Path
+    flip_y: float,
+    stratified_train_test: bool,
+    random_state_model: int | None,
+    tmp_path: pathlib.Path,
 ) -> None:
     """
     Test serial training of random forest on synthetic data.
@@ -30,6 +34,8 @@ def test_serial_synthetic(
         The fraction of samples whose class is assigned randomly.
     stratified_train_test: bool
         Whether to stratify the train-test split with the class labels.
+    random_state_model: int | None
+        The random state used to initialize the model
     tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
@@ -84,6 +90,7 @@ def test_serial_synthetic(
             "flip_y": flip_y,
         },
         random_state=9,
+        random_state_model=random_state_model,
         n_trees=n_trees,
         detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,

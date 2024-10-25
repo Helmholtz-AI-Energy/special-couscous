@@ -356,7 +356,9 @@ def train_serial_on_synthetic_data(
     if random_state_model is None:
         random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
         log.info(f"Generated model base seed is {random_state_model}.")
-        seed = check_random_state(random_state_model).randint(low=0, high=2**32 - 1)
+        random_state_model = check_random_state(random_state_model).randint(
+            low=0, high=2**32 - 1
+        )
 
     # Generate data.
     log.info("Generating data...")
@@ -392,7 +394,7 @@ def train_serial_on_synthetic_data(
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
     clf = RandomForestClassifier(
-        n_estimators=n_trees, random_state=check_random_state(seed)
+        n_estimators=n_trees, random_state=check_random_state(random_state_model)
     )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
