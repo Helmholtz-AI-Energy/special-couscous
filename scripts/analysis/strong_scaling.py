@@ -208,7 +208,7 @@ if __name__ == "__main__":
     #     ms=5,
     # )
 
-    ax2.set_ylabel("Wall-clock time / h", fontweight="bold", fontsize=labelsize)
+    ax2.set_ylabel("Runtime / h", fontweight="bold", fontsize=labelsize)
     ax2.legend(fontsize=legendsize)
     ax2.grid(visible)
 

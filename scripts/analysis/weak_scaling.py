@@ -93,63 +93,79 @@ if __name__ == "__main__":
     print(avg_time_n_tasks["Wall-clock time"][avg_time_n_tasks["Number of nodes"] == 1])
 
     # Create the figure and the axes.
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(5, 8), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
+    # Settings
+    labelsize = "small"
+    legendsize = "xx-small"
+    visible = False  # Whether to plot a grid or not
+    average_kwargs = {
+        "marker": "x",
+        "s": 38,
+        "color": "C0",
+        "linewidths": 1,
+    }
+    individual_kwargs = {
+        "marker": ",",
+        "color": "k",
+        "s": 5,
+        "alpha": 0.3,
+    }
+    error_kwargs = {
+        "fmt": "_",
+        "color": "C2",
+        "ecolor": "C2",
+        "elinewidth": 1,
+        "capsize": 0.9,
+        "ms": 5,
+    }
     # Set title
     data_set = data_set.replace("_", "")
     plt.suptitle(
-        f"Weak scaling {data_set} {flavor}",
+        f"Weak scaling {data_set}\n{flavor.capitalize()}",
         fontweight="bold",
+        fontsize="small",
     )
     # Plot individual test accuracy vs. number of tasks.
     ax1.scatter(
         [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
         results_df["Global test accuracy"] * 100,
-        label="Individual test accuracies",
-        marker=".",
-        color="k",
+        label="Individual",
+        **individual_kwargs,
         zorder=10,
-        alpha=0.5,
     )
     # Plot overall average test accuracy vs. number of tasks as stars.
     ax1.scatter(
         [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
         avg_acc_n_tasks["Global test accuracy"] * 100,
-        label="Average over all model seeds",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        label="Average",
+        **average_kwargs,
         zorder=20,
     )
-    ax1.set_ylabel("Test accuracy / %", fontweight="bold")
-    ax1.grid(True)
-    ax1.legend(loc="lower right", fontsize="small")
+    ax1.set_ylabel("Test accuracy / %", fontweight="bold", fontsize=labelsize)
+    ax1.grid(visible)
+    ax1.legend(loc="best", fontsize=legendsize)
+    ax1.tick_params(axis="both", labelsize=labelsize)
 
     # Plot wall-clock time vs. number of tasks.
     ax2.scatter(
         [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
         results_df["Wall-clock time"] / 60,
-        label="Individual wall-clock times",
-        marker=".",
-        color="k",
+        label="Individual",
+        **individual_kwargs,
         zorder=5,
-        alpha=0.5,
     )
     ax2.scatter(
         [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
         avg_time_n_tasks["Wall-clock time"] / 60,
-        label="Average over all model seeds",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        label="Average",
+        **average_kwargs,
         zorder=20,
     )
-    ax2.set_ylabel("Wall-clock time / min", fontweight="bold")
-    ax2.legend(loc="upper left", fontsize="small")
-    ax2.grid(True)
+    ax2.set_ylabel("Runtime / min", fontweight="bold", fontsize=labelsize)
+    ax2.legend(loc="best", fontsize=legendsize)
+    ax2.grid(visible)
+    ax2.tick_params(axis="both", labelsize=labelsize)
+    ax2.set_ylim(0, 1.1 * avg_time_n_tasks["Wall-clock time"].max() / 60)
 
     print(
         avg_time_n_tasks["Wall-clock time"][
@@ -165,22 +181,19 @@ if __name__ == "__main__":
         ].values
         / avg_time_n_tasks["Wall-clock time"],
         label="Efficiency",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        **average_kwargs,
         zorder=15,
     )
-    ax3.set_ylabel("Efficiency", fontweight="bold")
-    ax3.set_xlabel("Number of nodes", fontweight="bold")
-    ax3.grid(True)
-
+    ax3.set_ylabel("Efficiency", fontweight="bold", fontsize=labelsize)
+    ax3.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
+    ax3.grid(visible)
+    ax3.tick_params(axis="both", labelsize=labelsize)
+    ax3.set_ylim(0, 1.1)
     plt.tight_layout()
 
     # Save the figure.
     flavor = flavor.replace(" ", "_")
-    plt.savefig(pathlib.Path(root_dir) / f"{data_set}_{flavor}_weak_scaling.png")
+    plt.savefig(pathlib.Path(root_dir) / f"{data_set}_{flavor}_weak_scaling.pdf")
 
     # Show the plot.
     plt.show()

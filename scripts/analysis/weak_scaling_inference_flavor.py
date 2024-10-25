@@ -96,6 +96,9 @@ if __name__ == "__main__":
     results_df_no_shared_model = get_results_df(root_dir_no_shared_model)
     results_df_shared_model = get_results_df(root_dir_shared_model)
 
+    print(results_df_no_shared_model)
+    print(results_df_shared_model)
+
     avg_acc_n_tasks_no_shared_model = (
         results_df_no_shared_model.groupby(["Number of nodes"])
         .agg({"Global test accuracy": "mean"})
@@ -121,26 +124,49 @@ if __name__ == "__main__":
     )
 
     # Create the figure and the axes.
-    fig, axes = plt.subplots(3, 2, figsize=(6, 6), sharex=True)
+    fig, axes = plt.subplots(3, 2, figsize=(5, 5), sharex=True)
     ax1, ax2, ax3, ax4, ax5, ax6 = axes.flatten()
+    # Settings
+    labelsize = "small"
+    legendsize = "xx-small"
+    visible = False  # Whether to plot a grid or not
+    average_kwargs = {
+        "marker": "x",
+        "s": 38,
+        "color": "C0",
+        "linewidths": 1,
+    }
+    individual_kwargs = {
+        "marker": ",",
+        "color": "k",
+        "s": 5,
+        "alpha": 0.3,
+    }
+    error_kwargs = {
+        "fmt": "_",
+        "color": "C2",
+        "ecolor": "C2",
+        "elinewidth": 1,
+        "capsize": 0.9,
+        "ms": 5,
+    }
     # Set title.
     data_set = data_set.replace("_", "")
     plt.suptitle(
         f"Weak scaling {data_set}",
         fontweight="bold",
+        fontsize="medium",
     )
-    ax1.set_title("No shared global model", fontsize="medium")
+    ax1.set_title("No shared global model", fontsize="small")
 
     # --- No shared model: Test accuracy ---
     # Plot individual test accuracy vs number of tasks (left y-axis)
     ax1.scatter(
         [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
         results_df_no_shared_model["Global test accuracy"] * 100,
-        label="Individual test accuracies",
-        marker=".",
-        color="k",
+        label="Individual",
+        **individual_kwargs,
         zorder=10,
-        alpha=0.5,
     )
     # Plot overall average test accuracy vs number of tasks as stars (left y-axis)
     ax1.scatter(
@@ -149,55 +175,47 @@ if __name__ == "__main__":
             for n_tasks in avg_acc_n_tasks_no_shared_model["Number of nodes"]
         ],
         avg_acc_n_tasks_no_shared_model["Global test accuracy"] * 100,
-        label="Average over all model seeds",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        label="Average",
+        **average_kwargs,
         zorder=20,
     )
     # Customize the left y-axis (test accuracy)
-    ax1.set_ylabel("Test accuracy / %", fontweight="bold")
-    ax1.grid(True)
+    ax1.set_ylabel("Test accuracy / %", fontweight="bold", fontsize=labelsize)
+    ax1.grid(visible)
+    ax1.tick_params(axis="both", labelsize=labelsize)
     ax1.set_ylim(
         [
-            0.999 * results_df_no_shared_model["Global test accuracy"].min() * 100,
-            1.001 * results_df_no_shared_model["Global test accuracy"].max() * 100,
+            0.9 * results_df_no_shared_model["Global test accuracy"].min() * 100,
+            1.1 * results_df_no_shared_model["Global test accuracy"].max() * 100,
         ]
     )
-    # ax1.legend(loc="lower right", fontsize="x-small")
+    # ax1.legend(fontsize=legendsize)
 
     # --- Shared model: Test accuracy ---
     # Plot individual test accuracy vs number of tasks (left y-axis)
-    ax2.set_title("Shared global model", fontsize="medium")
+    ax2.set_title("Shared global model", fontsize="small")
     ax2.scatter(
         [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
         results_df_shared_model["Global test accuracy"] * 100,
-        label="Individual test accuracies",
-        marker=".",
-        color="k",
+        label="Individual",
+        **individual_kwargs,
         zorder=10,
-        alpha=0.5,
     )
     # Plot overall average test accuracy vs number of tasks as stars (left y-axis)
     ax2.scatter(
         [str(n_tasks) for n_tasks in avg_acc_n_tasks_shared_model["Number of nodes"]],
         avg_acc_n_tasks_shared_model["Global test accuracy"] * 100,
-        label="Average over all model seeds",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        label="Average",
+        **average_kwargs,
         zorder=20,
     )
-    ax2.grid(True)
-    ax2.legend(loc="lower right", fontsize="x-small")
+    ax2.grid(visible)
+    ax2.legend(fontsize=legendsize, loc="best")
+    ax2.tick_params(axis="both", labelsize=labelsize)
     ax2.set_ylim(
         [
-            0.999 * results_df_no_shared_model["Global test accuracy"].min() * 100,
-            1.001 * results_df_no_shared_model["Global test accuracy"].max() * 100,
+            0.9 * results_df_no_shared_model["Global test accuracy"].min() * 100,
+            1.1 * results_df_no_shared_model["Global test accuracy"].max() * 100,
         ]
     )
 
@@ -206,11 +224,9 @@ if __name__ == "__main__":
     ax3.scatter(
         [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
         results_df_no_shared_model["Wall-clock time"] / 60,
-        label="Individual wall-clock times",
-        marker=".",
-        color="k",
+        label="Individual",
+        **individual_kwargs,
         zorder=5,
-        alpha=0.5,
     )
     ax3.scatter(
         [
@@ -218,47 +234,39 @@ if __name__ == "__main__":
             for n_tasks in avg_time_n_tasks_no_shared_model["Number of nodes"]
         ],
         avg_time_n_tasks_no_shared_model["Wall-clock time"] / 60,
-        label="Average over all model seeds",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        label="Average",
+        **average_kwargs,
         zorder=20,
     )
-    ax3.set_ylabel("Wall-clock time / min", fontweight="bold")
-    ax3.grid(True)
+    ax3.set_ylabel("Runtime / min", fontweight="bold", fontsize=labelsize)
+    ax3.grid(visible)
     ax3.set_ylim(
         [
             0.85 * results_df_no_shared_model["Wall-clock time"].min() / 60,
             1.05 * results_df_shared_model["Wall-clock time"].max() / 60,
         ]
     )
+    ax3.tick_params(axis="both", labelsize=labelsize)
 
     # --- Shared model: Wall-clock time ---
     # Plot wall-clock time vs number of tasks (right y-axis)
     ax4.scatter(
         [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
         results_df_shared_model["Wall-clock time"] / 60,
-        label="Individual wall-clock times",
-        marker=".",
-        color="k",
+        label="Individual",
+        **individual_kwargs,
         zorder=5,
-        alpha=0.5,
     )
     ax4.scatter(
         [str(n_tasks) for n_tasks in avg_time_n_tasks_shared_model["Number of nodes"]],
         avg_time_n_tasks_shared_model["Wall-clock time"] / 60,
-        label="Average over all model seeds",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        label="Average",
+        **average_kwargs,
         zorder=20,
     )
-    ax4.legend(loc="upper left", fontsize="x-small")
-    ax4.grid(True)
+    ax4.legend(fontsize=legendsize)
+    ax4.tick_params(axis="both", labelsize=labelsize)
+    ax4.grid(visible)
     ax4.set_ylim(
         [
             0.85 * results_df_no_shared_model["Wall-clock time"].min() / 60,
@@ -277,16 +285,12 @@ if __name__ == "__main__":
         ].values
         / avg_time_n_tasks_no_shared_model["Wall-clock time"],
         label="Efficiency",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        **average_kwargs,
         zorder=15,
     )
-    ax5.set_ylabel("Efficiency", fontweight="bold")
-    ax5.set_xlabel("Number of nodes", fontweight="bold")
-    ax5.grid(True)
+    ax5.set_ylabel("Efficiency", fontweight="bold", fontsize=labelsize)
+    ax5.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
+    ax5.grid(visible)
     ax5.set_ylim(
         [
             0.80
@@ -305,6 +309,7 @@ if __name__ == "__main__":
             ).max(),
         ]
     )
+    ax5.tick_params(axis="both", labelsize=labelsize)
 
     # --- Shared model: Efficiency ---
     ax6.scatter(
@@ -314,15 +319,11 @@ if __name__ == "__main__":
         ].values
         / avg_time_n_tasks_shared_model["Wall-clock time"],
         label="Efficiency",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
+        **average_kwargs,
         zorder=15,
     )
-    ax6.set_xlabel("Number of nodes", fontweight="bold")
-    ax6.grid(True)
+    ax6.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
+    ax6.grid(visible)
     ax6.set_ylim(
         [
             0.80
@@ -341,6 +342,7 @@ if __name__ == "__main__":
             ).max(),
         ]
     )
+    ax6.tick_params(axis="both", labelsize=labelsize)
     plt.tight_layout()
-    plt.savefig(pathlib.Path(root_dir_no_shared_model) / f"{data_set}_weak_scaling.png")
+    plt.savefig(pathlib.Path(root_dir_no_shared_model) / f"{data_set}_weak_scaling.pdf")
     plt.show()

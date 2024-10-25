@@ -194,7 +194,7 @@ if __name__ == "__main__":
     #     zorder=20,
     # )
     ax2.set_ylim(0, 1.1 * results_df["Wall-clock time"].max() / 60 / 60)
-    ax2.set_ylabel("Wall-clock time / h", fontweight="bold", fontsize=labelsize)
+    ax2.set_ylabel("Runtime / h", fontweight="bold", fontsize=labelsize)
     # ax2.legend(loc="lower right", fontsize=legendsize)
     ax2.grid(visible)
     ax2.tick_params(axis="both", labelsize=labelsize)
