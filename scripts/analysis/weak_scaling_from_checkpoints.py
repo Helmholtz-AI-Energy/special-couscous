@@ -10,7 +10,7 @@ import pandas as pd
 from specialcouscous.utils.slurm import time_to_seconds
 
 pd.set_option("display.max_rows", None)
-
+pd.set_option("display.max_columns", None)
 
 if __name__ == "__main__":
     # Get the root directory where results are stored from command line.
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         ],
     )
     results_df = results_df.sort_values(by=["Number of nodes", "Model seed"])
-    print(results_df)
+    print("Results dataframe:\n", results_df)
 
     # For each parallelization level, get average of test accuracy over model seeds.
     avg_acc_n_tasks = (
@@ -106,7 +106,10 @@ if __name__ == "__main__":
         .reset_index()
     )
     # For each parallelization level, get average of wall-clock time over model seeds.
-    time_n_tasks = results_df.dropna(axis=0)
+    time_n_tasks = results_df.drop(
+        ["Local test accuracy", "Local test accuracy error"], axis=1
+    ).dropna(axis=0)
+    print("Wall-time dataframe\n:", time_n_tasks)
 
     # print(avg_time_n_tasks["Wall-clock time"][avg_time_n_tasks["Number of nodes"] == 1])
 
@@ -182,46 +185,27 @@ if __name__ == "__main__":
         **individual_kwargs,
         zorder=10,
     )
-    # ax2.scatter(
-    #     [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
-    #     time_n_tasks["Wall-clock time"] / 60,
-    #     label="Average over all model seeds",
-    #     s=80,
-    #     marker="X",
-    #     facecolor="none",
-    #     edgecolor="k",
-    #     linewidths=1.3,
-    #     zorder=20,
-    # )
     ax2.set_ylim(0, 1.1 * results_df["Wall-clock time"].max() / 60 / 60)
     ax2.set_ylabel("Runtime / h", fontweight="bold", fontsize=labelsize)
-    # ax2.legend(loc="lower right", fontsize=legendsize)
     ax2.grid(visible)
     ax2.tick_params(axis="both", labelsize=labelsize)
 
-    # print(
-    #     time_n_tasks["Wall-clock time"][
-    #         time_n_tasks["Number of nodes"] == 1
-    #     ].values
-    #     / time_n_tasks["Wall-clock time"]
-    # )
-    # Plot overall average wall-clock time vs. number of tasks.
-    # ax3.scatter(
-    #     [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
-    #     time_n_tasks["Wall-clock time"][
-    #         time_n_tasks["Number of nodes"] == 1
-    #     ].values
-    #     / time_n_tasks["Wall-clock time"],
-    #     label="Efficiency",
-    #     s=80,
-    #     marker="X",
-    #     facecolor="none",
-    #     edgecolor="k",
-    #     linewidths=1.3,
-    #     zorder=15,
-    # )
+    print(
+        time_n_tasks["Wall-clock time"][time_n_tasks["Number of nodes"] == 1].values
+        / time_n_tasks["Wall-clock time"]
+    )
+    # Plot overall average efficiency vs. number of tasks.
+    ax3.scatter(
+        [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
+        time_n_tasks["Wall-clock time"][time_n_tasks["Number of nodes"] == 1].values
+        / time_n_tasks["Wall-clock time"],
+        label="Efficiency",
+        **individual_kwargs,
+        zorder=15,
+    )
     ax3.set_ylabel("Efficiency", fontweight="bold", fontsize=labelsize)
     ax3.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
+    ax3.set_ylim(0, 1.1)
     ax3.grid(visible)
     ax3.tick_params(axis="both", labelsize=labelsize)
 
