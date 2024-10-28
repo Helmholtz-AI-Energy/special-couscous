@@ -5,6 +5,7 @@ import sys
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from specialcouscous.utils.slurm import time_to_seconds
@@ -43,8 +44,8 @@ if __name__ == "__main__":
             local_test_accuracy_std = df["accuracy_local_test"].dropna().std()
         elif "accuracy_test" in df.columns:  # Serial runs
             global_test_accuracy = df["accuracy_test"].values[0]
-            local_test_accuracy_mean = None
-            local_test_accuracy_std = None
+            local_test_accuracy_mean = df["accuracy_test"].values[0]
+            local_test_accuracy_std = 0
         else:
             raise ValueError("No valid test accuracy column in dataframe!")
 
@@ -100,6 +101,11 @@ if __name__ == "__main__":
         )
         .reset_index()
     )
+    std_global_test_accuracy = (
+        results_df.groupby(["Number of nodes"])
+        .agg({"Global test accuracy": "std"})
+        .reset_index()
+    )
     avg_time_n_tasks = (
         results_df.groupby(["Number of nodes"])
         .agg({"Wall-clock time": "mean"})
@@ -112,12 +118,32 @@ if __name__ == "__main__":
         .reset_index()
     )
 
+    speedup = (
+        avg_time_n_tasks["Wall-clock time"][
+            avg_time_n_tasks["Number of nodes"] == 1
+        ].values
+        / avg_time_n_tasks["Wall-clock time"]
+    )
+
+    std_speedup = speedup * np.sqrt(
+        (
+            std_time["Wall-clock time"][std_time["Number of nodes"] == 1].values
+            / avg_time_n_tasks["Wall-clock time"][
+                avg_time_n_tasks["Number of nodes"] == 1
+            ].values
+        )
+        ** 2
+        + (std_time["Wall-clock time"] / avg_time_n_tasks["Wall-clock time"]) ** 2
+    )
+
     print(avg_acc_n_tasks)
     print(avg_time_n_tasks["Wall-clock time"][avg_time_n_tasks["Number of nodes"] == 1])
 
     # Create the figure and the axes.
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
     # Settings
+    average_per_data_seed = False
+    all_errors = True
     labelsize = "small"
     legendsize = "xx-small"
     visible = False  # Whether to plot a grid or not
@@ -126,20 +152,51 @@ if __name__ == "__main__":
         "s": 38,
         "color": "C0",
         "linewidths": 1,
+        "zorder": 10,
     }
     individual_kwargs = {
         "marker": ",",
         "color": "k",
         "s": 5,
         "alpha": 0.3,
+        "zorder": 20,
     }
     error_kwargs = {
         "fmt": "_",
         "color": "C2",
         "ecolor": "C2",
         "elinewidth": 1,
+        "linewidth": 1,
         "capsize": 0.9,
         "ms": 5,
+        "zorder": 10,
+    }
+
+    global_error_kwargs = {
+        "fmt": "_",
+        "color": "C0",
+        "ecolor": "C0",
+        "elinewidth": 1,
+        "linewidth": 1,
+        "capsize": 0.9,
+        "ms": 5,
+        "zorder": 20,
+    }
+
+    line_kwargs = {
+        "linestyle": "--",
+        "color": "C2",
+        "linewidth": 0.5,
+        "alpha": 0.5,
+        "zorder": 10,
+    }
+
+    global_line_kwargs = {
+        "linestyle": "dashed",
+        "color": "C0",
+        "linewidth": 0.5,
+        "alpha": 0.5,
+        "zorder": 10,
     }
     # Set title
     data_set = data_set.replace("_", "")
@@ -148,89 +205,120 @@ if __name__ == "__main__":
         fontweight="bold",
         fontsize="small",
     )
-    # Plot individual test accuracy vs. number of tasks.
-    ax1.scatter(
-        [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
-        results_df["Global test accuracy"] * 100,
-        label="Individual global",
-        **individual_kwargs,
-        zorder=20,
-    )
-    # Plot overall average test accuracy vs. number of tasks.
-    ax1.scatter(
-        [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
-        avg_acc_n_tasks["Global test accuracy"] * 100,
-        label="Average global",
-        **average_kwargs,
-        zorder=10,
-    )
-    # Plot average local test accuracy + error vs. number of tasks.
+    # ----- LOCAL + GLOBAL TEST ACCURACY vs. NUMBER OF NODES -----
+    if all_errors:  # Use error bars everywhere.
+        # Average global test accuracies + error
+        ax1.errorbar(
+            [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+            avg_acc_n_tasks["Global test accuracy"] * 100,
+            yerr=std_global_test_accuracy["Global test accuracy"] * 100,
+            **global_error_kwargs,
+            label="Average global",
+        )
+        ax1.plot(
+            [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+            avg_acc_n_tasks["Global test accuracy"] * 100,
+            **global_line_kwargs,
+        )
+    else:  # Plot individual + average values separately.
+        # Individual global test accuracies
+        ax1.scatter(
+            [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
+            results_df["Global test accuracy"] * 100,
+            label="Individual global",
+            **individual_kwargs,
+        )
+        # Average global test accuracies
+        ax1.scatter(
+            [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+            avg_acc_n_tasks["Global test accuracy"] * 100,
+            label="Average global",
+            **average_kwargs,
+        )
+
+    # Average local test accuracy + error
     ax1.errorbar(
         [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
         avg_acc_n_tasks["Local test accuracy"] * 100,
         yerr=avg_acc_n_tasks["Local test accuracy error"]
         * 100,  # Plot error bars 100 x magnified?
         **error_kwargs,
-        zorder=20,
         label="Average local",
     )
+    ax1.plot(
+        [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+        avg_acc_n_tasks["Local test accuracy"] * 100,
+        **line_kwargs,
+    )
+
     ax1.set_ylabel("Test accuracy / %", fontweight="bold", fontsize=labelsize)
     ax1.grid(visible)
     ax1.legend(fontsize=legendsize)
     ax1.tick_params(axis="both", labelsize=labelsize)
-    # Plot wall-clock time vs. number of tasks.
-    ax2.scatter(
-        [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
-        results_df["Wall-clock time"] / 60 / 60,
-        label="Individual",
-        **individual_kwargs,
-        zorder=20,
-    )
-    ax2.scatter(
-        [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
-        avg_time_n_tasks["Wall-clock time"] / 60 / 60,
-        label="Average",
-        **average_kwargs,
-        zorder=10,
-    )
+
+    # ----- WALL-CLOCK TIME vs. NUMBER OF NODES
+    if all_errors:  # Use error bars everywhere.
+        # Average wall-clock times + error
+        ax2.errorbar(
+            [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
+            avg_time_n_tasks["Wall-clock time"] / 60 / 60,
+            yerr=std_time["Wall-clock time"]
+            / 60
+            / 60,  # Plot error bars 100 x magnified?
+            **global_error_kwargs,
+            label="Average",
+        )
+        ax2.plot(
+            [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
+            avg_time_n_tasks["Wall-clock time"] / 60 / 60,
+            **global_line_kwargs,
+        )
+    else:  # Plot individual + average values separately.
+        ax2.scatter(
+            [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
+            results_df["Wall-clock time"] / 60 / 60,
+            label="Individual",
+            **individual_kwargs,
+        )
+        ax2.scatter(
+            [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
+            avg_time_n_tasks["Wall-clock time"] / 60 / 60,
+            label="Average",
+            **average_kwargs,
+        )
     ax2.tick_params(axis="both", labelsize=labelsize)
-
-    # ax2.errorbar(
-    #     [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
-    #     avg_time_n_tasks["Wall-clock time"] / 60 / 60,
-    #     fmt="_",
-    #     yerr=std_time["Wall-clock time"] / 60 / 60,  # Plot error bars 100 x magnified?
-    #     color="k",
-    #     ecolor="k",
-    #     elinewidth=1.3,
-    #     zorder=20,
-    #     label="Average local",
-    #     ms=5,
-    # )
-
     ax2.set_ylabel("Runtime / h", fontweight="bold", fontsize=labelsize)
-    ax2.legend(fontsize=legendsize)
     ax2.grid(visible)
+    ax2.legend(fontsize=legendsize)
 
-    # Plot overall average wall-clock time vs. number of tasks.
-    ax3.scatter(
-        [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
-        avg_time_n_tasks["Wall-clock time"][
-            avg_time_n_tasks["Number of nodes"] == 1
-        ].values
-        / avg_time_n_tasks["Wall-clock time"],
-        label="Average",
-        **average_kwargs,
-        zorder=20,
-    )
+    # ----- SPEEDUP vs. NUMBER OF NODESPlot overall average wall-clock time vs. number of tasks.
+    if all_errors:
+        # Average speed-up + error
+        ax3.errorbar(
+            [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
+            speedup,
+            yerr=std_speedup,
+            **global_error_kwargs,
+            label="Average",
+        )
+        ax3.plot(
+            [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
+            speedup,
+            **global_line_kwargs,
+        )
+    else:
+        ax3.scatter(
+            speedup,
+            label="Average",
+            **average_kwargs,
+        )
     ax3.plot(
         [str(n_tasks) for n_tasks in avg_time_n_tasks["Number of nodes"]],
         [n_tasks for n_tasks in avg_time_n_tasks["Number of nodes"]],
         label="Ideal",
         color="k",
-        zorder=10,
         linestyle="dashed",
-        linewidth=1,
+        linewidth=0.5,
     )
     ax3.set_yscale("log", base=2)
     ax3.set_ylabel("Speedup", fontweight="bold", fontsize=labelsize)
