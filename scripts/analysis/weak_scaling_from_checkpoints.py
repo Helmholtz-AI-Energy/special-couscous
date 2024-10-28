@@ -5,7 +5,16 @@ import sys
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from plot_conf import (
+    AVERAGE_KWARGS,
+    ERROR_KWARGS,
+    GLOBAL_ERROR_KWARGS,
+    GLOBAL_LINE_KWARGS,
+    INDIVIDUAL_KWARGS,
+    LINE_KWARGS,
+)
 
 from specialcouscous.utils.slurm import time_to_seconds
 
@@ -18,11 +27,6 @@ if __name__ == "__main__":
     data_set = root_dir.split(os.sep)[-1]
     # Dictionary to store the values grouped by (dataset, number_of_tasks, data seed)
     results = defaultdict(list)
-    target_columns = [
-        "accuracy_global_test",
-        "accuracy_local_test",
-        "accuracy_test",
-    ]  # Columns to extract from the CSV files
 
     # Walk through the directory structure to find CSV files
     for filename in pathlib.Path(root_dir).glob("**/*.csv"):
@@ -43,8 +47,8 @@ if __name__ == "__main__":
             local_test_accuracy_std = df["accuracy_local_test"].dropna().std()
         elif "accuracy_test" in df.columns:  # Serial runs
             global_test_accuracy = df["accuracy_test"].values[0]
-            local_test_accuracy_mean = None
-            local_test_accuracy_std = None
+            local_test_accuracy_mean = global_test_accuracy
+            local_test_accuracy_std = 0
         else:
             raise ValueError("No valid test accuracy column in dataframe!")
 
@@ -73,13 +77,19 @@ if __name__ == "__main__":
                 re.search(pattern_wall_clock_time, input_text).group(1)  # type:ignore
             )
             print(f"Wall-clock time: {wall_clock_time} s")
+            pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
+            energy_match = re.search(pattern_energy, input_text)
+            energy_consumed = float(energy_match.group(0))  # type:ignore
+            print(f"Energy Consumed: {energy_consumed:.2f} Watthours")
         else:
-            wall_clock_time = None
+            wall_clock_time = None  # type:ignore
+            energy_consumed = None  # type:ignore
         results[(data_set, number_of_tasks, model_seed)].append(wall_clock_time)
+        results[(data_set, number_of_tasks, model_seed)].append(energy_consumed)
 
     # Save the results to a dataframe.
     results_df = pd.DataFrame(
-        [(k[0], k[1], k[2], v[0], v[1], v[2], v[3]) for k, v in results.items()],
+        [(k[0], k[1], k[2], v[0], v[1], v[2], v[3], v[4]) for k, v in results.items()],
         columns=[
             "Dataset",
             "Number of nodes",
@@ -88,6 +98,7 @@ if __name__ == "__main__":
             "Local test accuracy error",
             "Global test accuracy",
             "Wall-clock time",
+            "Energy consumed",
         ],
     )
     results_df = results_df.sort_values(by=["Number of nodes", "Model seed"])
@@ -105,40 +116,54 @@ if __name__ == "__main__":
         )
         .reset_index()
     )
+
+    std_global_acc = (
+        results_df.groupby(["Number of nodes"])
+        .agg(
+            {
+                "Global test accuracy": "std",
+            }
+        )
+        .reset_index()
+    )
+    std_time = (
+        results_df.groupby(["Number of nodes"])
+        .agg({"Wall-clock time": "std"})
+        .reset_index()
+    )
+
     # For each parallelization level, get average of wall-clock time over model seeds.
-    time_n_tasks = results_df.drop(
-        ["Local test accuracy", "Local test accuracy error"], axis=1
-    ).dropna(axis=0)
+    time_n_tasks = (
+        results_df.drop(["Local test accuracy", "Local test accuracy error"], axis=1)
+        .dropna(axis=0)
+        .reset_index()
+        .drop("index", axis=1)
+    )
     print("Wall-time dataframe\n:", time_n_tasks)
-
-    # print(avg_time_n_tasks["Wall-clock time"][avg_time_n_tasks["Number of nodes"] == 1])
-
+    efficiency = (
+        time_n_tasks["Wall-clock time"][time_n_tasks["Number of nodes"] == 1].values
+        / time_n_tasks["Wall-clock time"]
+    )
+    std_efficiency = efficiency * np.sqrt(
+        (
+            std_time["Wall-clock time"][std_time["Number of nodes"] == 1].values
+            / time_n_tasks["Wall-clock time"][
+                time_n_tasks["Number of nodes"] == 1
+            ].values
+        )
+        ** 2
+        + (std_time["Wall-clock time"] / time_n_tasks["Wall-clock time"]) ** 2
+    )
+    overall_energy = time_n_tasks["Energy consumed"].sum()
+    print(f"Energy Consumed: {overall_energy:.2f} Watthours")
     # Create the figure and the axes.
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
     # Settings
+    all_errors = True
     labelsize = "small"
     legendsize = "xx-small"
     visible = False  # Whether to plot a grid or not
-    average_kwargs = {
-        "marker": "x",
-        "s": 38,
-        "color": "C0",
-        "linewidths": 1,
-    }
-    individual_kwargs = {
-        "marker": ",",
-        "color": "k",
-        "s": 5,
-        "alpha": 0.3,
-    }
-    error_kwargs = {
-        "fmt": "_",
-        "color": "C2",
-        "ecolor": "C2",
-        "elinewidth": 1,
-        "capsize": 0.9,
-        "ms": 5,
-    }
+
     # Set title
     data_set = data_set.replace("_", "")
     plt.suptitle(
@@ -146,73 +171,110 @@ if __name__ == "__main__":
         fontweight="bold",
         fontsize="small",
     )
-    # Plot individual test accuracy vs. number of tasks.
-    ax1.scatter(
-        [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
-        results_df["Global test accuracy"] * 100,
-        label="Individual global",
-        **individual_kwargs,
-        zorder=20,
-    )
-    # Plot overall average test accuracy vs. number of tasks.
-    ax1.scatter(
-        [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
-        avg_acc_n_tasks["Global test accuracy"] * 100,
-        label="Average global",
-        **average_kwargs,
-        zorder=10,
-    )
+    if all_errors:
+        ax1.errorbar(
+            [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+            avg_acc_n_tasks["Global test accuracy"] * 100,
+            yerr=std_global_acc["Global test accuracy"] * 100,
+            **GLOBAL_ERROR_KWARGS,
+            label="Average global",
+        )
+        ax1.plot(
+            [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+            avg_acc_n_tasks["Global test accuracy"] * 100,
+            **GLOBAL_LINE_KWARGS,
+        )
+    else:
+        # Plot individual test accuracy vs. number of tasks.
+        ax1.scatter(
+            [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
+            results_df["Global test accuracy"] * 100,
+            label="Individual global",
+            **INDIVIDUAL_KWARGS,
+        )
+        # Plot overall average test accuracy vs. number of tasks.
+        ax1.scatter(
+            [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+            avg_acc_n_tasks["Global test accuracy"] * 100,
+            label="Average global",
+            **AVERAGE_KWARGS,
+        )
     # Plot average local test accuracy + error vs. number of tasks.
     ax1.errorbar(
         [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
         avg_acc_n_tasks["Local test accuracy"] * 100,
-        yerr=avg_acc_n_tasks["Local test accuracy error"]
-        * 100,  # Plot error bars 100 x magnified?
-        **error_kwargs,
-        zorder=20,
+        yerr=avg_acc_n_tasks["Local test accuracy error"] * 100,
+        **ERROR_KWARGS,
         label="Average local",
+    )
+    ax1.plot(
+        [str(n_tasks) for n_tasks in avg_acc_n_tasks["Number of nodes"]],
+        avg_acc_n_tasks["Local test accuracy"] * 100,
+        **LINE_KWARGS,
     )
     ax1.set_ylabel("Test accuracy / %", fontweight="bold", fontsize=labelsize)
     ax1.grid(visible)
     ax1.legend(fontsize=legendsize)
     ax1.tick_params(axis="both", labelsize=labelsize)
 
-    # Plot wall-clock time vs. number of tasks.
+    # ----- WALL-CLOCK TIME vs. NUMBER OF NODES
+    # NOTE: No error bars for runtimes and efficiency, as only one weak scaling run was conducted per parallelization
+    # level for the sake of compute.
     ax2.scatter(
         [str(n_tasks) for n_tasks in results_df["Number of nodes"]],
         results_df["Wall-clock time"] / 60 / 60,
-        label="Individual",
-        **individual_kwargs,
-        zorder=10,
+        **AVERAGE_KWARGS,
     )
-    ax2.set_ylim(0, 1.1 * results_df["Wall-clock time"].max() / 60 / 60)
+    ax2.plot(
+        [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
+        time_n_tasks["Wall-clock time"] / 60 / 60,
+        **GLOBAL_LINE_KWARGS,
+    )
+    ax2.set_ylim(0, 1.1 * time_n_tasks["Wall-clock time"].max() / 60 / 60)
+    ax2.tick_params(axis="both", labelsize=labelsize)
     ax2.set_ylabel("Runtime / h", fontweight="bold", fontsize=labelsize)
     ax2.grid(visible)
-    ax2.tick_params(axis="both", labelsize=labelsize)
+    energy_str = f"Overall {(overall_energy / 10**6):.2f} MWh consumed"
 
-    print(
-        time_n_tasks["Wall-clock time"][time_n_tasks["Number of nodes"] == 1].values
-        / time_n_tasks["Wall-clock time"]
+    ax2.text(
+        0.05,
+        0.125,
+        energy_str,
+        transform=ax2.transAxes,
+        fontsize=legendsize,
+        verticalalignment="top",
+        fontweight="bold",
     )
+
     # Plot overall average efficiency vs. number of tasks.
     ax3.scatter(
         [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
-        time_n_tasks["Wall-clock time"][time_n_tasks["Number of nodes"] == 1].values
-        / time_n_tasks["Wall-clock time"],
-        label="Efficiency",
-        **individual_kwargs,
-        zorder=15,
+        efficiency,
+        **AVERAGE_KWARGS,
+    )
+    ax3.plot(
+        [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
+        efficiency,
+        **GLOBAL_LINE_KWARGS,
+    )
+    ax3.plot(
+        [str(n_tasks) for n_tasks in time_n_tasks["Number of nodes"]],
+        np.ones(len(avg_acc_n_tasks["Number of nodes"])),
+        label="Ideal",
+        color="k",
+        linestyle="dashed",
+        linewidth=0.5,
     )
     ax3.set_ylabel("Efficiency", fontweight="bold", fontsize=labelsize)
     ax3.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
     ax3.set_ylim(0, 1.1)
     ax3.grid(visible)
     ax3.tick_params(axis="both", labelsize=labelsize)
+    ax3.legend(fontsize=legendsize)
 
     plt.tight_layout()
 
     # Save the figure.
-    # flavor = flavor.replace(" ", "_")
     plt.savefig(pathlib.Path(root_dir) / f"{data_set}_weak_scaling.pdf")
 
     # Show the plot.
