@@ -8,7 +8,13 @@ from typing import Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from plot_conf import ERROR_KWARGS, GLOBAL_ERROR_KWARGS, GLOBAL_LINE_KWARGS, LINE_KWARGS
+
+from specialcouscous.utils.plot import (
+    ERROR_KWARGS,
+    GLOBAL_ERROR_KWARGS,
+    GLOBAL_LINE_KWARGS,
+    LINE_KWARGS,
+)
 
 pd.set_option("display.max_rows", None)
 

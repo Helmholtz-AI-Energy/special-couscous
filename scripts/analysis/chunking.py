@@ -7,7 +7,8 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from plot_conf import (
+
+from specialcouscous.utils.plot import (
     AVERAGE_KWARGS,
     DATA_SEED_KWARGS,
     ERROR_KWARGS,
@@ -16,7 +17,6 @@ from plot_conf import (
     INDIVIDUAL_KWARGS,
     LINE_KWARGS,
 )
-
 from specialcouscous.utils.slurm import time_to_seconds
 
 pd.set_option("display.max_rows", None)
