@@ -55,10 +55,7 @@ def generate_chunking_job_scripts(
         time = int(
             limit / n_nodes * 1.2
         )  # Run time should decrease with increasing number of nodes.
-        mem = (
-            486400 if n_nodes != 64 else 243200
-        )  # Use high-memory nodes (except for 64-node experiment).
-
+        mem = 243200  # Use normal CPU-based HoreKa nodes.
         print(
             f"Current config uses {n_nodes} nodes and {n_trees} trees. Wall-clock time is {time / 60}h."
         )
@@ -74,6 +71,8 @@ def generate_chunking_job_scripts(
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}             # Number of nodes
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
+#SBATCH --exclude=hkn[0249-0251,0257,0259]  # Exclude potentially broken nodes.
+
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
@@ -88,7 +87,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 SCRIPT="special-couscous/scripts/examples/rf_training_breaking_iid.py"
 
 RESDIR="${{BASE_DIR}}"/results/chunking/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
-mkdir "${{RESDIR}}"
+mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
 srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
@@ -102,13 +101,14 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --output_dir ${{RESDIR}} \\
     --output_label ${{SLURM_JOB_ID}} \\
     --detailed_evaluation \\
-    --save_model
+    --save_model \\
+    --log_path ${{RESDIR}}
                                 """
 
         with open(output_path / job_script_name, "wt") as f:
             f.write(script_content)
         if submit:
-            subprocess.run(f"sbatch {job_script_name}", shell=True)
+            subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
 
 
 if __name__ == "__main__":
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         (7, 3, 448),
     ]  # Baseline problem as (`log_n_samples`, `log_n_features`, `n_trees`)
     data_seeds = [0, 1, 2]  # Data seed to use
-    model_seeds = [3, 4, 5]  # Model seeds to use
+    model_seeds = [1, 2, 3]  # Model seeds to use
     n_classes = 10  # Number of classes to use
     output_path = pathlib.Path(
         "./chunking/"
