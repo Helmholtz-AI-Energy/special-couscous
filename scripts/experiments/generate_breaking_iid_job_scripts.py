@@ -135,8 +135,9 @@ if __name__ == "__main__":
                         log_n_features = data_set[1]
                         n_trees = data_set[2]
                         # Generate job scripts and possibly submit them to the cluster.
-                        assert isinstance(m_global, str) or isinstance(m_global, float)
-                        assert isinstance(m_local, str) or isinstance(m_local, float)
+                        assert (
+                            isinstance(m_global, str) or isinstance(m_global, float)
+                        ) and (isinstance(m_local, str) or isinstance(m_local, float))
                         generate_breaking_iid_job_scripts(
                             log_n_samples=log_n_samples,
                             log_n_features=log_n_features,
