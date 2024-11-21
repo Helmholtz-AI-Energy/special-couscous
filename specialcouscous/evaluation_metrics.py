@@ -17,7 +17,9 @@ def accuracy_score(confusion_matrix: np.ndarray) -> float:
     float
         The overall accuracy computed for the given confusion matrix.
     """
-    pass
+    n_samples = confusion_matrix.sum()
+    n_correct = confusion_matrix.diagonal().sum()
+    return n_correct / n_samples
 
 
 def balanced_accuracy_score(confusion_matrix: np.ndarray) -> float:
@@ -36,7 +38,8 @@ def balanced_accuracy_score(confusion_matrix: np.ndarray) -> float:
     float
         The balanced accuracy computed for the given confusion matrix.
     """
-    pass
+    # macro average = first compute class-wise recall, then average
+    return recall_score(confusion_matrix, average='macro')
 
 
 def precision_recall_fscore(
@@ -217,7 +220,16 @@ def cohen_kappa_score(confusion_matrix: np.ndarray) -> float:
     float
         Cohen’s kappa computed for the given confusion matrix.
     """
-    pass
+    n_samples = confusion_matrix.sum()
+
+    predicted_samples_per_class = np.sum(confusion_matrix, axis=0)
+    true_samples_per_class = np.sum(confusion_matrix, axis=1)
+    expected_confusion_matrix = np.outer(predicted_samples_per_class, true_samples_per_class) / n_samples
+
+    expected_accuracy = expected_confusion_matrix.diagonal().sum() / n_samples  # = expected agreement p_e
+    observed_accuracy = confusion_matrix.diagonal().sum() / n_samples  # = observed agreement p_o
+
+    return (observed_accuracy - expected_accuracy) / (1 - expected_accuracy)  # = Cohen's kappa (p_o - p_e) / (1 - p_e)
 
 
 def matthews_corrcoef(confusion_matrix: np.ndarray) -> float:
