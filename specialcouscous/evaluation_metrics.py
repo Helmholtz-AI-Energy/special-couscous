@@ -248,4 +248,15 @@ def matthews_corrcoef(confusion_matrix: np.ndarray) -> float:
     float
         The Matthews correlation coefficient computed for the given confusion matrix.
     """
-    pass
+    predicted_samples_per_class = confusion_matrix.sum(axis=0)  # = p_k
+    true_samples_per_class = confusion_matrix.sum(axis=1)  # = t_k
+    n_samples = confusion_matrix.sum()  # = s
+    n_correct = confusion_matrix.trace()  # = c
+
+    # MCC = (c * s - t • p) / (sqrt(s^2 - p • p) * sqrt(s^2 - t • t))
+    nominator_tp = n_correct * n_samples - np.dot(true_samples_per_class, predicted_samples_per_class)  # c * s - t•p
+    denominator_predicted = n_samples**2 - np.dot(predicted_samples_per_class, predicted_samples_per_class)  # s^2 - p•p
+    denominator_true = n_samples**2 - np.dot(true_samples_per_class, true_samples_per_class)  # s^2 - t•t
+    denominator = np.sqrt(denominator_predicted * denominator_true)  # sqrt(s^2 - p • p) * sqrt(s^2 - t • t)
+
+    return 0 if denominator == 0 else nominator_tp / denominator  # MCC = (c*s - t•p) / sqrt((s^2 - p•p) * (s^2 - t•t))
