@@ -87,7 +87,43 @@ def precision_recall_fscore(
         The f-beta score either class-wise (if average == None) or averaged over all classes using the specified
         averaging method.
     """
-    pass
+    predicted_samples_per_class = confusion_matrix.sum(axis=0)
+    true_samples_per_class = confusion_matrix.sum(axis=1)
+    correct_predictions_per_class = confusion_matrix.diagonal()
+    n_samples = confusion_matrix.sum()
+    n_correct = confusion_matrix.trace()
+
+    supported_averages = ["micro", "macro", "weighted", None]
+    if average not in supported_averages:
+        raise ValueError(f"Invalid {average=}. Supported averages are: {supported_averages}.")
+
+    if average == "micro":  # compute metrics globally
+        precision = n_correct / n_samples
+        recall = n_correct / n_samples  # identical to precision
+        f_score = __f_score_from_precision_and_recall(precision, recall, beta)  # identical to precision and recall
+        return precision, recall, f_score
+
+    precision_per_class = correct_predictions_per_class / predicted_samples_per_class
+    recall_per_class = correct_predictions_per_class / true_samples_per_class
+    f_score_per_class = __f_score_from_precision_and_recall(precision_per_class, recall_per_class, beta)
+
+    if average is None:  # return raw metrics per class without aggregation
+        return precision_per_class, recall_per_class, f_score_per_class
+
+    if average == "weight":  # average metrics, class weighted by number of true samples with that label
+        class_weights = true_samples_per_class
+    elif average == "macro":  # average metrics, all classes have the same weight
+        class_weights = np.ones_like(true_samples_per_class)
+    else:
+        raise ValueError(f"No class weights supported for {average=}.")
+
+    def average_with_weights(weights, values):
+        return (weights * values).sum() / weights.sum()
+
+    precision = average_with_weights(class_weights, precision_per_class)
+    recall = average_with_weights(class_weights, recall_per_class)
+    f_score = average_with_weights(class_weights, f_score_per_class)
+    return precision, recall, f_score
 
 
 def precision_score(
@@ -144,6 +180,33 @@ def recall_score(
     """
     _, recall, _ = precision_recall_fscore(confusion_matrix, average=average)
     return recall
+
+
+def __f_score_from_precision_and_recall(
+    precision: float | np.ndarray[float], recall: float | np.ndarray[float], beta: float
+) -> float | np.ndarray[float]:
+    """
+    Compute the F-beta score from precision and recall values. Supports both scalar and array inputs.
+
+    Parameters
+    ----------
+    precision : float | np.ndarray[float]
+        The precision score, either a single value or multiple values in an array (e.g. class-wise). Precision and
+        recall are expected to have the same shape.
+    recall : float | np.ndarray[float]
+        The recall score, either a single value or multiple values in an array (e.g. class-wise). Precision and
+        recall are expected to have the same shape.
+    beta : float
+        The weight of recall in the F score.
+
+    Returns
+    -------
+    float | np.ndarray[float]
+        The f-beta score based on the given precision and recall values. Has the same shape as the input.
+    """
+    nominator = precision * recall
+    denominator = beta**2 * precision + recall
+    return 0 if denominator is 0 else (1 + beta**2) * nominator / denominator
 
 
 def fbeta_score(
