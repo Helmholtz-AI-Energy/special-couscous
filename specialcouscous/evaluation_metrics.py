@@ -39,7 +39,7 @@ def balanced_accuracy_score(confusion_matrix: np.ndarray) -> float:
         The balanced accuracy computed for the given confusion matrix.
     """
     # macro average = first compute class-wise recall, then average
-    return recall_score(confusion_matrix, average='macro')
+    return recall_score(confusion_matrix, average="macro")
 
 
 def precision_recall_fscore(
@@ -126,9 +126,7 @@ def precision_recall_fscore(
     return precision, recall, f_score
 
 
-def precision_score(
-    confusion_matrix: np.ndarray, average: str | None = None
-) -> float | np.ndarray[float]:
+def precision_score(confusion_matrix: np.ndarray, average: str | None = None) -> float | np.ndarray[float]:
     """
     Compute the precision score for the given confusion matrix of a multi-class classification model. The result is
     either returned as class-wise values (if average == None) or averaged.
@@ -154,9 +152,7 @@ def precision_score(
     return precision
 
 
-def recall_score(
-    confusion_matrix: np.ndarray, average: str | None = None
-) -> float | np.ndarray[float]:
+def recall_score(confusion_matrix: np.ndarray, average: str | None = None) -> float | np.ndarray[float]:
     """
     Compute the recall score for the given confusion matrix of a multi-class classification model. The result is either
     returned as class-wise values (if average == None) or averaged.
@@ -209,9 +205,7 @@ def __f_score_from_precision_and_recall(
     return 0 if denominator is 0 else (1 + beta**2) * nominator / denominator
 
 
-def fbeta_score(
-    confusion_matrix: np.ndarray, beta: float, average: str | None = None
-) -> float | np.ndarray[float]:
+def fbeta_score(confusion_matrix: np.ndarray, beta: float, average: str | None = None) -> float | np.ndarray[float]:
     """
     Compute the F-beta score for the given confusion matrix of a multi-class classification model. The result is either
     returned as class-wise values (if average == None) or averaged.
@@ -235,13 +229,11 @@ def fbeta_score(
         The f-beta score either class-wise (if average == None) or averaged over all classes using the specified
         averaging method.
     """
-    _, _, fscore = precision_recall_fscore(confusion_matrix, beta=beta, average=average)
-    return fscore
+    _, _, f_score = precision_recall_fscore(confusion_matrix, beta=beta, average=average)
+    return f_score
 
 
-def f1_score(
-    confusion_matrix: np.ndarray, average: str | None = None
-) -> float | np.ndarray[float]:
+def f1_score(confusion_matrix: np.ndarray, average: str | None = None) -> float | np.ndarray[float]:
     """
     Compute the F1 score for the given confusion matrix of a multi-class classification model. The result is either
     returned as class-wise values (if average == None) or averaged.
