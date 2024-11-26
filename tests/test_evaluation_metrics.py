@@ -168,9 +168,29 @@ class TestEvaluationMetrics:
             actual_fbeta = evaluation_metrics.fbeta_score(confusion_matrix, beta=beta)
             np.testing.assert_array_equal(actual_fbeta, expected_fbeta, strict=True)
 
-    @pytest.mark.skip("Test not yet implemented.")
-    def test_f1_score(self):
-        pass  # TODO: implement this test
+    def test_f1_score(self, n_classes=10):
+        # balanced case
+        y_true = np.arange(n_classes).repeat(5)
+        labels_and_predictions = [
+            (y_true, y_true),  # all correct
+            (y_true, (y_true + 1) % n_classes),  # all false
+            (y_true, np.zeros_like(y_true)),  # all zero: only first class correct
+        ]
+
+        # imbalanced case: each class 5 times, except for first class: 5 * (1 + n_classes) times
+        y_true = np.concat([np.arange(n_classes), np.zeros(n_classes)]).repeat(5)
+        labels_and_predictions += [
+            (y_true, y_true),  # all correct
+            (y_true, (y_true + 1) % n_classes),  # all false
+            (y_true, np.zeros_like(y_true))  # all zero: only first class correct
+        ]
+
+        for y_true, y_pred in labels_and_predictions:
+            confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+            actual_f1 = evaluation_metrics.f1_score(confusion_matrix)
+            # we expect f1 to be identical to fbeta with beta = 1
+            expected_f1 = evaluation_metrics.fbeta_score(confusion_matrix, beta=1)
+            np.testing.assert_array_equal(actual_f1, expected_f1, strict=True)
 
     @pytest.mark.skip("Test not yet implemented.")
     def test_cohen_kappa_score(self):
