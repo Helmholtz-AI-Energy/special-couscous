@@ -380,6 +380,22 @@ class TestEvaluationMetrics:
             assert actual == pytest.approx(expected_manual, 1e-6)
             assert actual == pytest.approx(expected_sklearn, 1e-6)
 
+    def test_precision_recall_fscore__invalid_average(self, n_classes: int) -> None:
+        """
+        Test precision_recall_fscore with invalid average parameters. Should raise a ValueError.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
+        y_true = np.arange(n_classes).repeat(5)
+        confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_true)
+        invalid_averages = ["invalid_average", 1, True, 0.01234]
+        for invalid_average in invalid_averages:
+            with pytest.raises(ValueError):
+                evaluation_metrics.precision_recall_fscore(confusion_matrix, average=invalid_average)
+
     def test_precision_score(self, n_classes: int) -> None:
         """
         Test the precision score metric for a variable number of classes in both balanced and unbalanced cases.
