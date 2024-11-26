@@ -5,6 +5,7 @@ import sklearn.metrics
 from specialcouscous import evaluation_metrics
 
 
+@pytest.mark.parametrize('n_classes', [2, 10, 100])
 class TestEvaluationMetrics:
     @staticmethod
     def first_and_fill_rest(first: float, fill: float, total_length: int) -> np.ndarray[float]:
@@ -28,7 +29,7 @@ class TestEvaluationMetrics:
         """
         return np.concat([np.array([first]), np.full(total_length - 1, fill)])
 
-    def test_accuracy_score(self, n_classes=10):
+    def test_accuracy_score(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -47,7 +48,7 @@ class TestEvaluationMetrics:
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
             assert evaluation_metrics.accuracy_score(confusion_matrix) == expected_accuracy
 
-    def test_balanced_accuracy_score(self, n_classes=10):
+    def test_balanced_accuracy_score(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -66,7 +67,7 @@ class TestEvaluationMetrics:
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
             assert evaluation_metrics.balanced_accuracy_score(confusion_matrix) == expected_accuracy
 
-    def test_precision_recall_fscore__totally_balanced(self, n_classes=10):
+    def test_precision_recall_fscore__totally_balanced(self, n_classes):
         # 100% balanced case: all classes have equal share of the labels and equal class wise accuracy
         classes = np.arange(n_classes)
         y_true = np.tile(classes, 5)  # each class appears 5 times
@@ -88,7 +89,7 @@ class TestEvaluationMetrics:
             for actual_score in actual_scores:
                 assert actual_score == pytest.approx(expected_class_wise_accuracy, 1e-6)
 
-    def test_precision_recall_fscore__balanced_labels_imbalanced_predictions(self, n_classes=10):
+    def test_precision_recall_fscore__balanced_labels_imbalanced_predictions(self, n_classes):
         # balanced labels but imbalanced accuracy: class labels are balanced but different class-wise accuracies
         y_true = np.arange(n_classes).repeat(n_classes)  # each class appears n_classes times, consecutively
         # Class i is predicted correctly (n_classes - i) times (i.e. the larger i, the lower the recall,
@@ -131,7 +132,7 @@ class TestEvaluationMetrics:
                 expected = expected_class_wise.mean()
                 assert actual == pytest.approx(expected, 1e-6)
 
-    def test_precision_recall_fscore__imbalanced(self, n_classes=10):
+    def test_precision_recall_fscore__imbalanced(self, n_classes):
         # completely imbalanced: both class labels and class accuracies are imbalanced
         # class i appears (i + 1) * 2 times, consecutively
         y_true = np.concat([np.full((i + 1) * 2, i) for i in range(n_classes)])
@@ -182,7 +183,7 @@ class TestEvaluationMetrics:
             expected = (expected_class_wise * class_weights).sum() / class_weights.sum()
             assert actual == pytest.approx(expected, 1e-6)
 
-    def test_precision_score(self, n_classes=10):
+    def test_precision_score(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -207,7 +208,7 @@ class TestEvaluationMetrics:
             actual_precision = evaluation_metrics.precision_score(confusion_matrix)
             np.testing.assert_array_equal(actual_precision, expected_precision, strict=True)
 
-    def test_recall_score(self, n_classes=10):
+    def test_recall_score(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -229,7 +230,7 @@ class TestEvaluationMetrics:
             actual_recall = evaluation_metrics.recall_score(confusion_matrix)
             np.testing.assert_array_equal(actual_recall, expected_recall, strict=True)
 
-    def test___f_score_from_precision_and_recall(self):
+    def test___f_score_from_precision_and_recall(self, n_classes):
         # scalar inputs
         precision_recall_beta_expected_fscore = [  # if precision == recall, fscore == precision == recall
             (precision_recall, precision_recall, beta, precision_recall)
@@ -253,7 +254,7 @@ class TestEvaluationMetrics:
         actual_fscores = evaluation_metrics._f_score_from_precision_and_recall(precisions, recalls, betas)
         np.testing.assert_allclose(actual_fscores, expected_fscores, atol=epsilon, strict=True)
 
-    def test_fbeta_score(self, n_classes=10, beta=2):
+    def test_fbeta_score(self, n_classes, beta=2):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -285,7 +286,7 @@ class TestEvaluationMetrics:
             actual_fbeta = evaluation_metrics.fbeta_score(confusion_matrix, beta=beta)
             np.testing.assert_array_equal(actual_fbeta, expected_fbeta, strict=True)
 
-    def test_f1_score(self, n_classes=10):
+    def test_f1_score(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_and_predictions = [
@@ -309,7 +310,7 @@ class TestEvaluationMetrics:
             expected_f1 = evaluation_metrics.fbeta_score(confusion_matrix, beta=1)
             np.testing.assert_array_equal(actual_f1, expected_f1, strict=True)
 
-    def test_cohen_kappa_score(self, n_classes=10):
+    def test_cohen_kappa_score(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_and_predictions = [
@@ -332,7 +333,7 @@ class TestEvaluationMetrics:
             expected_kappa = sklearn.metrics.cohen_kappa_score(y_true, y_pred)
             assert actual_kappa == pytest.approx(expected_kappa, 1e-6)
 
-    def test_matthews_corrcoef(self, n_classes=10):
+    def test_matthews_corrcoef(self, n_classes):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_and_predictions = [
