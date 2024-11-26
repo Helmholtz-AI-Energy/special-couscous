@@ -202,7 +202,13 @@ def __f_score_from_precision_and_recall(
     """
     nominator = precision * recall
     denominator = beta**2 * precision + recall
-    return 0 if denominator is 0 else (1 + beta**2) * nominator / denominator
+
+    if isinstance(denominator, np.ndarray):
+        fscore = (1 + beta**2) * nominator / denominator
+        fscore[np.logical_and(denominator == 0, np.isnan(fscore))] = 0  # replace nan from division by zero with zeros
+        return fscore
+    else:  # scalar case, avoid division by zero for scalar values
+        return 0 if denominator is 0 else (1 + beta**2) * nominator / denominator
 
 
 def fbeta_score(confusion_matrix: np.ndarray, beta: float, average: str | None = None) -> float | np.ndarray[float]:
