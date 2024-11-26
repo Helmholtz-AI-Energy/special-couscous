@@ -129,12 +129,29 @@ class TestEvaluationMetrics:
             actual_recall = evaluation_metrics.recall_score(confusion_matrix)
             np.testing.assert_array_equal(actual_recall, expected_recall, strict=True)
 
-    @pytest.mark.skip("Test not yet implemented.")
     def test___f_score_from_precision_and_recall(self):
         # scalar inputs
+        precision_recall_beta_expected_fscore = [  # if precision == recall, fscore == precision == recall
+            (precision_recall, precision_recall, beta, precision_recall)
+            for precision_recall in [0, 0.5, 1] for beta in [0.1, 1, 10]
+        ] + [
+            (1, 0, 1, 0),
+            (0, 1, 1, 0),
+            (0.25, 0.75, 1, 0.375),
+            (0.75, 0.25, 1, 0.375),
+            (0.25, 0.75, 10, 0.735),  # epsilon = 1e-2
+            (0.75, 0.25, 10, 0.252),  # epsilon = 1e-2
+        ]
+        epsilon = 1e-2
+        for precision, recall, beta, expected_fscore in precision_recall_beta_expected_fscore:
+            actual_fscore = evaluation_metrics._f_score_from_precision_and_recall(precision, recall, beta)
+            assert actual_fscore == pytest.approx(expected_fscore, epsilon)
 
         # array inputs
-        pass  # TODO: implement this test
+        precisions, recalls, betas, expected_fscores = [
+            np.array(values) for values in zip(*precision_recall_beta_expected_fscore)]
+        actual_fscores = evaluation_metrics._f_score_from_precision_and_recall(precisions, recalls, betas)
+        np.testing.assert_allclose(actual_fscores, expected_fscores, atol=epsilon, strict=True)
 
     def test_fbeta_score(self, n_classes=10, beta=2):
         # balanced case

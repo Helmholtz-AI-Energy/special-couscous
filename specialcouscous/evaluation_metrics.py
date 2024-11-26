@@ -100,12 +100,12 @@ def precision_recall_fscore(
     if average == "micro":  # compute metrics globally
         precision = n_correct / n_samples
         recall = n_correct / n_samples  # identical to precision
-        f_score = __f_score_from_precision_and_recall(precision, recall, beta)  # identical to precision and recall
+        f_score = _f_score_from_precision_and_recall(precision, recall, beta)  # identical to precision and recall
         return precision, recall, f_score
 
     precision_per_class = correct_predictions_per_class / predicted_samples_per_class
     recall_per_class = correct_predictions_per_class / true_samples_per_class
-    f_score_per_class = __f_score_from_precision_and_recall(precision_per_class, recall_per_class, beta)
+    f_score_per_class = _f_score_from_precision_and_recall(precision_per_class, recall_per_class, beta)
 
     if average is None:  # return raw metrics per class without aggregation
         return precision_per_class, recall_per_class, f_score_per_class
@@ -178,7 +178,7 @@ def recall_score(confusion_matrix: np.ndarray, average: str | None = None) -> fl
     return recall
 
 
-def __f_score_from_precision_and_recall(
+def _f_score_from_precision_and_recall(
     precision: float | np.ndarray[float], recall: float | np.ndarray[float], beta: float
 ) -> float | np.ndarray[float]:
     """
@@ -208,7 +208,7 @@ def __f_score_from_precision_and_recall(
         fscore[np.logical_and(denominator == 0, np.isnan(fscore))] = 0  # replace nan from division by zero with zeros
         return fscore
     else:  # scalar case, avoid division by zero for scalar values
-        return 0 if denominator is 0 else (1 + beta**2) * nominator / denominator
+        return 0 if (denominator == 0) else (1 + beta**2) * nominator / denominator
 
 
 def fbeta_score(confusion_matrix: np.ndarray, beta: float, average: str | None = None) -> float | np.ndarray[float]:
