@@ -131,10 +131,56 @@ class TestEvaluationMetrics:
                 expected = expected_class_wise.mean()
                 assert actual == pytest.approx(expected, 1e-6)
 
-    @pytest.mark.skip("Test not yet implemented.")
-    def test_precision_recall_fscore__imbalanced(self):
+    def test_precision_recall_fscore__imbalanced(self, n_classes=10):
         # completely imbalanced: both class labels and class accuracies are imbalanced
-        pass  # TODO: implement this test
+        # class i appears (i + 1) * 2 times, consecutively
+        y_true = np.concat([np.full((i + 1) * 2, i) for i in range(n_classes)])
+        # class i is predicted correctly (i + 1) times (-> recall 50%).
+        # when class is not predicted correctly, class (i + 1) % n_classes is predicted instead
+        # (-> class i is predicted (i + 1) times correctly and ((i - 1) % n_classes + 1) times incorrectly, when
+        # class (i - 1) % n_classes should have been predicted instead.
+        # -> precision (i + 1) / (2i + 1) for i > 0 and 1 / (n + 1) for i = 0)
+        # To achieve this, the first half of occurrences for each class are predicted correctly while for the second
+        # half, the next class is predicted
+        y_pred = np.concat([x for i in range(n_classes)
+                            for x in [np.full((i + 1), i), np.full((i + 1), (i + 1) % n_classes)]])
+
+        total_predictions = len(y_true)
+        correct_predictions = (y_true == y_pred).sum()
+
+        classes = np.arange(n_classes)
+        class_weights = (classes + 1) * 2
+        expected_class_wise_precision = (classes + 1) / (classes + 2 + (classes - 1) % n_classes)
+        expected_class_wise_recall = np.full(n_classes, 0.5)
+        expected_class_wise_f1 = evaluation_metrics._f_score_from_precision_and_recall(
+            expected_class_wise_precision, expected_class_wise_recall, beta=1)
+        expected_class_wise_precision_recall_f1 = [
+            expected_class_wise_precision, expected_class_wise_recall, expected_class_wise_f1]
+
+        confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+
+        # no average = class-wise scores, all scores are identical because everything is balanced
+        actual_precision_recall_f1 = evaluation_metrics.precision_recall_fscore(confusion_matrix)
+        for actual, expected in zip(actual_precision_recall_f1, expected_class_wise_precision_recall_f1):
+            np.testing.assert_allclose(actual, expected, atol=1e-6, strict=True)
+
+        # micro average of recall, precision, and f1 are all identical to the overall accuracy
+        expected_overall_accuracy = correct_predictions / total_predictions
+        actual_precision_recall_f1 = evaluation_metrics.precision_recall_fscore(confusion_matrix, average="micro")
+        for actual in actual_precision_recall_f1:
+            assert actual == pytest.approx(expected_overall_accuracy, 1e-6)
+
+        # macro average: mean of class-wise scores
+        actual_precision_recall_f1 = evaluation_metrics.precision_recall_fscore(confusion_matrix, average="macro")
+        for actual, expected_class_wise in zip(actual_precision_recall_f1, expected_class_wise_precision_recall_f1):
+            expected = expected_class_wise.mean()
+            assert actual == pytest.approx(expected, 1e-6)
+
+        # weighted average: mean of class-wise scores
+        actual_precision_recall_f1 = evaluation_metrics.precision_recall_fscore(confusion_matrix, average="weighted")
+        for actual, expected_class_wise in zip(actual_precision_recall_f1, expected_class_wise_precision_recall_f1):
+            expected = (expected_class_wise * class_weights).sum() / class_weights.sum()
+            assert actual == pytest.approx(expected, 1e-6)
 
     def test_precision_score(self, n_classes=10):
         # balanced case
