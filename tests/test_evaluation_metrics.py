@@ -11,7 +11,7 @@ class TestEvaluationMetrics:
         labels_prediction_and_expected_accuracy = [
             (y_true, y_true, 1),  # all correct
             (y_true, (y_true + 1) % n_classes, 0),  # all false
-            (y_true, np.zeros_like(y_true), 0.1),  # all zero = only first correct
+            (y_true, np.zeros_like(y_true), 1 / n_classes),  # all zero = only first correct
         ]
         # imbalanced case: each class 5 times, except for first class: 5 * (1 + n_classes) times
         y_true = np.concat([np.arange(n_classes), np.zeros(n_classes)]).repeat(5)
@@ -30,14 +30,14 @@ class TestEvaluationMetrics:
         labels_prediction_and_expected_accuracy = [
             (y_true, y_true, 1),  # all correct
             (y_true, (y_true + 1) % n_classes, 0),  # all false
-            (y_true, np.zeros_like(y_true), 0.1),  # all zero = only first correct
+            (y_true, np.zeros_like(y_true), 1 / n_classes),  # all zero = only first correct
         ]
         # imbalanced case: each class 5 times, except for first class: 5 * (1 + n_classes) times
         y_true = np.concat([np.arange(n_classes), np.zeros(n_classes)]).repeat(5)
         labels_prediction_and_expected_accuracy += [
             (y_true, y_true, 1),  # all correct
             (y_true, (y_true + 1) % n_classes, 0),  # all false
-            (y_true, np.zeros_like(y_true), 0.1),  # all zero = only first correct
+            (y_true, np.zeros_like(y_true), 1 / n_classes),  # all zero = only first correct
         ]
         for y_true, y_pred, expected_accuracy in labels_prediction_and_expected_accuracy:
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
