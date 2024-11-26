@@ -66,20 +66,36 @@ class TestEvaluationMetrics:
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
             assert evaluation_metrics.balanced_accuracy_score(confusion_matrix) == expected_accuracy
 
+    def test_precision_recall_fscore__totally_balanced(self, n_classes=10):
+        # 100% balanced case: all classes have equal share of the labels and equal class wise accuracy
+        classes = np.arange(n_classes)
+        y_true = np.tile(classes, 5)  # each class appears 5 times
+        # each class is predicted correcting 3 / 5 times -> class-wise accuracy is 60% for all classes
+        y_pred = np.concat([np.tile(classes, 3), (np.tile(classes, 2) + 1) % n_classes])
+
+        expected_class_wise_accuracy = 0.6
+        expected_class_wise_accuracy_array = np.full(n_classes, expected_class_wise_accuracy)
+        confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+
+        # no average = class-wise scores, all scores are identical because everything is balanced
+        actual = evaluation_metrics.precision_recall_fscore(confusion_matrix)
+        for actual_score_array in actual:
+            np.testing.assert_array_equal(actual_score_array, expected_class_wise_accuracy_array, strict=True)
+
+        # all averages are identical because everything is balanced
+        for average in ["micro", "macro", "weighted"]:
+            actual_scores = evaluation_metrics.precision_recall_fscore(confusion_matrix, average=average)
+            for actual_score in actual_scores:
+                assert actual_score == pytest.approx(expected_class_wise_accuracy, 1e-6)
+
     @pytest.mark.skip("Test not yet implemented.")
-    def test_precision_recall_fscore__no_average(self):
+    def test_precision_recall_fscore__balanced_labels_imbalanced_predictions(self):
+        # balanced labels but imbalanced accuracy: class labels are balanced but different class-wise accuracies
         pass  # TODO: implement this test
 
     @pytest.mark.skip("Test not yet implemented.")
-    def test_precision_recall_fscore__micro_average(self):
-        pass  # TODO: implement this test
-
-    @pytest.mark.skip("Test not yet implemented.")
-    def test_precision_recall_fscore__macro_average(self):
-        pass  # TODO: implement this test
-
-    @pytest.mark.skip("Test not yet implemented.")
-    def test_precision_recall_fscore__weighted_average(self):
+    def test_precision_recall_fscore__imbalanced(self):
+        # completely imbalanced: both class labels and class accuracies are imbalanced
         pass  # TODO: implement this test
 
     def test_precision_score(self, n_classes=10):
