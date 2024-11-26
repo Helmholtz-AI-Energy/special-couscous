@@ -87,9 +87,6 @@ def precision_recall_fscore(
         The f-beta score either class-wise (if average == None) or averaged over all classes using the specified
         averaging method.
     """
-    predicted_samples_per_class = confusion_matrix.sum(axis=0)
-    true_samples_per_class = confusion_matrix.sum(axis=1)
-    correct_predictions_per_class = confusion_matrix.diagonal()
     n_samples = confusion_matrix.sum()
     n_correct = confusion_matrix.trace()
 
@@ -98,14 +95,23 @@ def precision_recall_fscore(
         raise ValueError(f"Invalid {average=}. Supported averages are: {supported_averages}.")
 
     if average == "micro":  # compute metrics globally
-        precision = n_correct / n_samples
-        recall = n_correct / n_samples  # identical to precision
-        f_score = _f_score_from_precision_and_recall(precision, recall, beta)  # identical to precision and recall
-        return precision, recall, f_score
+        accuracy = n_correct / n_samples
+        return accuracy, accuracy, accuracy  # precision, recall, f_score are all the same
+
+    predicted_samples_per_class = confusion_matrix.sum(axis=0)
+    true_samples_per_class = confusion_matrix.sum(axis=1)
+    correct_predictions_per_class = confusion_matrix.diagonal()  # true positives
+    false_positives_per_class = predicted_samples_per_class - correct_predictions_per_class
+    false_negatives_per_class = true_samples_per_class - correct_predictions_per_class
 
     precision_per_class = correct_predictions_per_class / predicted_samples_per_class
     recall_per_class = correct_predictions_per_class / true_samples_per_class
-    f_score_per_class = _f_score_from_precision_and_recall(precision_per_class, recall_per_class, beta)
+    # using the f-score definition (1+β²) TP / ((1+β²) TP + β² FN + FP)
+    nominator = (1 + beta**2) * correct_predictions_per_class  # (1+β²) TP
+    denominator = (  # ((1+β²) TP + β² FN + FP)
+        (1 + beta**2) * correct_predictions_per_class + beta**2 * false_negatives_per_class + false_positives_per_class
+    )
+    f_score_per_class = nominator / denominator
 
     if average is None:  # return raw metrics per class without aggregation
         return precision_per_class, recall_per_class, f_score_per_class
