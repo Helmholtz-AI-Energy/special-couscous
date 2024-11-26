@@ -309,10 +309,48 @@ class TestEvaluationMetrics:
             expected_f1 = evaluation_metrics.fbeta_score(confusion_matrix, beta=1)
             np.testing.assert_array_equal(actual_f1, expected_f1, strict=True)
 
-    @pytest.mark.skip("Test not yet implemented.")
-    def test_cohen_kappa_score(self):
-        pass  # TODO: implement this test
+    def test_cohen_kappa_score(self, n_classes=10):
+        # balanced case
+        y_true = np.arange(n_classes).repeat(5)
+        labels_and_predictions = [
+            (y_true, y_true),  # all correct
+            (y_true, (y_true + 1) % n_classes),  # all false
+            (y_true, np.zeros_like(y_true)),  # all zero: only first class correct
+        ]
 
-    @pytest.mark.skip("Test not yet implemented.")
-    def test_matthews_corrcoef(self):
-        pass  # TODO: implement this test
+        # imbalanced case: each class 5 times, except for first class: 5 * (1 + n_classes) times
+        y_true = np.concat([np.arange(n_classes), np.zeros(n_classes)]).repeat(5)
+        labels_and_predictions += [
+            (y_true, y_true),  # all correct
+            (y_true, (y_true + 1) % n_classes),  # all false
+            (y_true, np.zeros_like(y_true))  # all zero: only first class correct
+        ]
+
+        for y_true, y_pred in labels_and_predictions:
+            confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+            actual_kappa = evaluation_metrics.cohen_kappa_score(confusion_matrix)
+            expected_kappa = sklearn.metrics.cohen_kappa_score(y_true, y_pred)
+            assert actual_kappa == pytest.approx(expected_kappa, 1e-6)
+
+    def test_matthews_corrcoef(self, n_classes=10):
+        # balanced case
+        y_true = np.arange(n_classes).repeat(5)
+        labels_and_predictions = [
+            (y_true, y_true),  # all correct
+            (y_true, (y_true + 1) % n_classes),  # all false
+            (y_true, np.zeros_like(y_true)),  # all zero: only first class correct
+        ]
+
+        # imbalanced case: each class 5 times, except for first class: 5 * (1 + n_classes) times
+        y_true = np.concat([np.arange(n_classes), np.zeros(n_classes)]).repeat(5)
+        labels_and_predictions += [
+            (y_true, y_true),  # all correct
+            (y_true, (y_true + 1) % n_classes),  # all false
+            (y_true, np.zeros_like(y_true))  # all zero: only first class correct
+        ]
+
+        for y_true, y_pred in labels_and_predictions:
+            confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
+            actual_kappa = evaluation_metrics.matthews_corrcoef(confusion_matrix)
+            expected_kappa = sklearn.metrics.matthews_corrcoef(y_true, y_pred)
+            assert actual_kappa == pytest.approx(expected_kappa, 1e-6)
