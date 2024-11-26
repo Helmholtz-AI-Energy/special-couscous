@@ -44,7 +44,9 @@ def balanced_accuracy_score(confusion_matrix: np.ndarray) -> float:
 
 def precision_recall_fscore(
     confusion_matrix: np.ndarray, beta: float = 1.0, average: str | None = None
-) -> tuple[float | np.ndarray[float], float | np.ndarray[float], float | np.ndarray[float]]:
+) -> tuple[
+    float | np.ndarray[float], float | np.ndarray[float], float | np.ndarray[float]
+]:
     """
     Compute the precision, recall, and f-beta score for the given confusion matrix of a multi-class classification
     model. The three metrics are either returned as class-wise values (if average == None) or averaged using one of the
@@ -92,16 +94,24 @@ def precision_recall_fscore(
 
     supported_averages = ["micro", "macro", "weighted", None]
     if average not in supported_averages:
-        raise ValueError(f"Invalid {average=}. Supported averages are: {supported_averages}.")
+        raise ValueError(
+            f"Invalid {average=}. Supported averages are: {supported_averages}."
+        )
 
     if average == "micro":  # compute metrics globally
         accuracy = n_correct / n_samples
-        return accuracy, accuracy, accuracy  # precision, recall, f_score are all the same
+        return (
+            accuracy,
+            accuracy,
+            accuracy,
+        )  # precision, recall, f_score are all the same
 
     predicted_samples_per_class = confusion_matrix.sum(axis=0)
     true_samples_per_class = confusion_matrix.sum(axis=1)
     correct_predictions_per_class = confusion_matrix.diagonal()  # true positives
-    false_positives_per_class = predicted_samples_per_class - correct_predictions_per_class
+    false_positives_per_class = (
+        predicted_samples_per_class - correct_predictions_per_class
+    )
     false_negatives_per_class = true_samples_per_class - correct_predictions_per_class
 
     precision_per_class = correct_predictions_per_class / predicted_samples_per_class
@@ -109,14 +119,18 @@ def precision_recall_fscore(
     # using the f-score definition (1+β²) TP / ((1+β²) TP + β² FN + FP)
     nominator = (1 + beta**2) * correct_predictions_per_class  # (1+β²) TP
     denominator = (  # ((1+β²) TP + β² FN + FP)
-        (1 + beta**2) * correct_predictions_per_class + beta**2 * false_negatives_per_class + false_positives_per_class
+        (1 + beta**2) * correct_predictions_per_class
+        + beta**2 * false_negatives_per_class
+        + false_positives_per_class
     )
     f_score_per_class = nominator / denominator
 
     if average is None:  # return raw metrics per class without aggregation
         return precision_per_class, recall_per_class, f_score_per_class
 
-    if average == "weighted":  # average metrics, class weighted by number of true samples with that label
+    if (
+        average == "weighted"
+    ):  # average metrics, class weighted by number of true samples with that label
         class_weights = true_samples_per_class
     elif average == "macro":  # average metrics, all classes have the same weight
         class_weights = np.ones_like(true_samples_per_class)
@@ -132,7 +146,9 @@ def precision_recall_fscore(
     return precision, recall, f_score
 
 
-def precision_score(confusion_matrix: np.ndarray, average: str | None = None) -> float | np.ndarray[float]:
+def precision_score(
+    confusion_matrix: np.ndarray, average: str | None = None
+) -> float | np.ndarray[float]:
     """
     Compute the precision score for the given confusion matrix of a multi-class classification model. The result is
     either returned as class-wise values (if average == None) or averaged.
@@ -158,7 +174,9 @@ def precision_score(confusion_matrix: np.ndarray, average: str | None = None) ->
     return precision
 
 
-def recall_score(confusion_matrix: np.ndarray, average: str | None = None) -> float | np.ndarray[float]:
+def recall_score(
+    confusion_matrix: np.ndarray, average: str | None = None
+) -> float | np.ndarray[float]:
     """
     Compute the recall score for the given confusion matrix of a multi-class classification model. The result is either
     returned as class-wise values (if average == None) or averaged.
@@ -211,13 +229,17 @@ def _f_score_from_precision_and_recall(
 
     if isinstance(denominator, np.ndarray):
         fscore = (1 + beta**2) * nominator / denominator
-        fscore[np.logical_and(denominator == 0, np.isnan(fscore))] = 0  # replace nan from division by zero with zeros
+        fscore[np.logical_and(denominator == 0, np.isnan(fscore))] = (
+            0  # replace nan from division by zero with zeros
+        )
         return fscore
     else:  # scalar case, avoid division by zero for scalar values
         return 0 if (denominator == 0) else (1 + beta**2) * nominator / denominator
 
 
-def fbeta_score(confusion_matrix: np.ndarray, beta: float, average: str | None = None) -> float | np.ndarray[float]:
+def fbeta_score(
+    confusion_matrix: np.ndarray, beta: float, average: str | None = None
+) -> float | np.ndarray[float]:
     """
     Compute the F-beta score for the given confusion matrix of a multi-class classification model. The result is either
     returned as class-wise values (if average == None) or averaged.
@@ -241,11 +263,15 @@ def fbeta_score(confusion_matrix: np.ndarray, beta: float, average: str | None =
         The f-beta score either class-wise (if average == None) or averaged over all classes using the specified
         averaging method.
     """
-    _, _, f_score = precision_recall_fscore(confusion_matrix, beta=beta, average=average)
+    _, _, f_score = precision_recall_fscore(
+        confusion_matrix, beta=beta, average=average
+    )
     return f_score
 
 
-def f1_score(confusion_matrix: np.ndarray, average: str | None = None) -> float | np.ndarray[float]:
+def f1_score(
+    confusion_matrix: np.ndarray, average: str | None = None
+) -> float | np.ndarray[float]:
     """
     Compute the F1 score for the given confusion matrix of a multi-class classification model. The result is either
     returned as class-wise values (if average == None) or averaged.
@@ -291,12 +317,20 @@ def cohen_kappa_score(confusion_matrix: np.ndarray) -> float:
 
     predicted_samples_per_class = np.sum(confusion_matrix, axis=0)
     true_samples_per_class = np.sum(confusion_matrix, axis=1)
-    expected_confusion_matrix = np.outer(predicted_samples_per_class, true_samples_per_class) / n_samples
+    expected_confusion_matrix = (
+        np.outer(predicted_samples_per_class, true_samples_per_class) / n_samples
+    )
 
-    expected_accuracy = expected_confusion_matrix.diagonal().sum() / n_samples  # = expected agreement p_e
-    observed_accuracy = confusion_matrix.diagonal().sum() / n_samples  # = observed agreement p_o
+    expected_accuracy = (
+        expected_confusion_matrix.diagonal().sum() / n_samples
+    )  # = expected agreement p_e
+    observed_accuracy = (
+        confusion_matrix.diagonal().sum() / n_samples
+    )  # = observed agreement p_o
 
-    return (observed_accuracy - expected_accuracy) / (1 - expected_accuracy)  # = Cohen's kappa (p_o - p_e) / (1 - p_e)
+    return (observed_accuracy - expected_accuracy) / (
+        1 - expected_accuracy
+    )  # = Cohen's kappa (p_o - p_e) / (1 - p_e)
 
 
 def matthews_corrcoef(confusion_matrix: np.ndarray) -> float:
@@ -321,9 +355,19 @@ def matthews_corrcoef(confusion_matrix: np.ndarray) -> float:
     n_correct = confusion_matrix.trace()  # = c
 
     # MCC = (c * s - t • p) / (sqrt(s^2 - p • p) * sqrt(s^2 - t • t))
-    nominator_tp = n_correct * n_samples - np.dot(true_samples_per_class, predicted_samples_per_class)  # c * s - t•p
-    denominator_predicted = n_samples**2 - np.dot(predicted_samples_per_class, predicted_samples_per_class)  # s^2 - p•p
-    denominator_true = n_samples**2 - np.dot(true_samples_per_class, true_samples_per_class)  # s^2 - t•t
-    denominator = np.sqrt(denominator_predicted * denominator_true)  # sqrt(s^2 - p • p) * sqrt(s^2 - t • t)
+    nominator_tp = n_correct * n_samples - np.dot(
+        true_samples_per_class, predicted_samples_per_class
+    )  # c * s - t•p
+    denominator_predicted = n_samples**2 - np.dot(
+        predicted_samples_per_class, predicted_samples_per_class
+    )  # s^2 - p•p
+    denominator_true = n_samples**2 - np.dot(
+        true_samples_per_class, true_samples_per_class
+    )  # s^2 - t•t
+    denominator = np.sqrt(
+        denominator_predicted * denominator_true
+    )  # sqrt(s^2 - p • p) * sqrt(s^2 - t • t)
 
-    return 0 if denominator == 0 else nominator_tp / denominator  # MCC = (c*s - t•p) / sqrt((s^2 - p•p) * (s^2 - t•t))
+    return (
+        0 if denominator == 0 else nominator_tp / denominator
+    )  # MCC = (c*s - t•p) / sqrt((s^2 - p•p) * (s^2 - t•t))

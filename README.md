@@ -113,7 +113,7 @@ distributed_random_forest.evaluate(local_test.x, local_test.y, num_classes, glob
 
 ## Evaluation Metrics
 
-To ease the evaluation of large-scale datasets, we implement multi-class evaluation metrics operating directly on the confusion matrix (instead of the true vs predicted values for all samples). 
+To ease the evaluation of large-scale datasets, we implement multi-class evaluation metrics operating directly on the confusion matrix (instead of the true vs predicted values for all samples).
 
 We support the following metrics, with the interfaces based on the corresponding `sklearn.metrics` functions:
 - **Accuracy:** the global accuracy
@@ -132,7 +132,7 @@ We support the following metrics, with the interfaces based on the corresponding
 ```python3
 import numpy as np
 from specialcouscous import evaluation_metrics
- 
+
 path_to_confusion_matrix_csv = "example.csv"
 confusion_matrix = np.loadtxt(path_to_confusion_matrix_csv)
 
