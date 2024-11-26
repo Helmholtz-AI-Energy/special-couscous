@@ -72,8 +72,8 @@ def precision_recall_fscore(
         The weight of recall in the F score (default: 1.0).
     average : str | None
         How to aggregate over classes. If None (default), the scores for each class are returned as array. Otherwise,
-        the scores are aggregated to a single average score. Available averaging methods are: "micro", "samples",
-        "macro", "weighted", and None for no averaging.
+        the scores are aggregated to a single average score. Available averaging methods are: "micro", "macro",
+        "weighted", and None for no averaging.
 
     Returns
     -------
@@ -110,7 +110,7 @@ def precision_recall_fscore(
     if average is None:  # return raw metrics per class without aggregation
         return precision_per_class, recall_per_class, f_score_per_class
 
-    if average == "weight":  # average metrics, class weighted by number of true samples with that label
+    if average == "weighted":  # average metrics, class weighted by number of true samples with that label
         class_weights = true_samples_per_class
     elif average == "macro":  # average metrics, all classes have the same weight
         class_weights = np.ones_like(true_samples_per_class)
