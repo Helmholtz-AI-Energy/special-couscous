@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import sklearn.metrics
 
 from specialcouscous import evaluation_metrics
@@ -65,6 +66,21 @@ class TestEvaluationMetrics:
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
             assert evaluation_metrics.balanced_accuracy_score(confusion_matrix) == expected_accuracy
 
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_precision_recall_fscore__no_average(self):
+        pass  # TODO: implement this test
+
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_precision_recall_fscore__micro_average(self):
+        pass  # TODO: implement this test
+
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_precision_recall_fscore__macro_average(self):
+        pass  # TODO: implement this test
+
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_precision_recall_fscore__weighted_average(self):
+        pass  # TODO: implement this test
 
     def test_precision_score(self, n_classes=10):
         # balanced case
@@ -113,6 +129,13 @@ class TestEvaluationMetrics:
             actual_recall = evaluation_metrics.recall_score(confusion_matrix)
             np.testing.assert_array_equal(actual_recall, expected_recall, strict=True)
 
+    @pytest.mark.skip("Test not yet implemented.")
+    def test___f_score_from_precision_and_recall(self):
+        # scalar inputs
+
+        # array inputs
+        pass  # TODO: implement this test
+
     def test_fbeta_score(self, n_classes=10, beta=2):
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
@@ -144,3 +167,15 @@ class TestEvaluationMetrics:
             confusion_matrix = sklearn.metrics.confusion_matrix(y_true, y_pred)
             actual_fbeta = evaluation_metrics.fbeta_score(confusion_matrix, beta=beta)
             np.testing.assert_array_equal(actual_fbeta, expected_fbeta, strict=True)
+
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_f1_score(self):
+        pass  # TODO: implement this test
+
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_cohen_kappa_score(self):
+        pass  # TODO: implement this test
+
+    @pytest.mark.skip("Test not yet implemented.")
+    def test_matthews_corrcoef(self):
+        pass  # TODO: implement this test
