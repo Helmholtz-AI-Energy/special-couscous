@@ -202,41 +202,6 @@ def recall_score(
     return recall
 
 
-def _f_score_from_precision_and_recall(
-    precision: float | np.ndarray[float], recall: float | np.ndarray[float], beta: float
-) -> float | np.ndarray[float]:
-    """
-    Compute the F-beta score from precision and recall values. Supports both scalar and array inputs.
-
-    Parameters
-    ----------
-    precision : float | np.ndarray[float]
-        The precision score, either a single value or multiple values in an array (e.g. class-wise). Precision and
-        recall are expected to have the same shape.
-    recall : float | np.ndarray[float]
-        The recall score, either a single value or multiple values in an array (e.g. class-wise). Precision and
-        recall are expected to have the same shape.
-    beta : float
-        The weight of recall in the F score.
-
-    Returns
-    -------
-    float | np.ndarray[float]
-        The f-beta score based on the given precision and recall values. Has the same shape as the input.
-    """
-    nominator = precision * recall
-    denominator = beta**2 * precision + recall
-
-    if isinstance(denominator, np.ndarray):
-        fscore = (1 + beta**2) * nominator / denominator
-        fscore[np.logical_and(denominator == 0, np.isnan(fscore))] = (
-            0  # replace nan from division by zero with zeros
-        )
-        return fscore
-    else:  # scalar case, avoid division by zero for scalar values
-        return 0 if (denominator == 0) else (1 + beta**2) * nominator / denominator
-
-
 def fbeta_score(
     confusion_matrix: np.ndarray, beta: float, average: str | None = None
 ) -> float | np.ndarray[float]:
