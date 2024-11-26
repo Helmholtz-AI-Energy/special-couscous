@@ -394,7 +394,9 @@ class TestEvaluationMetrics:
         invalid_averages = ["invalid_average", 1, True, 0.01234]
         for invalid_average in invalid_averages:
             with pytest.raises(ValueError):
-                evaluation_metrics.precision_recall_fscore(confusion_matrix, average=invalid_average)
+                evaluation_metrics.precision_recall_fscore(
+                    confusion_matrix, average=invalid_average
+                )
 
     def test_precision_score(self, n_classes: int) -> None:
         """
