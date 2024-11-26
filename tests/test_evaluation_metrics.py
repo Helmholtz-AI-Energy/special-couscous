@@ -7,6 +7,11 @@ from specialcouscous import evaluation_metrics
 
 @pytest.mark.parametrize("n_classes", [2, 10, 100])
 class TestEvaluationMetrics:
+    """
+    Test class to test all multi-class evaluation metrics defined in evaluation_metrics.py for different numbers of
+    classes (at least two).
+    """
+
     @staticmethod
     def first_and_fill_rest(first: float, fill: float, total_length: int) -> np.ndarray[float]:
         """
@@ -29,7 +34,16 @@ class TestEvaluationMetrics:
         """
         return np.concat([np.array([first]), np.full(total_length - 1, fill)])
 
-    def test_accuracy_score(self, n_classes):
+    def test_accuracy_score(self, n_classes: int) -> None:
+        """
+        Test the accuracy score metric for a variable number of classes in both balanced and unbalanced cases. Comparing
+        both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -51,7 +65,16 @@ class TestEvaluationMetrics:
             assert actual_accuracy == expected_accuracy_manual
             assert actual_accuracy == expected_accuracy_sklearn
 
-    def test_balanced_accuracy_score(self, n_classes):
+    def test_balanced_accuracy_score(self, n_classes: int) -> None:
+        """
+        Test the balanced accuracy score metric for a variable number of classes in both balanced and unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -73,7 +96,17 @@ class TestEvaluationMetrics:
             assert actual_accuracy == expected_accuracy_manual
             assert actual_accuracy == expected_accuracy_sklearn
 
-    def test_precision_recall_fscore__totally_balanced(self, n_classes):
+    def test_precision_recall_fscore__totally_balanced(self, n_classes: int) -> None:
+        """
+        Test the precision_recall_fscore metric in the 100% balanced case: all classes have equal share of the labels
+        and equal class wise accuracy.
+        Comparing both to a manual expected value and the sklearn (near-)equivalent precision_recall_fscore_support.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # 100% balanced case: all classes have equal share of the labels and equal class wise accuracy
         classes = np.arange(n_classes)
         y_true = np.tile(classes, 5)  # each class appears 5 times
@@ -99,7 +132,17 @@ class TestEvaluationMetrics:
                 assert actual_score == pytest.approx(expected_class_wise_accuracy, 1e-6)
                 assert actual_score == pytest.approx(expected_score_sklearn, 1e-6)
 
-    def test_precision_recall_fscore__balanced_labels_imbalanced_predictions(self, n_classes):
+    def test_precision_recall_fscore__balanced_labels_imbalanced_predictions(self, n_classes: int) -> None:
+        """
+        Test the precision_recall_fscore metric in the case where the class labels are balanced but the classes have
+        different class-wise accuracies.
+        Comparing both to a manual expected value and the sklearn (near-)equivalent precision_recall_fscore_support.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced labels but imbalanced accuracy: class labels are balanced but different class-wise accuracies
         y_true = np.arange(n_classes).repeat(n_classes)  # each class appears n_classes times, consecutively
         # Class i is predicted correctly (n_classes - i) times (i.e. the larger i, the lower the recall,
@@ -157,7 +200,17 @@ class TestEvaluationMetrics:
                 assert actual == pytest.approx(expected_manual, 1e-6)
                 assert actual == pytest.approx(expected_sklearn, 1e-6)
 
-    def test_precision_recall_fscore__imbalanced(self, n_classes):
+    def test_precision_recall_fscore__imbalanced(self, n_classes: int) -> None:
+        """
+        Test the precision_recall_fscore metric in the imbalanced case where both class labels and class accuracies are
+        imbalanced.
+        Comparing both to a manual expected value and the sklearn (near-)equivalent precision_recall_fscore_support.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # completely imbalanced: both class labels and class accuracies are imbalanced
         # class i appears (i + 1) * 2 times, consecutively
         y_true = np.concat([np.full((i + 1) * 2, i) for i in range(n_classes)])
@@ -227,7 +280,16 @@ class TestEvaluationMetrics:
             assert actual == pytest.approx(expected_manual, 1e-6)
             assert actual == pytest.approx(expected_sklearn, 1e-6)
 
-    def test_precision_score(self, n_classes):
+    def test_precision_score(self, n_classes: int) -> None:
+        """
+        Test the precision score metric for a variable number of classes in both balanced and unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -256,7 +318,16 @@ class TestEvaluationMetrics:
             np.testing.assert_array_equal(actual_precision, expected_precision_manual, strict=True)
             np.testing.assert_array_equal(actual_precision, expected_precision_sklearn, strict=True)
 
-    def test_recall_score(self, n_classes):
+    def test_recall_score(self, n_classes: int) -> None:
+        """
+        Test the recall score metric for a variable number of classes in both balanced and unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -281,7 +352,19 @@ class TestEvaluationMetrics:
             np.testing.assert_array_equal(actual_recall, expected_recall_sklearn, strict=True)
 
     @pytest.mark.parametrize("beta", [0.5, 1, 10, 100])
-    def test_fbeta_score(self, n_classes, beta):
+    def test_fbeta_score(self, n_classes: int, beta: float) -> None:
+        """
+        Test the balanced accuracy score metric for a variable number of classes and betas in both balanced and
+        unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        beta : float
+            The beta parameter of the F-beta score.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_prediction_and_expected_accuracy = [
@@ -317,7 +400,16 @@ class TestEvaluationMetrics:
             np.testing.assert_allclose(actual_fbeta, expected_fbeta_manual, atol=1e-6, strict=True)
             np.testing.assert_allclose(actual_fbeta, expected_fbeta_sklearn, atol=1e-6, strict=True)
 
-    def test_f1_score(self, n_classes):
+    def test_f1_score(self, n_classes: int) -> None:
+        """
+        Test the F1 score metric for a variable number of classes in both balanced and unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_and_predictions = [
@@ -343,7 +435,16 @@ class TestEvaluationMetrics:
             np.testing.assert_array_equal(actual_f1, expected_f1_manual, strict=True)
             np.testing.assert_array_equal(actual_f1, expected_f1_sklearn, strict=True)
 
-    def test_cohen_kappa_score(self, n_classes):
+    def test_cohen_kappa_score(self, n_classes: int) -> None:
+        """
+        Test the cohen kappa score metric for a variable number of classes in both balanced and unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_and_predictions = [
@@ -366,7 +467,16 @@ class TestEvaluationMetrics:
             expected_kappa = sklearn.metrics.cohen_kappa_score(y_true, y_pred)
             assert actual_kappa == pytest.approx(expected_kappa, 1e-6)
 
-    def test_matthews_corrcoef(self, n_classes):
+    def test_matthews_corrcoef(self, n_classes: int) -> None:
+        """
+        Test the matthews corrcoef score metric for a variable number of classes in both balanced and unbalanced cases.
+        Comparing both to a manual expected value and the sklearn equivalent.
+
+        Parameters
+        ----------
+        n_classes : int
+            The number of classes in the dataset generated for testing the metric.
+        """
         # balanced case
         y_true = np.arange(n_classes).repeat(5)
         labels_and_predictions = [
