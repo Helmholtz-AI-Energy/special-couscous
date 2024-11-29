@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 
 
-def generate_serial_strong_baseline_job_scripts(
+def generate_serial_baseline_job_scripts(
     log_n_samples: int,
     log_n_features: int,
     wall_time: int,
@@ -37,11 +37,13 @@ def generate_serial_strong_baseline_job_scripts(
         Whether to submit jobs to the cluster. Default is False.
     """
     job_name = f"n{log_n_samples}_m{log_n_features}_nodes_1_{random_state_data}_{random_state_model}"
+    # mem = 501600  # Strong scaling baseline
+    mem = 243200  # Weak scaling baseline
     job_script_name = f"{job_name}.sh"
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}  # Job name
 #SBATCH --nodes=1              # Number of nodes
-#SBATCH --mem=501600mb         # Use large-memory nodes.
+#SBATCH --mem={mem}mb         # Use large-memory nodes.
 #SBATCH --partition=cpuonly    # Queue for resource allocation
 #SBATCH --time={wall_time}          # Wall-clock time limit
 #SBATCH --cpus-per-task=76     # Number of CPUs required per (MPI) task
@@ -75,7 +77,8 @@ python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --save_model \\
     --output_dir ${{RESDIR}} \\
     --output_label ${{SLURM_JOB_ID}} \\
-    --log_path ${{RESDIR}}
+    --log_path ${{RESDIR}} \\
+    --logging_level 10
                                 """
     # Write script content to file.
     with open(output_path / job_script_name, "wt") as f:
@@ -88,12 +91,13 @@ python -u ${{BASE_DIR}}/${{SCRIPT}} \\
 if __name__ == "__main__":
     wall_time_limit = 60 * 24 * 3
     # Considered datasets given as pairs of (log10 <number of samples>, log10 <number of features>, <number of trees>):
-    datasets = [(6, 4, 1600), (7, 3, 448)]
+    # datasets = [(6, 4, 1600), (7, 3, 448)]
+    datasets = [(6, 4, 800), (7, 3, 224)]
     n_classes = 10
     # Considered seeds:
     random_state_data = 0
-    seeds_model = [1, 2, 3]
-    output_path = pathlib.Path("./strong_scaling/serial")
+    seeds_model = [1]  # , 2, 3]
+    output_path = pathlib.Path("./weak_scaling/serial")
     os.makedirs(output_path, exist_ok=True)
 
     for (
@@ -103,7 +107,7 @@ if __name__ == "__main__":
             log_n_samples = dataset[0]  # Extract number of samples.
             log_n_features = dataset[1]  # Extract number of features.
             n_trees = dataset[2]
-            generate_serial_strong_baseline_job_scripts(
+            generate_serial_baseline_job_scripts(
                 log_n_samples=log_n_samples,
                 log_n_features=log_n_features,
                 wall_time=wall_time_limit,
@@ -112,5 +116,5 @@ if __name__ == "__main__":
                 random_state_data=random_state_data,
                 random_state_model=random_state_model,
                 output_path=output_path,
-                submit=True,
+                submit=False,
             )

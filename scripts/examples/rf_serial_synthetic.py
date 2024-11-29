@@ -23,9 +23,9 @@ if __name__ == "__main__":
     )
 
     log.info(
-        "**************************************************************\n"
-        "* Single-Node Random Forest Classification of Synthetic Data *\n"
-        "**************************************************************\n"
+        "*********************************************************\n"
+        "* Serial Random Forest Classification of Synthetic Data *\n"
+        "*********************************************************\n"
         f"Hyperparameters used are:\n{args}"
     )
 
@@ -34,12 +34,16 @@ if __name__ == "__main__":
         n_samples=args.n_samples,
         n_features=args.n_features,
         n_classes=args.n_classes,
-        n_clusters_per_class=args.n_clusters_per_class,
-        frac_informative=args.frac_informative,
-        frac_redundant=args.frac_redundant,
         random_state=args.random_state,
         random_state_model=args.random_state_model,
+        make_classification_kwargs={
+            "n_clusters_per_class": args.n_clusters_per_class,
+            "n_informative": int(args.frac_informative * args.n_features),
+            "n_redundant": int(args.frac_redundant * args.n_features),
+            "flip_y": args.flip_y,
+        },
         train_split=args.train_split,
+        stratified_train_test=args.stratified_train_test,
         n_trees=args.n_trees,
         detailed_evaluation=args.detailed_evaluation,
         output_dir=args.output_dir,
