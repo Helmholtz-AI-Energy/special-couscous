@@ -110,3 +110,45 @@ distributed_random_forest = DistributedRandomForest(n_trees_global=n_trees, comm
 distributed_random_forest.train(local_train.x, local_train.y, global_model)
 distributed_random_forest.evaluate(local_test.x, local_test.y, num_classes, global_model)
 ```
+
+## Evaluation Metrics
+
+To ease the evaluation of large-scale datasets, we implement multi-class evaluation metrics operating directly on the confusion matrix (instead of the true vs predicted values for all samples).
+
+We support the following metrics, with the interfaces based on the corresponding `sklearn.metrics` functions:
+- **Accuracy:** The global accuracy
+- **Balanced Accuracy:** The accuracy as average over class-wise recalls
+- **Precision, Recall, and Fβ-Score:** With the following averaging options (`average` parameter)
+  - `None`: No averaging, return class-wise
+  - `"micro"`: Compute metrics globally → equal importance on each sample
+  - `"macro"`: Compute metrics class-wise, then average over classes → equal importance on each class, minority classes can outweigh majority classes
+  - `"weighted"`: Compute metrics class-wise, then average over classes weighted by their support (#true samples)
+  - As we focus on multi-class classification, the average options `"binary"` and `"samples"` are not included.
+- **Cohen's Kappa:** Compare classification to random guessing, values from -1 to +1, the higher the better, robust to class imbalance but not originally intended for classification problems
+- **Matthews Correlation Coefficient (MCC):** See https://en.wikipedia.org/wiki/Phi_coefficient, values from -1 to +1, the higher the better, robust to class imbalance
+
+### Usage
+
+```python3
+import numpy as np
+from specialcouscous import evaluation_metrics
+
+path_to_confusion_matrix_csv = "example.csv"
+confusion_matrix = np.loadtxt(path_to_confusion_matrix_csv)
+
+accuracy = evaluation_metrics.accuracy_score(confusion_matrix)
+balanced_accuracy = evaluation_metrics.balanced_accuracy_score(confusion_matrix)
+
+# `precision_recall_fscore` computes all three metrics at once.
+for average in [None, "micro", "macro", "weighted"]:
+    precision, recall, f_score = evaluation_metrics.precision_recall_fscore(confusion_matrix, beta=1.0, average=average)
+
+# Additionally, you can also call each specific metric on their own, but underneath, they just call `precision_recall_fscore`.
+precision = evaluation_metrics.precision_score(confusion_matrix, average=None)
+recall = evaluation_metrics.recall_score(confusion_matrix, average=None)
+fbeta = evaluation_metrics.fbeta_score(confusion_matrix, beta=2.0, average=None)
+f1 = evaluation_metrics.f1_score(confusion_matrix, average=None)
+
+cohen_kappa = evaluation_metrics.cohen_kappa_score(confusion_matrix)
+matthews_corrcoef = evaluation_metrics.matthews_corrcoef(confusion_matrix)
+```
