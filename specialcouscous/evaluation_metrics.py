@@ -4,7 +4,8 @@ import numpy as np
 def accuracy_score(confusion_matrix: np.ndarray) -> float:
     """
     Compute overall accuracy from the given confusion matrix, i.e., #correct predictions / #total samples.
-    Based on sklearn.metrics.accuracy_score but computed from the confusion matrix instead of using the
+
+    Based on ``sklearn.metrics.accuracy_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -17,15 +18,14 @@ def accuracy_score(confusion_matrix: np.ndarray) -> float:
     float
         The overall accuracy computed for the given confusion matrix.
     """
-    n_samples = confusion_matrix.sum()
-    n_correct = confusion_matrix.diagonal().sum()
-    return n_correct / n_samples
+    return confusion_matrix.trace() / confusion_matrix.sum()
 
 
 def balanced_accuracy_score(confusion_matrix: np.ndarray) -> float:
     """
     Compute the balanced accuracy score as average of the class-wise recalls.
-    Based on sklearn.metrics.balanced_accuracy_score but computed from the confusion matrix instead of using the
+
+    Based on ``sklearn.metrics.balanced_accuracy_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -38,7 +38,7 @@ def balanced_accuracy_score(confusion_matrix: np.ndarray) -> float:
     float
         The balanced accuracy computed for the given confusion matrix.
     """
-    # macro average = first compute class-wise recall, then average
+    # Macro average = first compute class-wise recall, then average.
     return recall_score(confusion_matrix, average="macro")
 
 
@@ -48,23 +48,24 @@ def precision_recall_fscore(
     float | np.ndarray[float], float | np.ndarray[float], float | np.ndarray[float]
 ]:
     """
-    Compute the precision, recall, and f-beta score for the given confusion matrix of a multi-class classification
-    model. The three metrics are either returned as class-wise values (if average == None) or averaged using one of the
+    Compute precision, recall, and f-beta score for the given confusion matrix of a multi-class classification model.
+
+    The three metrics are either returned as class-wise values (if ``average == None``) or averaged using one of the
     following methods:
-    - "micro": Metrics are computed globally, i.e. count total true/false positives/negatives for all samples,
+    - ``"micro"``: Metrics are computed globally, i.e., count total true/false positives/negatives for all samples,
       independent of class. This gives **equal importance to each sample** and should result in
       precision == recall == f-score == global accuracy.
-    - "macro": Metrics are first computed independently for each class, the class-wise metrics are then averaged over
-      all classes. This gives **equal importance to each class** but minority classes can outweigh majority classes.
-      With balanced classes, "micro" and "macro" should be identical.
-    - "weighted": Metrics are first computed independently for each class (as for macro), the class-wise metrics are
+    - ``"macro"``: Metrics are first computed independently for each class, the class-wise metrics are then averaged
+      over all classes. This gives **equal importance to each class** but minority classes can outweigh majority
+      classes. With balanced classes, ``"micro"`` and ``"macro"`` should be identical.
+    - ``"weighted"``: Metrics are first computed independently for each class (as for macro), the class-wise metrics are
       then averaged over all classes, each **weighted by their support**. Note that this can result in an F-score that
       is not between precision and recall.
-    This function is for multi-class but not multi-label classification, thus the average options "binary" and "samples"
-    are not included.
+    This function is for multi-class but not multi-label classification, thus the average options ``"binary"`` and
+    ``"samples"`` are not included.
 
-    Based on sklearn.metrics.precision_recall_fscore_support but computed from the confusion matrix instead of using the
-    sample-wise labels and predictions.
+    Based on ``sklearn.metrics.precision_recall_fscore_support`` but computed from the confusion matrix instead of using
+    the sample-wise labels and predictions.
 
     Parameters
     ----------
@@ -73,20 +74,20 @@ def precision_recall_fscore(
     beta : float
         The weight of recall in the F score (default: 1.0).
     average : str | None
-        How to aggregate over classes. If None (default), the scores for each class are returned as array. Otherwise,
-        the scores are aggregated to a single average score. Available averaging methods are: "micro", "macro",
-        "weighted", and None for no averaging.
+        How to aggregate over classes. If ``None`` (default), the scores for each class are returned as array.
+        Otherwise, the scores are aggregated to a single average score. Available averaging methods are: ``"micro"``,
+        ``"macro"``, ``"weighted"``, and ``None`` for no averaging.
 
     Returns
     -------
     float | np.ndarray[float]
-        The precision score either class-wise (if average == None) or averaged over all classes using the specified
+        The precision score either class-wise (if ``average == None``) or averaged over all classes using the specified
         averaging method.
     float | np.ndarray[float]
-        The recall score either class-wise (if average == None) or averaged over all classes using the specified
+        The recall score either class-wise (if ``average == None``) or averaged over all classes using the specified
         averaging method.
     float | np.ndarray[float]
-        The f-beta score either class-wise (if average == None) or averaged over all classes using the specified
+        The f-beta score either class-wise (if ``average == None``) or averaged over all classes using the specified
         averaging method.
     """
     n_samples = confusion_matrix.sum()
@@ -98,17 +99,17 @@ def precision_recall_fscore(
             f"Invalid {average=}. Supported averages are: {supported_averages}."
         )
 
-    if average == "micro":  # compute metrics globally
+    if average == "micro":  # Compute metrics globally.
         accuracy = n_correct / n_samples
         return (
             accuracy,
             accuracy,
             accuracy,
-        )  # precision, recall, f_score are all the same
+        )  # Precision, recall, and F score are all the same.
 
     predicted_samples_per_class = confusion_matrix.sum(axis=0)
     true_samples_per_class = confusion_matrix.sum(axis=1)
-    correct_predictions_per_class = confusion_matrix.diagonal()  # true positives
+    correct_predictions_per_class = confusion_matrix.diagonal()  # True positives
     false_positives_per_class = (
         predicted_samples_per_class - correct_predictions_per_class
     )
@@ -116,7 +117,7 @@ def precision_recall_fscore(
 
     precision_per_class = correct_predictions_per_class / predicted_samples_per_class
     recall_per_class = correct_predictions_per_class / true_samples_per_class
-    # using the f-score definition (1+β²) TP / ((1+β²) TP + β² FN + FP)
+    # Using the F-score definition (1+β²) TP / ((1+β²) TP + β² FN + FP):
     nominator = (1 + beta**2) * correct_predictions_per_class  # (1+β²) TP
     denominator = (  # ((1+β²) TP + β² FN + FP)
         (1 + beta**2) * correct_predictions_per_class
@@ -125,19 +126,38 @@ def precision_recall_fscore(
     )
     f_score_per_class = nominator / denominator
 
-    if average is None:  # return raw metrics per class without aggregation
+    if average is None:  # Return raw metrics per class without aggregation.
         return precision_per_class, recall_per_class, f_score_per_class
 
     if (
         average == "weighted"
-    ):  # average metrics, class weighted by number of true samples with that label
+    ):  # Average metrics, class weighted by number of true samples with that label.
         class_weights = true_samples_per_class
-    elif average == "macro":  # average metrics, all classes have the same weight
+    elif average == "macro":  # Average metrics, all classes have the same weight.
         class_weights = np.ones_like(true_samples_per_class)
     else:
         raise ValueError(f"No class weights supported for {average=}.")
 
-    def average_with_weights(weights, values):
+    def average_with_weights(
+        weights: np.ndarray, values: np.ndarray
+    ) -> tuple[
+        float | np.ndarray[float], float | np.ndarray[float], float | np.ndarray[float]
+    ]:
+        """
+        Calculate average with provided weights.
+
+        Parameters
+        ----------
+        weights : np.ndarray
+            The weights.
+        values : np.ndarray
+            The values to average.
+
+        Returns
+        -------
+        float
+            The weighted average.
+        """
         return (weights * values).sum() / weights.sum()
 
     precision = average_with_weights(class_weights, precision_per_class)
@@ -150,9 +170,10 @@ def precision_score(
     confusion_matrix: np.ndarray, average: str | None = None
 ) -> float | np.ndarray[float]:
     """
-    Compute the precision score for the given confusion matrix of a multi-class classification model. The result is
-    either returned as class-wise values (if average == None) or averaged.
-    Based on sklearn.metrics.precision_score but computed from the confusion matrix instead of using the
+    Compute the precision score for the given confusion matrix of a multi-class classification model.
+
+    The result is either returned as class-wise values (if ``average == None``) or averaged.
+    Based on ``sklearn.metrics.precision_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -160,14 +181,14 @@ def precision_score(
     confusion_matrix : np.ndarray
         The multi-class classification confusion matrix (non-normalized).
     average : str | None
-        How to aggregate over classes. If None (default), the scores for each class are returned as array. Otherwise,
-        the scores are aggregated to a single average score. See precision_recall_fscore for more details on the
-        available averaging methods.
+        How to aggregate over classes. If ``None`` (default), the scores for each class are returned as array.
+        Otherwise, the scores are aggregated to a single average score. See ``precision_recall_fscore`` for more details
+        on the available averaging methods.
 
     Returns
     -------
     float | np.ndarray[float]
-        The precision score either class-wise (if average == None) or averaged over all classes using the specified
+        The precision score either class-wise (if ``average == None``) or averaged over all classes using the specified
         averaging method.
     """
     precision, _, _ = precision_recall_fscore(confusion_matrix, average=average)
@@ -178,9 +199,10 @@ def recall_score(
     confusion_matrix: np.ndarray, average: str | None = None
 ) -> float | np.ndarray[float]:
     """
-    Compute the recall score for the given confusion matrix of a multi-class classification model. The result is either
-    returned as class-wise values (if average == None) or averaged.
-    Based on sklearn.metrics.recall_score but computed from the confusion matrix instead of using the
+    Compute the recall score for the given confusion matrix of a multi-class classification model.
+
+    The result is either returned as class-wise values (if ``average == None``) or averaged.
+    Based on ``sklearn.metrics.recall_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -188,9 +210,9 @@ def recall_score(
     confusion_matrix : np.ndarray
         The multi-class classification confusion matrix (non-normalized).
     average : str | None
-        How to aggregate over classes. If None (default), the scores for each class are returned as array. Otherwise,
-        the scores are aggregated to a single average score. See precision_recall_fscore for more details on the
-        available averaging methods.
+        How to aggregate over classes. If ``None`` (default), the scores for each class are returned as array.
+        Otherwise, the scores are aggregated to a single average score. See ``precision_recall_fscore`` for more details
+        on the available averaging methods.
 
     Returns
     -------
@@ -206,9 +228,10 @@ def fbeta_score(
     confusion_matrix: np.ndarray, beta: float, average: str | None = None
 ) -> float | np.ndarray[float]:
     """
-    Compute the F-beta score for the given confusion matrix of a multi-class classification model. The result is either
-    returned as class-wise values (if average == None) or averaged.
-    Based on sklearn.metrics.fbeta_score but computed from the confusion matrix instead of using the
+    Compute the F-beta score for the given confusion matrix of a multi-class classification model.
+
+    The result is either returned as class-wise values (if ``average == None``) or averaged.
+    Based on ``sklearn.metrics.fbeta_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -218,14 +241,14 @@ def fbeta_score(
     beta : float
         The weight of recall in the F score.
     average : str | None
-        How to aggregate over classes. If None (default), the scores for each class are returned as array. Otherwise,
-        the scores are aggregated to a single average score. See precision_recall_fscore for more details on the
-        available averaging methods.
+        How to aggregate over classes. If ``None`` (default), the scores for each class are returned as array.
+        Otherwise, the scores are aggregated to a single average score. See precision_recall_fscore for more details on
+        the available averaging methods.
 
     Returns
     -------
     float | np.ndarray[float]
-        The f-beta score either class-wise (if average == None) or averaged over all classes using the specified
+        The f-beta score either class-wise (if ``average == None``) or averaged over all classes using the specified
         averaging method.
     """
     _, _, f_score = precision_recall_fscore(
@@ -238,9 +261,10 @@ def f1_score(
     confusion_matrix: np.ndarray, average: str | None = None
 ) -> float | np.ndarray[float]:
     """
-    Compute the F1 score for the given confusion matrix of a multi-class classification model. The result is either
-    returned as class-wise values (if average == None) or averaged.
-    Based on sklearn.metrics.f1_score but computed from the confusion matrix instead of using the
+    Compute the F1 score for the given confusion matrix of a multi-class classification model.
+
+    The result is either returned as class-wise values (if ``average == None``) or averaged.
+    Based on ``sklearn.metrics.f1_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -248,14 +272,14 @@ def f1_score(
     confusion_matrix : np.ndarray
         The multi-class classification confusion matrix (non-normalized).
     average : str | None
-        How to aggregate over classes. If None (default), the scores for each class are returned as array. Otherwise,
-        the scores are aggregated to a single average score. See precision_recall_fscore for more details on the
-        available averaging methods.
+        How to aggregate over classes. If ``None`` (default), the scores for each class are returned as array.
+        Otherwise, the scores are aggregated to a single average score. See ``precision_recall_fscore`` for more details
+        on the available averaging methods.
 
     Returns
     -------
     float | np.ndarray[float]
-        The F1 score either class-wise (if average == None) or averaged over all classes using the specified
+        The F1 score either class-wise (if ``average == None``) or averaged over all classes using the specified
         averaging method.
     """
     return fbeta_score(confusion_matrix, beta=1, average=average)
@@ -263,9 +287,9 @@ def f1_score(
 
 def cohen_kappa_score(confusion_matrix: np.ndarray) -> float:
     """
-    Compute Cohen’s kappa, a measure for agreement between two annotators on a classification problem, for the given
-    confusion matrix.
-    Based on sklearn.metrics.cohen_kappa_score but computed from the confusion matrix instead of using the
+    Compute Cohen’s kappa, a measure for agreement between two annotators on a classification problem.
+
+    Based on ``sklearn.metrics.cohen_kappa_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
@@ -301,7 +325,8 @@ def cohen_kappa_score(confusion_matrix: np.ndarray) -> float:
 def matthews_corrcoef(confusion_matrix: np.ndarray) -> float:
     """
     Compute Matthews correlation coefficient (MCC) for the given confusion matrix.
-    Based on sklearn.metrics.matthews_corrcoef but computed from the confusion matrix instead of using the
+
+    Based on ``sklearn.metrics.matthews_corrcoef`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
 
     Parameters
