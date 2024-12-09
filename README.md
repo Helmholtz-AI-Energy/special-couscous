@@ -116,16 +116,16 @@ distributed_random_forest.evaluate(local_test.x, local_test.y, num_classes, glob
 To ease the evaluation of large-scale datasets, we implement multi-class evaluation metrics operating directly on the confusion matrix (instead of the true vs predicted values for all samples).
 
 We support the following metrics, with the interfaces based on the corresponding `sklearn.metrics` functions:
-- **Accuracy:** the global accuracy
-- **Balanced Accuracy:** the accuracy as average over class-wise recalls
-- **Precision, Recall, and Fβ-Score:** with the following averaging options (`average` parameter)
-  - `None`: no averaging, return class-wise
-  - `"micro"`: compute metrics globally → equal importance on each sample
-  - `"macro"`: compute metrics class-wise, then average over classes → equal importance on each class, minority classes can outweigh majority classes
-  - `"weighted"`: compute metrics class-wise, then average over classes weighted by their support (#true samples)
-  - As we are focussing on multi-class classification, the average options `"binary"` and `"samples"` are not included.
-- **Cohen's Kappa:** compare classification to random guessing, values from -1 to +1, the higher the better, robust to class imbalance but not originally intended for classification problems
-- **Matthews Correlation Coefficient (MCC):** see https://en.wikipedia.org/wiki/Phi_coefficient, values from -1 to +1, the higher the better, robust to class imbalance
+- **Accuracy:** The global accuracy
+- **Balanced Accuracy:** The accuracy as average over class-wise recalls
+- **Precision, Recall, and Fβ-Score:** With the following averaging options (`average` parameter)
+  - `None`: No averaging, return class-wise
+  - `"micro"`: Compute metrics globally → equal importance on each sample
+  - `"macro"`: Compute metrics class-wise, then average over classes → equal importance on each class, minority classes can outweigh majority classes
+  - `"weighted"`: Compute metrics class-wise, then average over classes weighted by their support (#true samples)
+  - As we focus on multi-class classification, the average options `"binary"` and `"samples"` are not included.
+- **Cohen's Kappa:** Compare classification to random guessing, values from -1 to +1, the higher the better, robust to class imbalance but not originally intended for classification problems
+- **Matthews Correlation Coefficient (MCC):** See https://en.wikipedia.org/wiki/Phi_coefficient, values from -1 to +1, the higher the better, robust to class imbalance
 
 ### Usage
 
@@ -139,11 +139,11 @@ confusion_matrix = np.loadtxt(path_to_confusion_matrix_csv)
 accuracy = evaluation_metrics.accuracy_score(confusion_matrix)
 balanced_accuracy = evaluation_metrics.balanced_accuracy_score(confusion_matrix)
 
-# precision_recall_fscore compute all three metrics at once
+# `precision_recall_fscore` computes all three metrics at once.
 for average in [None, "micro", "macro", "weighted"]:
     precision, recall, f_score = evaluation_metrics.precision_recall_fscore(confusion_matrix, beta=1.0, average=average)
 
-# additionally, you can also call each specific metric on their own, but underneath, they just call precision_recall_fscore
+# Additionally, you can also call each specific metric on their own, but underneath, they just call `precision_recall_fscore`.
 precision = evaluation_metrics.precision_score(confusion_matrix, average=None)
 recall = evaluation_metrics.recall_score(confusion_matrix, average=None)
 fbeta = evaluation_metrics.fbeta_score(confusion_matrix, beta=2.0, average=None)
