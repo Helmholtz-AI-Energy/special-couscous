@@ -157,7 +157,7 @@ if __name__ == "__main__":
     overall_energy = time_n_tasks["Energy consumed"].sum()
     print(f"Energy Consumed: {overall_energy:.2f} Watthours")
     # Create the figure and the axes.
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5))
     # Settings
     all_errors = True
     labelsize = "small"

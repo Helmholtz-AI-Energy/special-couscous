@@ -151,7 +151,7 @@ if __name__ == "__main__":
     overall_energy = results_df["Energy consumed"].sum()
 
     # Create the figure and the axes.
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5))
     # Settings
     average_per_data_seed = False
     all_errors = True
@@ -297,6 +297,7 @@ if __name__ == "__main__":
     ax3.grid(visible)
     ax3.legend(fontsize=legendsize)
     ax3.tick_params(axis="both", labelsize=labelsize)
+    # ax3.set_aspect("equal")
 
     plt.tight_layout()
 
