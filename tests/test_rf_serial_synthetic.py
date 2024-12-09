@@ -3,7 +3,7 @@ import pathlib
 
 import pytest
 
-from specialcouscous.train import train_serial_on_synthetic_data
+from specialcouscous.train.train_serial import train_serial_on_synthetic_data
 from specialcouscous.utils import set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.

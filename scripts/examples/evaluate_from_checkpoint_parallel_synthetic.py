@@ -6,7 +6,7 @@ import pathlib
 
 from mpi4py import MPI
 
-from specialcouscous.train import evaluate_parallel_from_checkpoint
+from specialcouscous.train.train_parallel import evaluate_parallel_from_checkpoint
 from specialcouscous.utils import parse_arguments, set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.

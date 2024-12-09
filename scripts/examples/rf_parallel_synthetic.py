@@ -6,7 +6,9 @@ import pathlib
 
 from mpi4py import MPI
 
-from specialcouscous.train import train_parallel_on_balanced_synthetic_data
+from specialcouscous.train.train_parallel import (
+    train_parallel_on_balanced_synthetic_data,
+)
 from specialcouscous.utils import parse_arguments, set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.

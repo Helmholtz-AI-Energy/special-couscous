@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from mpi4py import MPI
 
-from specialcouscous.train import (
+from specialcouscous.train.train_parallel import (
     evaluate_parallel_from_checkpoint,
     train_parallel_on_balanced_synthetic_data,
 )
@@ -156,7 +156,7 @@ def test_evaluate_from_checkpoint(
     )
     comm.barrier()
     # Get all result CSV files in output directory.
-    result_csv_files = glob.glob(str(checkpoint_path) + "/*.csv")
+    result_csv_files = glob.glob(str(checkpoint_path) + "/*_results.csv")
 
     # Load result CSV files and convert into dataframe.
     result_csv_dfs = []
