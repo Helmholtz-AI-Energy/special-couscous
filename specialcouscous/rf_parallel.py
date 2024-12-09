@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
 log = logging.getLogger(__name__)  # Get logger instance.
+"""Logger."""
 
 
 class DistributedRandomForest:
@@ -74,8 +75,11 @@ class DistributedRandomForest:
             Whether to use random integers generated from the model base seed (False) or the sum of the base seed and
             the local rank to initialize the local random forest model (True). Default is False.
         """
-        self.n_trees_global = n_trees_global
-        self.comm = comm
+        self.comm = comm  # Communicator to use
+        # --- MODEL SETTINGS ---
+        self.n_trees_global = (
+            n_trees_global  # Number of trees in global random forest model
+        )
         # Distribute trees over available ranks in a load-balanced fashion.
         (
             self.n_trees_base,
@@ -116,6 +120,10 @@ class DistributedRandomForest:
         self.trees: list[
             sklearn.tree.DecisionTreeClassifier
         ]  # Global classifier as a list of all local trees
+
+        # --- EVALUATION METRICS ---
+        self.confusion_matrix_local: np.ndarray
+        self.confusion_matrix_global: np.ndarray
         self.acc_global: float = (
             np.nan
         )  # Accuracy of global classifier on global evaluation dataset
@@ -219,7 +227,7 @@ class DistributedRandomForest:
         )
 
     @staticmethod
-    def _calc_majority_vote(tree_wise_predictions: np.ndarray) -> np.ndarray:
+    def calc_majority_vote(tree_wise_predictions: np.ndarray) -> np.ndarray:
         """
         Calculate majority vote from tree-wise predictions.
 
@@ -410,17 +418,41 @@ class DistributedRandomForest:
             The number of classes in the dataset.
         shared_global_model : bool
             Whether the global model is shared among all ranks (True) or not (False). Default is False.
+
+        Returns
+        -------
+        np.ndarray
+            The local confusion matrix.
+        np.ndarray
+            The global confusion matrix.
         """
         rank, size = self.comm.rank, self.comm.size
-        if shared_global_model:  # Global model is shared.
+        # --- SHARED GLOBAL MODEL ---
+        if shared_global_model:
             tree_predictions = self._predict_tree_by_tree(samples)
-            # Array with one vector for each tree in global RF with predictions for all test samples.
+            # Array with one vector for each tree in global RF with predictions for all (local) test samples.
             # Final prediction of parallel RF is majority vote over all sub estimators.
             # Calculate majority vote.
             log.info(f"[{rank}/{size}]: Calculate majority vote.")
-            majority_vote = self._calc_majority_vote(tree_predictions)
+            majority_votes_global_local = self.calc_majority_vote(tree_predictions)
+            # Calculate confusion matrix of the global model over all local datasets.
+            # Each rank can potentially hold a different dataset to evaluate!
+            # Thus, we first calculate the confusion matrix of the shared global model on each local dataset.
+            confusion_matrix_global_local = self._get_confusion_matrix(
+                targets=targets, majority_votes=majority_votes_global_local
+            )
+            assert confusion_matrix_global_local.shape == (n_classes, n_classes)
+            # Next, we sum up the confusion matrices over all ranks to obtain the global confusion matrix, i.e., the
+            # confusion matrix of the global matrix over the distributed dataset to evaluate.
+            confusion_matrix_global = np.empty_like(
+                confusion_matrix_global_local, dtype=confusion_matrix_global_local.dtype
+            )  # Set up buffer to all-reduce confusion matrices of shared global model on local datasets.
+            self.comm.Allreduce(
+                confusion_matrix_global_local, confusion_matrix_global, op=MPI.SUM
+            )
+            self.confusion_matrix_global = confusion_matrix_global
             # Calculate accuracy of global model over all local datasets.
-            n_correct_local = (targets == majority_vote).sum()
+            n_correct_local = (targets == majority_votes_global_local).sum()
             n_samples_local = targets.shape[0]
             log.info(
                 f"[{rank}/{size}]: Fraction of correctly predicted samples on this rank: "
@@ -436,9 +468,9 @@ class DistributedRandomForest:
             self.acc_global = n_correct / n_samples
             # Calculate accuracy of global model on local dataset.
             # Note that this metric can only be calculated if the global model is shared among all ranks.
-            self.acc_global_local = (targets == majority_vote).mean()
-
-        else:  # Global model is not shared. Note that the dataset to be tested must be shared among all ranks.
+            self.acc_global_local = (targets == majority_votes_global_local).mean()
+        # --- DISTRIBUTED GLOBAL MODEL ---
+        else:  # Note that the dataset to be tested must be shared among all ranks.
             # Get class predictions of sub estimators in each forest.
             log.info(f"[{rank}/{size}]: Get predictions of individual sub estimators.")
             # Check whether all ranks have the same number of samples as a sanity check whether they share the
@@ -448,23 +480,99 @@ class DistributedRandomForest:
                     "The dataset to evaluate the distributed global model on must be shared among all ranks."
                 )
             tree_predictions_local = self._predict_locally(samples)
-            log.info(f"[{rank}/{size}]: Calculate majority vote via histograms.")
+            log.info(f"[{rank}/{size}]: Calculate global majority vote via histograms.")
             predicted_class_hists = self._predicted_class_hist(
                 tree_predictions_local, n_classes
             )
-            majority_vote = self._calc_majority_vote_hist(predicted_class_hists)
+            global_majority_votes = self._calc_majority_vote_hist(predicted_class_hists)
             # Calculate the accuracy of the global model. Since the global model is distributed across the ranks, it can
             # only be evaluated by processing the same data on each rank's local model and aggregating the majority vote
             # across the ranks. Evaluating the (distributed) global model is thus only possible if all ranks use the
             # same "local" data for the evaluation (i.e., local data == global data). Evaluating the global model on
             # true local data (not shared with other ranks) is not possible. We thus set ``acc_global_local`` to NaN.
-            self.acc_global = (targets == majority_vote).mean()
+            self.confusion_matrix_global = self._get_confusion_matrix(
+                targets=targets, majority_votes=global_majority_votes
+            )
+            self.acc_global = (targets == global_majority_votes).mean()
             self.acc_global_local = np.nan
 
-        # Calculate accuracy of local model on local dataset.
+        # Calculate local confusion matrix and local accuracy, i.e., evaluate local model on local dataset.
+        self.confusion_matrix_local = self._get_local_confusion_matrix(samples, targets)
         self.acc_local = self.clf.score(samples, targets)
         log.info(
             f"[{rank}/{size}]: Accuracy of local model on local data is {self.acc_local}.\n"
             f"Accuracy of global model on local data is {self.acc_global_local}.\n"
             f"Accuracy of global model on global data is {self.acc_global}."
         )
+
+    def _get_local_confusion_matrix(
+        self,
+        samples: np.ndarray,
+        targets: np.ndarray,
+        use_weighted_voting: bool = False,
+    ) -> np.ndarray:
+        """
+        Get the confusion matrix of each local sub forest for the given targets.
+
+        By definition, a confusion matrix C is such that C_ij is equal to the number of observations known to be in
+        group i and predicted to be in group j.
+
+        If weighted voting is used, the predicted class of an input sample is a vote by the trees in the forest weighted
+        by their probability estimates. That is, the predicted class is the one with the highest mean probability estimate
+        across the trees. Without weighted voting, a plain majority vote is returned.
+
+        Parameters
+        ----------
+        samples : numpy.ndarray
+            The (rank-local) samples to evaluate.
+        targets : numpy.ndarray
+            The corresponding targets.
+        use_weighted_voting : bool
+            Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
+            Default is ``False``.
+
+        Returns
+        -------
+        numpy.ndarray
+            The confusion matrix whose i-th row and j-th column entry indicates the number of samples with true label
+            being i-th class and predicted label being j-th class.
+        """
+        if use_weighted_voting:
+            confusion_matrix = sklearn.metrics.confusion_matrix(
+                targets, self.clf.predict(samples), normalize=None
+            )
+        else:
+            # Get predictions of all estimators in the local sub forest on the samples.
+            local_tree_predictions = np.array(
+                [
+                    tree.predict(samples, check_input=False)
+                    for tree in self.clf.estimators_
+                ],
+                dtype="H",
+            )
+            majority_vote = self.calc_majority_vote(local_tree_predictions)
+            confusion_matrix = sklearn.metrics.confusion_matrix(
+                targets, majority_vote, normalize=None
+            )
+        return confusion_matrix
+
+    @staticmethod
+    def _get_confusion_matrix(
+        targets: np.ndarray, majority_votes: np.ndarray
+    ) -> np.ndarray:
+        """
+        Get the unnormalized confusion matrix for given predictions and targets.
+
+        Parameters
+        ----------
+        targets : numpy.ndarray
+            The corresponding targets.
+        majority_votes : numpy.ndarray
+            The forest's majority votes, i.e., predictions for the considered samples.
+
+        Returns
+        -------
+        numpy.ndarray
+            The unnormalized confusion matrix.
+        """
+        return sklearn.metrics.confusion_matrix(targets, majority_votes, normalize=None)
