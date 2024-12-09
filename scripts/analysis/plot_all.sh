@@ -35,3 +35,7 @@ python weak_scaling_from_checkpoints.py ../../../../results/weak_scaling/n7_m3
 # CHUNKING
 python chunking.py ../../../../results/chunking/n6_m4
 python chunking.py ../../../../results/chunking/n7_m3
+
+# BREAKING IID
+python breaking_iid.py ../../../../results/breaking_iid/n6_m4
+python breaking_iid.py ../../../../results/breaking_iid/n7_m3
