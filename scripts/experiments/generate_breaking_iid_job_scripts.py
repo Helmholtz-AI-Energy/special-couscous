@@ -92,9 +92,9 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --n_classes {n_classes} \\
     --shared_test_set \\
     --globally_imbalanced \\
-    --mu_global {mu_global} \\
+    --mu_data {mu_global} \\
     --locally_imbalanced \\
-    --mu_local {mu_local} \\
+    --mu_partition {mu_local} \\
     --random_state {data_seed} \\
     --n_trees {n_trees} \\
     --random_state_model {model_seed} \\
