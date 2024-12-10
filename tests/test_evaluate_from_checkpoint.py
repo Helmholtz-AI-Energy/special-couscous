@@ -199,7 +199,6 @@ def test_evaluate_from_checkpoint_synthetic(
         train_split=train_split,
         stratified_train_test=stratified_train_test,
         n_trees=n_trees,
-        detailed_evaluation=detailed_evaluation,
         output_dir=output_dir,
         experiment_id=experiment_id,
     )
@@ -207,16 +206,6 @@ def test_evaluate_from_checkpoint_synthetic(
 
     # --- COMPARE CONFUSION MATRICES AND CALCULATE ACCURACIES ---
     # Compare all corresponding confusion matrix CSV files in output directory and calculate accuracies.
-    if detailed_evaluation:  # Additionally consider train accuracies.
-        local_train_accuracy = compare_confusion_matrices(
-            glob.glob(
-                str(checkpoint_path) + f"/*_confusion_matrix_train_rank_{comm.rank}.csv"
-            )
-        )  # Compare rank-local train confusion matrices and calculate corresponding accuracy.
-        global_train_accuracy = compare_confusion_matrices(
-            glob.glob(str(checkpoint_path) + "/*_confusion_matrix_train_global.csv")
-        )  # Compare global train confusion matrices and calculate corresponding accuracy.
-
     local_test_accuracy = compare_confusion_matrices(
         glob.glob(
             str(checkpoint_path) + f"/*_confusion_matrix_test_rank_{comm.rank}.csv"
@@ -237,20 +226,11 @@ def test_evaluate_from_checkpoint_synthetic(
     # checkpoints.
     assert len(result_csv_files) == len(result_csv_dfs) == 2
     # Only compare the following columns of the result dataframes.
-    if detailed_evaluation:  # Compare both test and train accuracies.
-        columns_to_compare = [
-            "accuracy_local_test",
-            "accuracy_local_train",
-            "comm_rank",
-            "accuracy_global_test",
-            "accuracy_global_train",
-        ]
-    else:  # Compare only test accuracies.
-        columns_to_compare = [
-            "accuracy_local_test",
-            "comm_rank",
-            "accuracy_global_test",
-        ]
+    columns_to_compare = [
+        "accuracy_local_test",
+        "comm_rank",
+        "accuracy_global_test",
+    ]
 
     # Assert that two dataframes' values in the respective columns are equal.
     pd.testing.assert_frame_equal(
@@ -260,18 +240,6 @@ def test_evaluate_from_checkpoint_synthetic(
     # --- COMPARE ACCURACIES ---
     # Compare manually calculated accuracies from result CSV files to accuracies calculated from confusion matrices.
     df = result_csv_dfs[0]
-    if detailed_evaluation:  # Additionally compare train accuracies.
-        assert (
-            df.loc[
-                df["comm_rank"] == str(float(comm.rank)), "accuracy_local_train"
-            ].values[0]
-            == local_train_accuracy
-        )
-        assert (
-            df.loc[df["comm_rank"] == "global", "accuracy_global_train"].values[0]
-            == global_train_accuracy
-        )
-
     assert (
         df.loc[df["comm_rank"] == str(float(comm.rank)), "accuracy_local_test"].values[
             0

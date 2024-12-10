@@ -920,7 +920,6 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     train_split: float = 0.75,
     stratified_train_test: bool = False,
     n_trees: int = 100,
-    detailed_evaluation: bool = False,
     output_dir: pathlib.Path | str = "",
     output_label: str = "",
     experiment_id: str = "",
@@ -928,8 +927,9 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     """
     Evaluate a distributed random forest loaded from pickled checkpoints on synthetic data.
 
-    Note that while the train data is distributed over the ranks and each rank sees a different subset, the test data
-    must be shared among all ranks.
+    This function is to be used WITHOUT a shared global model. Note that while the train data is distributed over the
+    ranks and each rank sees a different subset, the test data thus must be shared among all ranks. Consequently, a
+    detailed evaluation on the train set is not possible.
 
     Parameters
     ----------
@@ -976,8 +976,6 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         Whether to stratify the train-test split with the class labels. Default is False.
     n_trees : int
         The number of trees in the global forest.
-    detailed_evaluation : bool
-        Whether to perform a detailed evaluation on more than just the local test set.
     output_dir : pathlib.Path | str, optional
         Output base directory. If given, the results are written to
         'output_dir / year / year-month / date / YYYY-mm-dd--HH-MM-SS-<output_name>-<uuid>'.
@@ -990,7 +988,7 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
     configuration = locals()
-    for key in ["mpi_comm", "output_dir", "detailed_evaluation"]:
+    for key in ["mpi_comm", "output_dir"]:
         del configuration[key]
     configuration["comm_size"] = mpi_comm.size
 
@@ -1049,10 +1047,9 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
             f"Done\nTrain samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
             f"Test samples and targets have shapes {local_test.y.shape} and {local_test.y.shape}."
         )
-        if detailed_evaluation:  # Only keep training data for detailed evaluation.
-            log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Delete training data.")
-            del local_train
-            local_train = None  # type: ignore
+        log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Delete training data.")
+        del local_train
+        local_train = None  # type: ignore
         log.debug(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{local_test.x[0:1]}"
         )
@@ -1088,7 +1085,7 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         output_path=output_path,
         base_filename=base_filename,
         test_data=local_test,
-        train_data=local_train,
+        train_data=local_train,  # type: ignore
     )
 
     # -------------- Evaluate random forest --------------
@@ -1125,41 +1122,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         output_path=output_path,
         base_filename=base_filename,
         test_data=local_test,
-        train_data=local_train,
+        train_data=local_train,  # type: ignore
     )
-
-    # -------------- Evaluate trained model also on training data (if applicable) --------------
-    if detailed_evaluation:
-        log.info(
-            f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
-        )
-        distributed_random_forest.evaluate(
-            samples=local_train.x,  # type:ignore
-            targets=local_train.y,  # type:ignore
-            n_classes=n_classes,
-            shared_global_model=False,
-        )
-        store_accuracy(
-            distributed_random_forest, "train", global_results, local_results
-        )
-        save_confusion_matrix_parallel(
-            mpi_comm=mpi_comm,
-            distributed_forest=distributed_random_forest,
-            label="train",
-            output_path=output_path,
-            base_filename=base_filename,
-        )
-        # Save results from detailed evaluation.
-        save_results_parallel(
-            mpi_comm=mpi_comm,
-            local_results=local_results,
-            global_results=global_results,
-            configuration=configuration,
-            output_path=output_path,
-            base_filename=base_filename,
-            test_data=local_test,
-            train_data=local_train,
-        )
 
 
 def save_model_parallel(
