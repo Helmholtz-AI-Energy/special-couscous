@@ -149,6 +149,19 @@ def parse_arguments() -> argparse.Namespace:
         default=0.1,
         help="Fraction of redundant features in synthetic classification dataset",
     )
+    parser.add_argument(
+        "--flip_y",
+        type=float,
+        default=0.01,
+        help="The fraction of samples whose class is assigned randomly. Larger values introduce noise in the labels "
+        "and make the classification task harder. Note that the default setting `flip_y` > 0 might lead to less "
+        "than `n_classes` in `y` in some cases.",
+    )
+    parser.add_argument(
+        "--stratified_train_test",
+        action="store_true",
+        help="Whether to stratify the train-test split with the class labels.",
+    )
     # Model-related arguments
     parser.add_argument(
         "--n_trees",
