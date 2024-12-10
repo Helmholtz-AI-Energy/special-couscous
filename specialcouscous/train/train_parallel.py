@@ -906,6 +906,11 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     n_samples: int,
     n_features: int,
     n_classes: int,
+    globally_balanced: bool,
+    locally_balanced: bool,
+    mu_partition: float | str | None = None,
+    mu_data: float | str | None = None,
+    peak: int | None = None,
     make_classification_kwargs: dict[str, Any] = {},
     random_state: int | np.random.RandomState = 0,
     checkpoint_path: str | pathlib.Path = pathlib.Path("../"),
@@ -921,10 +926,10 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     experiment_id: str = "",
 ) -> None:
     """
-    Evaluate a distributed random forest loaded from pickled checkpoints on globally balanced synthetic data.
+    Evaluate a distributed random forest loaded from pickled checkpoints on synthetic data.
 
-    Note that the data is not distributed over the ranks but each rank sees the full dataset. Thus, the (train and test)
-    sets on each rank are the same.
+    Note that while the train data is distributed over the ranks and each rank sees a different subset, the test data
+    must be shared among all ranks.
 
     Parameters
     ----------
@@ -934,6 +939,20 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         The number of features in the dataset.
     n_classes : int
         The number of classes in the dataset.
+    globally_balanced : bool
+        Whether the class distribution of the entire dataset is balanced. If False, `mu_data` must be specified.
+    locally_balanced : bool
+        Whether to use a balanced partition when assigning the dataset to ranks. If False, `mu_partition` must be
+        specified.
+    mu_partition : float | str, optional
+        The μ parameter of the Skellam distribution for imbalanced class distribution. Has no effect if
+        ``locally_balanced`` is True.
+    mu_data : float | str, optional
+        The μ parameter of the Skellam distribution for imbalanced class distribution in the dataset. Has no effect if
+        ``globally_balanced`` is True.
+    peak : int, optional
+        The position (class index) of the class distribution peak in the dataset. Has no effect if `globally_balanced`
+        is True.
     make_classification_kwargs : dict[str, Any], optional
         Additional keyword arguments to ``sklearn.datasets.make_classification``.
     random_state : int | np.random.RandomState
@@ -995,42 +1014,47 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         if mpi_comm.rank == 0:
             log.info(f"Generated model base seed is {random_state_model}.")
 
-    # -------------- Generate the data --------------
+    # -------------- Generate and distribute the data --------------
     if mpi_comm.rank == 0:
         log.info("Generating synthetic data.")
     with MPITimer(mpi_comm, name="data generation") as timer:
         (
-            train_samples,
-            test_samples,
-            train_targets,
-            test_targets,
-        ) = make_classification_dataset(
+            _,
+            local_train,
+            local_test,
+        ) = generate_and_distribute_synthetic_dataset(
+            globally_balanced=globally_balanced,
+            locally_balanced=locally_balanced,
             n_samples=n_samples,
             n_features=n_features,
             n_classes=n_classes,
-            make_classification_kwargs=make_classification_kwargs,
+            rank=mpi_comm.rank,
+            n_ranks=mpi_comm.size,
             random_state=random_state,
-            train_split=train_split,
+            test_size=1 - train_split,
+            mu_partition=mu_partition,
+            mu_data=mu_data,
+            peak=peak,
+            make_classification_kwargs=make_classification_kwargs,
+            shared_test_set=True,
             stratified_train_test=stratified_train_test,
         )
+
         log.debug(
-            f"First train sample is:\n{train_samples[0]}\nLast train sample is:\n{train_samples[-1]}\n"
+            f"First train sample is:\n{local_train.x[0]}\nLast train sample is:\n{local_train.x[-1]}\n"
             f""
-            f"First test sample is:\n{test_samples[0]}\nLast test sample is:\n{test_samples[-1]}"
+            f"First test sample is:\n{local_test.x[0]}\nLast test sample is:\n{local_test.x[-1]}"
         )
         log.info(
-            f"Done\nTrain samples and targets have shapes {train_samples.shape} and {train_targets.shape}.\n"
-            f"Test samples and targets have shapes {test_samples.shape} and {test_targets.shape}."
+            f"Done\nTrain samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
+            f"Test samples and targets have shapes {local_test.y.shape} and {local_test.y.shape}."
         )
-        if detailed_evaluation:  # Only keep training data for detailed evalution.
-            train_data = SyntheticDataset(x=train_samples, y=train_targets)
-        else:  # Delete otherwise.
+        if detailed_evaluation:  # Only keep training data for detailed evaluation.
             log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Delete training data.")
-            del train_samples, train_targets
-            train_data = None
-        test_data = SyntheticDataset(x=test_samples, y=test_targets)
+            del local_train
+            local_train = None  # type: ignore
         log.debug(
-            f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
+            f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{local_test.x[0:1]}"
         )
     store_timing(timer, global_results, local_results)
 
@@ -1063,8 +1087,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         configuration=configuration,
         output_path=output_path,
         base_filename=base_filename,
-        test_data=test_data,
-        train_data=train_data,
+        test_data=local_test,
+        train_data=local_train,
     )
 
     # -------------- Evaluate random forest --------------
@@ -1075,8 +1099,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         mpi_comm, name="test"
     ) as timer:  # Evaluate trained model on test data.
         distributed_random_forest.evaluate(
-            samples=test_data.x,
-            targets=test_data.y,
+            samples=local_test.x,
+            targets=local_test.y,
             n_classes=n_classes,
             shared_global_model=False,
         )
@@ -1100,8 +1124,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         configuration=configuration,
         output_path=output_path,
         base_filename=base_filename,
-        test_data=test_data,
-        train_data=train_data,
+        test_data=local_test,
+        train_data=local_train,
     )
 
     # -------------- Evaluate trained model also on training data (if applicable) --------------
@@ -1110,8 +1134,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
         distributed_random_forest.evaluate(
-            samples=train_data.x,  # type:ignore
-            targets=train_data.y,  # type:ignore
+            samples=local_train.x,  # type:ignore
+            targets=local_train.y,  # type:ignore
             n_classes=n_classes,
             shared_global_model=False,
         )
@@ -1133,8 +1157,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
             configuration=configuration,
             output_path=output_path,
             base_filename=base_filename,
-            test_data=test_data,
-            train_data=train_data,
+            test_data=local_test,
+            train_data=local_train,
         )
 
 
