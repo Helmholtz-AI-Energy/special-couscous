@@ -217,9 +217,10 @@ def find_checkpoint_dir_and_uuid(
 
     # Construct the expected directory path pattern
     search_pattern = (
-        f"chunking/n{log_n_samples}_m{log_n_features}/nodes_16/"
+        f"breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_16/"
         f"*_{data_seed}_{model_seed}_{mu_global_str}_{mu_local_str}/"
     )
+    print(f"The search pattern is {search_pattern}.")
 
     # Search for matching directories.
     matching_dirs = list(base_path.glob(search_pattern))
@@ -233,13 +234,12 @@ def find_checkpoint_dir_and_uuid(
 
     checkpoint_dir = matching_dirs[0]
 
-    # Extract the UUID from filenames in the directory.
-    uuid_pattern = re.compile(
-        r"(\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b)"
-    )
+    # Extract the UUID from the results file.
+    uuid_pattern = re.compile(r"--([\d\w-]+)_results\.csv$")
     for file in checkpoint_dir.iterdir():
-        match = uuid_pattern.search(file.name)
-        if match:
-            return checkpoint_dir, match.group(1)
+        if file.name.endswith("_results.csv"):
+            match = uuid_pattern.search(file.name)
+            if match:
+                return checkpoint_dir, match.group(1)
 
-    raise ValueError(f"No UUID found in files within {checkpoint_dir}.")
+    raise ValueError(f"No UUID found in results files within {checkpoint_dir}")

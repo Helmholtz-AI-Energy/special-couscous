@@ -1,9 +1,13 @@
+#!/usr/bin/env python
+
 import pathlib
 
 from specialcouscous.utils.slurm import find_checkpoint_dir_and_uuid
 
 if __name__ == "__main__":
-    base_path = pathlib.Path("./breaking_iid/")
+    base_path = pathlib.Path(
+        "/hkfs/work/workspace/scratch/ku4408-SpecialCouscous/results/"
+    )
     log_n_samples = 6
     log_n_features = 4
     n_classes = 10
