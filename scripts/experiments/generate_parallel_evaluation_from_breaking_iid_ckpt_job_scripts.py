@@ -87,8 +87,6 @@ def generate_parallel_evaluation_from_breaking_iid_ckpt_job_scripts(
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}             # Number of nodes
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
-#SBATCH --account=hk-project-p0022229
-#SBATCH --exclude=hkn[0249-0251,0257,0259]  # Exclude potentially broken nodes.
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
