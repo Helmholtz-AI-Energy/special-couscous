@@ -53,7 +53,7 @@ def generate_breaking_iid_job_scripts(
     # All weak-scaling style experiments should take approx. the same time (in min).
     # Note that the time is reduced compared to normal weak scaling as both model and data are distributed.
     mem = 243200  # Use standard nodes.
-    n_nodes = 4
+    n_nodes = 16
     # time = 4 * 3600 // n_nodes
     time = 2880
 
