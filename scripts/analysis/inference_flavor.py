@@ -192,7 +192,7 @@ if __name__ == "__main__":
     )
     energy_shared_model = results_df_shared_model["Energy consumed"].sum()
     # Create the figure and the first axis for test accuracy
-    fig, axes = plt.subplots(3, 2, figsize=(5, 5), sharex=True)
+    fig, axes = plt.subplots(3, 2, figsize=(5, 5))
     ax1, ax2, ax3, ax4, ax5, ax6 = axes.flatten()
     # Settings
     labelsize = "small"

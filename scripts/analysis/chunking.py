@@ -188,7 +188,7 @@ if __name__ == "__main__":
     print("Speedup:\n", speedup)
     print("Speedup error:\n", std_speedup)
     # Create the figure and the axes.
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5))
     # Settings
     average_per_data_seed = False
     all_errors = True
@@ -338,11 +338,13 @@ if __name__ == "__main__":
         linewidth=0.5,
     )
     ax3.set_yscale("log", base=2)
+    # ax3.set_yticks([1, 2, 4, 8, 16, 32, 64, 128], ["1", "2", "4", "8", "16", "32", "64", "128"])
     ax3.set_ylabel("Speedup", fontweight="bold", fontsize=labelsize)
     ax3.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
     ax3.grid(visible)
     ax3.legend(fontsize=legendsize)
     ax3.tick_params(axis="both", labelsize=labelsize)
+    # ax3.set_aspect("equal")
 
     plt.tight_layout()
 

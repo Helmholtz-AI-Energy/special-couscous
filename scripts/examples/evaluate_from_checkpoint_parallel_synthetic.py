@@ -6,7 +6,9 @@ import pathlib
 
 from mpi4py import MPI
 
-from specialcouscous.train import evaluate_parallel_from_checkpoint
+from specialcouscous.train.train_parallel import (
+    evaluate_parallel_from_checkpoint_balanced_synthetic_data,
+)
 from specialcouscous.utils import parse_arguments, set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -34,7 +36,7 @@ if __name__ == "__main__":
         )
 
     # Evaluate distributed random forest on balanced synthetic classification data using pickled model checkpoints.
-    evaluate_parallel_from_checkpoint(
+    evaluate_parallel_from_checkpoint_balanced_synthetic_data(
         n_samples=args.n_samples,
         n_features=args.n_features,
         n_classes=args.n_classes,

@@ -171,7 +171,7 @@ if __name__ == "__main__":
     print(avg_time_n_tasks["Wall-clock time"][avg_time_n_tasks["Number of nodes"] == 1])
 
     # Create the figure and the axes.
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5), sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(3, 5))
     # Settings
     labelsize = "small"
     legendsize = "xx-small"

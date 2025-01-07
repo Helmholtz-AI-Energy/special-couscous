@@ -232,7 +232,7 @@ if __name__ == "__main__":
     )
 
     # Create the figure and the axes.
-    fig, axes = plt.subplots(3, 2, figsize=(5, 5), sharex=True)
+    fig, axes = plt.subplots(3, 2, figsize=(5, 5))
     ax1, ax2, ax3, ax4, ax5, ax6 = axes.flatten()
     # Settings
     labelsize = "small"
