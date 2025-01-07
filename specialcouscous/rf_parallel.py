@@ -418,13 +418,6 @@ class DistributedRandomForest:
             The number of classes in the dataset.
         shared_global_model : bool
             Whether the global model is shared among all ranks (True) or not (False). Default is False.
-
-        Returns
-        -------
-        np.ndarray
-            The local confusion matrix.
-        np.ndarray
-            The global confusion matrix.
         """
         rank, size = self.comm.rank, self.comm.size
         # --- SHARED GLOBAL MODEL ---
@@ -441,7 +434,12 @@ class DistributedRandomForest:
             confusion_matrix_global_local = self._get_confusion_matrix(
                 targets=targets, majority_votes=majority_votes_global_local
             )
-            assert confusion_matrix_global_local.shape == (n_classes, n_classes)
+            if confusion_matrix_global_local.shape != (n_classes, n_classes):
+                raise ValueError(
+                    f"Confusion matrix shape {confusion_matrix_global_local.shape=} differs from expected shape "
+                    f"{(n_classes, n_classes)}. This might be due to an extremely imbalanced dataset or extremely"
+                    "imbalanced data partitioning."
+                )
             # Next, we sum up the confusion matrices over all ranks to obtain the global confusion matrix, i.e., the
             # confusion matrix of the global matrix over the distributed dataset to evaluate.
             confusion_matrix_global = np.empty_like(
