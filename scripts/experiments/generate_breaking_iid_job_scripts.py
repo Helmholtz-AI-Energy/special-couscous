@@ -82,7 +82,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/rf_training_breaking_iid.py"
 
-RESDIR="${{BASE_DIR}}"/results/chunking/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".","")}/
+RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".","")}/
 mkdir "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
