@@ -235,7 +235,7 @@ def find_checkpoint_dir_and_uuid(
     checkpoint_dir = matching_dirs[0]
 
     # Extract the UUID from the results file.
-    uuid_pattern = re.compile(r"--([\d\w-]+)_results\.csv$")
+    uuid_pattern = re.compile(r"--[\d\w-]+-([\d\w]+)_results\.csv$")
     for file in checkpoint_dir.iterdir():
         if file.name.endswith("_results.csv"):
             match = uuid_pattern.search(file.name)
