@@ -28,7 +28,7 @@ def train_serial_on_synthetic_data(
     n_classes: int,
     random_state: int | np.random.RandomState = 0,
     random_state_model: int | np.random.RandomState | None = None,
-    make_classification_kwargs: dict[str, Any] = {},
+    make_classification_kwargs: dict[str, Any] | None = None,
     train_split: float = 0.75,
     stratified_train_test: bool = False,
     n_trees: int = 100,
