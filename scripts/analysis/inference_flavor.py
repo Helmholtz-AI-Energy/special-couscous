@@ -9,6 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from specialcouscous.utils.plot import (
+    ERROR_KWARGS,
+    GLOBAL_ERROR_KWARGS,
+    GLOBAL_LINE_KWARGS,
+    LINE_KWARGS,
+)
+
 pd.set_option("display.max_rows", None)
 
 
@@ -33,7 +40,7 @@ def convert_to_gb(memory_value: str, unit: str) -> float:
 
 def get_results_df(
     path_to_root: Union[str, pathlib.Path],
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Construct results dataframe for plotting.
 
@@ -47,7 +54,9 @@ def get_results_df(
     pd.DataFrame
         The dataframe containing the results.
     pd.DataFrame
-        The dataframe containing the results averaged over model seeds for each number of nodes.
+        The dataframe containing the average results for each parallelization level.
+    pd.DataFrame
+        The dataframe containing the results' standard deviation for each parallelization level.
     """
     # Dictionary to store the values grouped by (dataset, number_of_tasks, data seed)
     results = defaultdict(list)
@@ -148,8 +157,24 @@ def get_results_df(
         .mean()
         .reset_index()
     )
-    print(avg_n_tasks)
-    return results_df, avg_n_tasks
+    std_n_tasks = (
+        results_df.groupby(["Number of nodes"])[
+            [
+                "Time for data generation",
+                "Time for forest creation",
+                "Time for training",
+                "Time for all-gathering model",
+                "Time for evaluation",
+                "Overall time",
+                "Memory used",
+                "Energy consumed",
+            ]
+        ]
+        .std()
+        .reset_index()
+    )
+    print(avg_n_tasks, std_n_tasks)
+    return results_df, avg_n_tasks, std_n_tasks
 
 
 if __name__ == "__main__":
@@ -158,261 +183,215 @@ if __name__ == "__main__":
     root_dir_shared_model = sys.argv[2]
     data_set = root_dir_no_shared_model.split(os.sep)[-1]
 
-    results_df_no_shared_model, avg_n_tasks_no_shared_model = get_results_df(
-        root_dir_no_shared_model
+    results_df_no_shared_model, avg_no_shared_model, std_no_shared_model = (
+        get_results_df(root_dir_no_shared_model)
     )
     energy_no_shared_model = results_df_no_shared_model["Energy consumed"].sum()
-    results_df_shared_model, avg_n_tasks_shared_model = get_results_df(
+    results_df_shared_model, avg_shared_model, std_shared_model = get_results_df(
         root_dir_shared_model
     )
     energy_shared_model = results_df_shared_model["Energy consumed"].sum()
     # Create the figure and the first axis for test accuracy
-    fig, axes = plt.subplots(3, 2, figsize=(6, 6), sharex=True)
+    fig, axes = plt.subplots(3, 2, figsize=(5, 5))
     ax1, ax2, ax3, ax4, ax5, ax6 = axes.flatten()
+    # Settings
+    labelsize = "small"
+    legendsize = "xx-small"
+    visible = False  # Whether to plot a grid or not
+
     # Set title
     data_set = data_set.replace("_", "")
     plt.suptitle(
         f"Inference flavor comparison {data_set}",
         fontweight="bold",
+        fontsize="small",
     )
-    ax1.set_title("No shared global model", fontsize="medium")
+    ax1.set_title("No shared global model", fontsize="small")
     # Plot times over number of nodes for no shared global model.
     # Evaluate
-    # Individual data points
-    ax1.scatter(
-        [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
-        results_df_no_shared_model["Time for evaluation"] / 60,
-        marker=".",
-        color="k",
-        zorder=10,
-        alpha=0.5,
-    )
     # Average
-    ax1.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_no_shared_model["Number of nodes"]],
-        avg_n_tasks_no_shared_model["Time for evaluation"] / 60,
+    ax1.errorbar(
+        [str(n_tasks) for n_tasks in avg_no_shared_model["Number of nodes"]],
+        avg_no_shared_model["Time for evaluation"] / 60,
+        yerr=std_no_shared_model["Time for evaluation"] / 60,
         label="Evaluate model",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
-        zorder=20,
+        **GLOBAL_ERROR_KWARGS,
+    )
+    ax1.plot(
+        [str(n_tasks) for n_tasks in avg_no_shared_model["Number of nodes"]],
+        avg_no_shared_model["Time for evaluation"] / 60,
+        **GLOBAL_LINE_KWARGS,
     )
     ax1.set_ylim(
         [
-            0.6 * results_df_shared_model["Time for all-gathering model"].min() / 60,
-            1.5 * results_df_shared_model["Time for evaluation"].max() / 60,
+            0.6 * avg_shared_model["Time for all-gathering model"].min() / 60,
+            1.5 * avg_shared_model["Time for evaluation"].max() / 60,
         ]
     )
     ax1.set_yscale("log", base=2)
-    ax1.set_ylabel("Time / min", fontweight="bold")
-    ax1.grid(True)
-    ax1.legend(loc="lower right", fontsize="x-small")
+    ax1.set_ylabel("Time / min", fontweight="bold", fontsize=labelsize)
+    ax1.grid(visible)
+    # ax1.legend(loc="lower right", fontsize=legendsize)
+    ax1.tick_params(axis="both", labelsize=labelsize)
 
     # Plot times over number of nodes for shared global model.
-    # All-gather global shared model.
-    ax2.set_title("Shared global model", fontsize="medium")
-    # Individual data points
-    ax2.scatter(
-        [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
-        results_df_shared_model["Time for all-gathering model"] / 60,
-        marker=".",
-        color="blue",
-        zorder=100,
-        alpha=0.5,
-    )
-    print(avg_n_tasks_shared_model["Time for all-gathering model"])
-    # Average
-    ax2.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_shared_model["Number of nodes"]],
-        avg_n_tasks_shared_model["Time for all-gathering model"] / 60,
-        label="All-gather model",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="blue",
-        linewidths=1.3,
-        zorder=200,
-    )
+    ax2.set_title("Shared global model", fontsize="small")
     # Evaluate
-    # Individual data points
-    ax2.scatter(
-        [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
-        results_df_shared_model["Time for evaluation"] / 60,
-        marker=".",
-        color="k",
-        zorder=10,
-        alpha=0.5,
-    )
-    # Average
-    ax2.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_shared_model["Number of nodes"]],
-        avg_n_tasks_shared_model["Time for evaluation"] / 60,
+    ax2.errorbar(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Time for evaluation"] / 60,
+        yerr=std_shared_model["Time for evaluation"] / 60,
         label="Evaluate model",
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
-        zorder=20,
+        **GLOBAL_ERROR_KWARGS,
+    )
+    ax2.plot(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Time for evaluation"] / 60,
+        **GLOBAL_LINE_KWARGS,
+    )
+    # All-gather global shared model.
+    print(avg_shared_model["Time for all-gathering model"])
+    ax2.errorbar(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Time for all-gathering model"] / 60,
+        yerr=std_shared_model["Time for all-gathering model"] / 60,
+        label="All-gather model",
+        **ERROR_KWARGS,
+    )
+    ax2.plot(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Time for all-gathering model"] / 60,
+        **LINE_KWARGS,
     )
     ax2.set_ylim(
         [
-            0.6 * results_df_shared_model["Time for all-gathering model"].min() / 60,
-            1.5 * results_df_shared_model["Time for evaluation"].max() / 60,
+            0.6 * avg_shared_model["Time for all-gathering model"].min() / 60,
+            1.5 * avg_shared_model["Time for evaluation"].max() / 60,
         ]
     )
     ax2.set_yscale("log", base=2)
-    ax2.grid(True)
-    ax2.legend(loc="lower right", fontsize="x-small")
+    ax2.grid(visible)
+    ax2.legend(loc="best", fontsize=legendsize)
+    ax2.tick_params(axis="both", labelsize=labelsize)
 
     # Memory used
     # No shared global model
-    ax3.scatter(
-        [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
-        results_df_no_shared_model["Memory used"],
-        marker=".",
-        color="k",
-        zorder=10,
-        alpha=0.5,
+    ax3.errorbar(
+        [str(n_tasks) for n_tasks in avg_no_shared_model["Number of nodes"]],
+        avg_no_shared_model["Memory used"],
+        yerr=std_no_shared_model["Memory used"],
+        **GLOBAL_ERROR_KWARGS,
     )
     # Average
-    ax3.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_no_shared_model["Number of nodes"]],
-        avg_n_tasks_no_shared_model["Memory used"],
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
-        zorder=20,
+    ax3.plot(
+        [str(n_tasks) for n_tasks in avg_no_shared_model["Number of nodes"]],
+        avg_no_shared_model["Memory used"],
+        **GLOBAL_LINE_KWARGS,
     )
     ax3.set_ylim(
         [
-            0.6 * results_df_no_shared_model["Memory used"].min(),
-            1.6 * results_df_shared_model["Memory used"].max(),
+            0.6 * avg_no_shared_model["Memory used"].min(),
+            1.6 * avg_no_shared_model["Memory used"].max(),
         ]
     )
     ax3.set_yscale("log", base=2)
-    ax3.set_ylabel("Memory / GB", fontweight="bold")
-    # ax3.set_xlabel("Number of nodes", fontweight="bold")
-    ax3.grid(True)
+    ax3.set_ylabel("Memory / GB", fontweight="bold", fontsize=labelsize)
+    ax3.grid(visible)
+    ax3.tick_params(axis="both", labelsize=labelsize)
 
-    # No shared global model
-    ax4.scatter(
-        [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
-        results_df_shared_model["Memory used"],
-        marker=".",
-        color="k",
-        zorder=10,
-        alpha=0.5,
+    # Shared global model
+    ax4.errorbar(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Memory used"],
+        yerr=std_shared_model["Memory used"],
+        **GLOBAL_ERROR_KWARGS,
     )
-    # Average
-    ax4.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_shared_model["Number of nodes"]],
-        avg_n_tasks_shared_model["Memory used"],
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
-        zorder=20,
+    ax4.plot(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Memory used"],
+        **GLOBAL_LINE_KWARGS,
     )
     ax4.set_yscale("log", base=2)
-    # ax4.set_xlabel("Number of nodes", fontweight="bold")
     ax4.set_ylim(
         [
-            0.6 * results_df_no_shared_model["Memory used"].min(),
-            1.6 * results_df_shared_model["Memory used"].max(),
+            0.6 * avg_no_shared_model["Memory used"].min(),
+            1.6 * avg_shared_model["Memory used"].max(),
         ]
     )
-    ax4.grid(True)
+    ax4.grid(visible)
+    ax4.tick_params(axis="both", labelsize=labelsize)
 
     # Energy consumed used
     # No shared global model
-    ax5.scatter(
-        [str(n_tasks) for n_tasks in results_df_no_shared_model["Number of nodes"]],
-        results_df_no_shared_model["Energy consumed"],
-        marker=".",
-        color="k",
-        zorder=10,
-        alpha=0.5,
+    ax5.errorbar(
+        [str(n_tasks) for n_tasks in avg_no_shared_model["Number of nodes"]],
+        avg_no_shared_model["Energy consumed"],
+        yerr=std_no_shared_model["Energy consumed"],
+        **GLOBAL_ERROR_KWARGS,
     )
-    # Average
-    ax5.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_no_shared_model["Number of nodes"]],
-        avg_n_tasks_no_shared_model["Energy consumed"],
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
-        zorder=20,
+    ax5.plot(
+        [str(n_tasks) for n_tasks in avg_no_shared_model["Number of nodes"]],
+        avg_no_shared_model["Energy consumed"],
+        **GLOBAL_LINE_KWARGS,
     )
     ax5.set_ylim(
         [
-            0.6 * results_df_no_shared_model["Energy consumed"].min(),
-            1.6 * results_df_shared_model["Energy consumed"].max(),
+            0.6 * avg_no_shared_model["Energy consumed"].min(),
+            1.6 * avg_shared_model["Energy consumed"].max(),
         ]
     )
     ax5.set_yscale("log", base=2)
-    ax5.set_ylabel("Energy / Wh", fontweight="bold")
-    ax5.set_xlabel("Number of nodes", fontweight="bold")
-    ax5.grid(True)
+    ax5.set_ylabel("Energy / Wh", fontweight="bold", fontsize=labelsize)
+    ax5.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
+    ax5.grid(visible)
     energy_str = f"Overall {(energy_no_shared_model/1000):.2f} kWh consumed"
     ax5.text(
         0.05,
         0.95,
         energy_str,
         transform=ax5.transAxes,
-        fontsize="x-small",
+        fontsize=legendsize,
         verticalalignment="top",
         fontweight="bold",
     )
+    ax5.tick_params(axis="both", labelsize=labelsize)
 
     # No shared global model
-    ax6.scatter(
-        [str(n_tasks) for n_tasks in results_df_shared_model["Number of nodes"]],
-        results_df_shared_model["Energy consumed"],
-        marker=".",
-        color="k",
-        zorder=10,
-        alpha=0.5,
+    ax6.errorbar(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Energy consumed"],
+        yerr=std_shared_model["Energy consumed"],
+        **GLOBAL_ERROR_KWARGS,
     )
-    # Average
-    ax6.scatter(
-        [str(n_tasks) for n_tasks in avg_n_tasks_shared_model["Number of nodes"]],
-        avg_n_tasks_shared_model["Energy consumed"],
-        s=80,
-        marker="X",
-        facecolor="none",
-        edgecolor="k",
-        linewidths=1.3,
-        zorder=20,
+    ax6.plot(
+        [str(n_tasks) for n_tasks in avg_shared_model["Number of nodes"]],
+        avg_shared_model["Energy consumed"],
+        **GLOBAL_LINE_KWARGS,
     )
     ax6.set_yscale("log", base=2)
-    ax6.set_xlabel("Number of nodes", fontweight="bold")
+    ax6.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
     ax6.set_ylim(
         [
-            0.6 * results_df_no_shared_model["Energy consumed"].min(),
-            1.6 * results_df_shared_model["Energy consumed"].max(),
+            0.6 * avg_no_shared_model["Energy consumed"].min(),
+            1.6 * avg_shared_model["Energy consumed"].max(),
         ]
     )
-    ax6.grid(True)
+    ax6.grid(visible)
     energy_str = f"Overall {(energy_shared_model/1000):.2f} kWh consumed"
     ax6.text(
         0.05,
         0.95,
         energy_str,
         transform=ax6.transAxes,
-        fontsize="x-small",
+        fontsize=legendsize,
         verticalalignment="top",
         fontweight="bold",
     )
+    ax6.tick_params(axis="both", labelsize=labelsize)
+
     plt.tight_layout()
     plt.savefig(
-        pathlib.Path(root_dir_no_shared_model) / f"{data_set}_inference_flavor.png"
+        pathlib.Path(root_dir_no_shared_model) / f"{data_set}_inference_flavor.pdf"
     )  # Save the figure.
 
     print(

@@ -4,7 +4,9 @@ import pathlib
 import pytest
 from mpi4py import MPI
 
-from specialcouscous.train import train_parallel_on_balanced_synthetic_data
+from specialcouscous.train.train_parallel import (
+    train_parallel_on_balanced_synthetic_data,
+)
 from specialcouscous.utils import set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -15,8 +17,24 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
     "random_state_model",
     [17, None],
 )
+@pytest.mark.parametrize(
+    "flip_y",
+    [0.0, 0.01],
+)
+@pytest.mark.parametrize(
+    "stratified_train_test",
+    [True, False],
+)
+@pytest.mark.parametrize(
+    "shared_global_model",
+    [True, False],
+)
 def test_parallel_synthetic(
-    random_state_model: int, clean_mpi_tmp_path: pathlib.Path
+    random_state_model: int,
+    flip_y: float,
+    stratified_train_test: bool,
+    shared_global_model: bool,
+    clean_mpi_tmp_path: pathlib.Path,
 ) -> None:
     """
     Test parallel training of random forest on synthetic data.
@@ -25,6 +43,12 @@ def test_parallel_synthetic(
     ----------
     random_state_model: int
         The random state used for the model.
+    flip_y: float
+        The fraction of samples whose class is assigned randomly.
+    stratified_train_test: bool
+        Whether to stratify the train-test split with the class labels.
+    shared_global_model: bool
+        Whether to build a shared global model.
     clean_mpi_tmp_path : pathlib.Path
         The temporary folder used for storing results.
     """
@@ -46,7 +70,6 @@ def test_parallel_synthetic(
         "test_parallel_rf"  # Optional subdirectory name to collect related result in
     )
     save_model: bool = True
-    shared_global_model: bool = True
     detailed_evaluation: bool = True  # Whether to perform a detailed evaluation on more than just the local test set.
     log_path: pathlib.Path = clean_mpi_tmp_path  # Path to the log directory
     logging_level: int = logging.INFO  # Logging level
@@ -76,9 +99,12 @@ def test_parallel_synthetic(
         n_samples=n_samples,
         n_features=n_features,
         n_classes=n_classes,
-        n_clusters_per_class=n_clusters_per_class,
-        frac_informative=frac_informative,
-        frac_redundant=frac_redundant,
+        make_classification_kwargs={
+            "n_clusters_per_class": n_clusters_per_class,
+            "n_informative": int(frac_informative * n_features),
+            "n_redundant": int(frac_redundant * n_features),
+            "flip_y": flip_y,
+        },
         random_state=random_state,
         random_state_model=random_state_model,
         mpi_comm=comm,

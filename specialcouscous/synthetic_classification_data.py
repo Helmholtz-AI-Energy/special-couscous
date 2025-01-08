@@ -487,8 +487,6 @@ class SyntheticDataset:
 
     Attributes
     ----------
-    DEFAULT_CONFIG_MAKE_CLASSIFICATION : dict[str, int]
-        Default parameters to use for ``sklearn``'s ``make_classification`` function.
     n_classes : int
         The number of classes.
     n_samples : int
@@ -518,8 +516,6 @@ class SyntheticDataset:
     plot_skellam_distributions()
         Plot class frequencies for different Skellam distributions as line plot.
     """
-
-    DEFAULT_CONFIG_MAKE_CLASSIFICATION = {"flip_y": 0, "n_informative": 8}
 
     def __init__(
         self,
@@ -593,7 +589,7 @@ class SyntheticDataset:
         n_classes: int,
         class_weights: npt.NDArray[np.float32] | None = None,
         random_state: int | np.random.RandomState | None = None,
-        **kwargs: Any,
+        make_classification_kwargs: dict[str, Any] | None = None,
     ) -> "SyntheticDataset":
         """
         Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
@@ -610,7 +606,7 @@ class SyntheticDataset:
             The weight for each class, default: balanced dataset, i.e., all classes have equal weight.
         random_state : int | np.random.RandomState, optional
             The random state used for the generation and distributed assignment.
-        **kwargs : Any
+        make_classification_kwargs : dict[str, Any], optional
             Additional keyword arguments to ``sklearn.datasets.make_classification``.
 
         Returns
@@ -620,10 +616,10 @@ class SyntheticDataset:
         """
         # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
         random_state = check_random_state(random_state)
-        make_classification_kwargs = {
-            **cls.DEFAULT_CONFIG_MAKE_CLASSIFICATION,
-            **kwargs,
-        }
+        log.debug(f"Classification kwargs: {make_classification_kwargs}")
+        log.debug(
+            f"The random state is before generating the dataset is:\n{random_state.get_state(legacy=True)}"
+        )
         x, y = make_classification(
             n_samples=n_samples,
             n_features=n_features,
@@ -632,6 +628,7 @@ class SyntheticDataset:
             random_state=random_state,
             **make_classification_kwargs,
         )
+        log.debug(f"First sample is:\n{x[0]}\nLast sample is:\n{x[-1]}\n")
         x = x.astype(np.float32)
         y = y.astype(np.float32)
         return SyntheticDataset(x, y, n_samples, n_classes)
@@ -646,7 +643,7 @@ class SyntheticDataset:
         peak: int = 0,
         rescale_to_sum_one: bool = True,
         random_state: int | np.random.RandomState | None = None,
-        **kwargs: Any,
+        make_classification_kwargs: dict[str, Any] | None = None,
     ) -> "SyntheticDataset":
         """
         Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
@@ -669,7 +666,7 @@ class SyntheticDataset:
             Whether to rescale the weights, so they sum up to 1.
         random_state : int | np.random.RandomState, optional
             The random state used for the generation and distributed assignment.
-        **kwargs : Any
+        make_classification_kwargs : dict[str, Any], optional
             Additional keyword arguments to ``sklearn.datasets.make_classification``.
 
         Returns
@@ -688,7 +685,7 @@ class SyntheticDataset:
             n_classes,
             class_weights=class_weights,
             random_state=random_state,
-            **kwargs,
+            make_classification_kwargs=make_classification_kwargs,
         )
 
     def train_test_split(
@@ -723,6 +720,7 @@ class SyntheticDataset:
         """
         # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
         random_state = check_random_state(random_state)
+        log.debug(f"Stratify is {stratify}.")
         x_train, x_test, y_train, y_test = train_test_split(
             self.x,
             self.y,
@@ -897,10 +895,10 @@ def generate_and_distribute_synthetic_dataset(
     mu_data: float | str | None = None,
     peak: int | None = None,
     rescale_to_sum_one: bool = True,
-    make_classification_kwargs: dict | None = None,
+    make_classification_kwargs: dict[str, Any] | None = None,
     sampling: bool = False,
     shared_test_set: bool = True,
-    stratified_train_test: bool = True,
+    stratified_train_test: bool = False,
 ) -> tuple[SyntheticDataset, SyntheticDataset, SyntheticDataset]:
     """
     Generate a synthetic dataset, partition it among all ranks, and determine the subset assigned to this rank.
@@ -937,7 +935,7 @@ def generate_and_distribute_synthetic_dataset(
         is True.
     rescale_to_sum_one : bool
         Whether to rescale the class weights, so they sum up to 1. Default is True.
-    make_classification_kwargs : dict, optional
+    make_classification_kwargs : dict[str, Any], optional
         Additional keyword arguments to ``sklearn.datasets.make_classification``.
     sampling : bool
         Whether to partition the dataset using deterministic element counts and shuffling or random sampling.
@@ -961,37 +959,49 @@ def generate_and_distribute_synthetic_dataset(
     """
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
+    log.debug(f"The random state is:\n{random_state.get_state(legacy=True)}")
     # Generate dataset.
-    make_classification_kwargs = (
-        {} if make_classification_kwargs is None else make_classification_kwargs
-    )
+    log.debug(f"Classification kwargs: {make_classification_kwargs}")
     if globally_balanced:
         global_dataset = SyntheticDataset.generate(
-            n_samples,
-            n_features,
-            n_classes,
+            n_samples=n_samples,
+            n_features=n_features,
+            n_classes=n_classes,
             random_state=random_state,
-            **make_classification_kwargs,
+            make_classification_kwargs=make_classification_kwargs,
+        )
+
+        log.debug(
+            f"First sample is:\n{global_dataset.x[0]}\nLast sample is:\n{global_dataset.x[-1]}"
         )
     else:
         assert mu_data is not None and peak is not None
         global_dataset = SyntheticDataset.generate_with_skellam_class_imbalance(
-            n_samples,
-            n_features,
-            n_classes,
-            mu_data,
-            peak,
-            rescale_to_sum_one,
-            random_state,
-            **make_classification_kwargs,
+            n_samples=n_samples,
+            n_features=n_features,
+            n_classes=n_classes,
+            mu=mu_data,
+            peak=peak,
+            rescale_to_sum_one=rescale_to_sum_one,
+            random_state=random_state,
+            make_classification_kwargs=make_classification_kwargs,
         )
 
     if shared_test_set:  # Case 1: Shared test set, all ranks use the same test set.
         log.debug("Generate global train-test split.")
+        log.debug(f"Stratify train-test split? {stratified_train_test}")
         # First: Train-test split
         global_train_set, global_test_set = global_dataset.train_test_split(
-            test_size, stratified_train_test, random_state
+            test_size=test_size,
+            stratify=stratified_train_test,
+            random_state=random_state,
         )
+        log.debug(
+            f"First global train sample is:\n{global_train_set.x[0]}\nLast train sample is:\n{global_train_set.x[-1]}\n"
+            f""
+            f"First global test sample is:\n{global_test_set.x[0]}\nLast test sample is:\n{global_test_set.x[-1]}"
+        )
+
         log.debug(
             f"Global train set shape: {global_train_set.x.shape}: Global shared test set shape: {global_test_set.x.shape}"
         )
@@ -1019,7 +1029,9 @@ def generate_and_distribute_synthetic_dataset(
         )
         # Then: Perform train-test splits locally on each rank.
         local_train, local_test = local_subset.train_test_split(
-            test_size, stratified_train_test, random_state
+            test_size=test_size,
+            stratify=stratified_train_test,
+            random_state=random_state,
         )
 
     return global_dataset, local_train, local_test
@@ -1138,12 +1150,11 @@ def data_generation_demo(
 def make_classification_dataset(
     n_samples: int,
     n_features: int,
-    frac_informative: float = 0.1,
-    frac_redundant: float = 0.1,
     n_classes: int = 10,
-    n_clusters_per_class: int = 1,
+    make_classification_kwargs: dict[str, Any] | None = None,
     random_state: int | np.random.RandomState | None = 0,
     train_split: float = 0.75,
+    stratified_train_test: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate globally balanced synthetic classification dataset for non-distributed case.
@@ -1154,18 +1165,16 @@ def make_classification_dataset(
         The number of samples.
     n_features : int
         The number of features.
-    frac_informative : float
-        The fraction of informative features. Default is 0.1
-    frac_redundant : float
-        The fraction of redundant features. Default is 0.1.
     n_classes : int
         The number of classes. Default is 10.
-    n_clusters_per_class : int | list[int]
-        The number of clusters per class. Default is 1.
+    make_classification_kwargs : dict[str, Any], optional
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
     random_state : int | np.random.RandomState, optional
         The random state for dataset generation and splitting. Default is 0.
     train_split : float
         The train-test split fraction. Default is 0.75.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels. Default is False.
 
     Returns
     -------
@@ -1180,21 +1189,30 @@ def make_classification_dataset(
     """
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
+    log.debug(
+        f"Random state before generating the dataset is:\n{random_state.get_state(legacy=True)}\n"
+        f"`make_classification_kwargs`:\n{make_classification_kwargs}"
+    )
+
     # Generate data as numpy arrays.
     samples, targets = make_classification(
         n_samples=n_samples,
         n_features=n_features,
-        n_informative=int(frac_informative * n_features),
-        n_redundant=int(frac_redundant * n_features),
         n_classes=n_classes,
-        n_clusters_per_class=n_clusters_per_class,
         random_state=random_state,
+        **make_classification_kwargs,
     )
+    log.debug(f"First sample is:\n{samples[0]}\nLast sample is:\n{samples[-1]}")
+
     targets = targets.astype(np.float32)
     samples = samples.astype(np.float32)
     # Split into train and test set.
     return train_test_split(
-        samples, targets, test_size=1 - train_split, random_state=random_state
+        samples,
+        targets,
+        test_size=1 - train_split,
+        stratify=targets if stratified_train_test else None,
+        random_state=random_state,
     )
 
 

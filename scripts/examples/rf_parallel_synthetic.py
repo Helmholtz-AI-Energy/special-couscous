@@ -6,7 +6,9 @@ import pathlib
 
 from mpi4py import MPI
 
-from specialcouscous.train import train_parallel_on_balanced_synthetic_data
+from specialcouscous.train.train_parallel import (
+    train_parallel_on_balanced_synthetic_data,
+)
 from specialcouscous.utils import parse_arguments, set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -27,9 +29,9 @@ if __name__ == "__main__":
 
     if comm.rank == 0:
         log.info(
-            "**********************************************************************\n"
-            "* Multi-Node Random Forest Classification of Balanced Synthetic Data *\n"
-            "**********************************************************************\n"
+            "***********************************************************************\n"
+            "* Distributed Random Forest Classification of Balanced Synthetic Data *\n"
+            "***********************************************************************\n"
             f"Hyperparameters used are:\n{args}"
         )
 
@@ -38,13 +40,17 @@ if __name__ == "__main__":
         n_samples=args.n_samples,
         n_features=args.n_features,
         n_classes=args.n_classes,
-        n_clusters_per_class=args.n_clusters_per_class,
-        frac_informative=args.frac_informative,
-        frac_redundant=args.frac_redundant,
+        make_classification_kwargs={
+            "n_clusters_per_class": args.n_clusters_per_class,
+            "n_informative": int(args.frac_informative * args.n_features),
+            "n_redundant": int(args.frac_redundant * args.n_features),
+            "flip_y": args.flip_y,
+        },
         random_state=args.random_state,
         random_state_model=args.random_state_model,
         mpi_comm=comm,
         train_split=args.train_split,
+        stratified_train_test=args.stratified_train_test,
         n_trees=args.n_trees,
         shared_global_model=args.shared_global_model,
         detailed_evaluation=args.detailed_evaluation,

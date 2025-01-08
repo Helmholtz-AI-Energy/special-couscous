@@ -175,3 +175,71 @@ def expand_node_range(s: str) -> list[str]:
             else:  # Handle individual nodes like 0016
                 nodes.append(f"{int(r):04}")
     return nodes
+
+
+def find_checkpoint_dir_and_uuid(
+    base_path: pathlib.Path,
+    log_n_samples: int,
+    log_n_features: int,
+    mu_global: float | str,
+    mu_local: float | str,
+    data_seed: int,
+    model_seed: int,
+) -> tuple[pathlib.Path, str]:
+    """
+    Find the checkpoint directory and extract the UUID from the filenames.
+
+    Parameters
+    ----------
+    base_path : pathlib.Path
+        The base path where results are stored.
+    log_n_samples : int
+        The common logarithm of the number of samples to use.
+    log_n_features : int
+        The common logarithm of the number of features to use.
+    mu_global : float | str
+        The global imbalance factor.
+    mu_local : float | str
+        The local imbalance factor.
+    data_seed : int
+        The random state used for synthetic dataset generation, splitting, and distribution.
+    model_seed : int
+        The (base) random state used for initializing the (distributed) model.
+
+    Returns
+    -------
+    tuple[pathlib.Path, str]
+        A tuple containing the path to the checkpoint directory and the UUID.
+    """
+    # Convert parameters to match the directory naming convention.
+    mu_global_str = str(mu_global).replace(".", "")
+    mu_local_str = str(mu_local).replace(".", "")
+
+    # Construct the expected directory path pattern
+    search_pattern = (
+        f"breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_16/"
+        f"*_{data_seed}_{model_seed}_{mu_global_str}_{mu_local_str}/"
+    )
+    print(f"The search pattern is {search_pattern}.")
+
+    # Search for matching directories.
+    matching_dirs = list(base_path.glob(search_pattern))
+
+    if len(matching_dirs) == 0:
+        raise FileNotFoundError(
+            f"No checkpoint directory found for the specified parameters in {base_path}."
+        )
+    elif len(matching_dirs) > 1:
+        raise ValueError(f"Multiple checkpoint directories found: {matching_dirs}")
+
+    checkpoint_dir = matching_dirs[0]
+
+    # Extract the UUID from the results file.
+    uuid_pattern = re.compile(r"--[\d\w-]+-([\d\w]+)_results\.csv$")
+    for file in checkpoint_dir.iterdir():
+        if file.name.endswith("_results.csv"):
+            match = uuid_pattern.search(file.name)
+            if match:
+                return checkpoint_dir, match.group(1)
+
+    raise ValueError(f"No UUID found in results files within {checkpoint_dir}")

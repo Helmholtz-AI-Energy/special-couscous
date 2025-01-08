@@ -87,7 +87,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic.py"
 
-RESDIR="${{BASE_DIR}}"/results/train/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
+RESDIR="${{BASE_DIR}}"/results/weak_scaling/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
