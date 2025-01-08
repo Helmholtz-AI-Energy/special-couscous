@@ -593,7 +593,7 @@ class SyntheticDataset:
         n_classes: int,
         class_weights: npt.NDArray[np.float32] | None = None,
         random_state: int | np.random.RandomState | None = None,
-        make_classification_kwargs: dict[str, Any] = {},
+        make_classification_kwargs: dict[str, Any] | None = None,
     ) -> "SyntheticDataset":
         """
         Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
@@ -610,7 +610,7 @@ class SyntheticDataset:
             The weight for each class, default: balanced dataset, i.e., all classes have equal weight.
         random_state : int | np.random.RandomState, optional
             The random state used for the generation and distributed assignment.
-        make_classification_kwargs : dict[str, Any]
+        make_classification_kwargs : dict[str, Any], optional
             Additional keyword arguments to ``sklearn.datasets.make_classification``.
 
         Returns
@@ -647,7 +647,7 @@ class SyntheticDataset:
         peak: int = 0,
         rescale_to_sum_one: bool = True,
         random_state: int | np.random.RandomState | None = None,
-        make_classification_kwargs: dict[str, Any] = {},
+        make_classification_kwargs: dict[str, Any] | None = None,
     ) -> "SyntheticDataset":
         """
         Generate a synthetic classification dataset using ``sklearn.datasets.make_classification``.
@@ -670,7 +670,7 @@ class SyntheticDataset:
             Whether to rescale the weights, so they sum up to 1.
         random_state : int | np.random.RandomState, optional
             The random state used for the generation and distributed assignment.
-        make_classification_kwargs : dict[str, Any]
+        make_classification_kwargs : dict[str, Any], optional
             Additional keyword arguments to ``sklearn.datasets.make_classification``.
 
         Returns
@@ -899,7 +899,7 @@ def generate_and_distribute_synthetic_dataset(
     mu_data: float | str | None = None,
     peak: int | None = None,
     rescale_to_sum_one: bool = True,
-    make_classification_kwargs: dict[str, Any] = {},
+    make_classification_kwargs: dict[str, Any] | None = None,
     sampling: bool = False,
     shared_test_set: bool = True,
     stratified_train_test: bool = False,
@@ -1155,7 +1155,7 @@ def make_classification_dataset(
     n_samples: int,
     n_features: int,
     n_classes: int = 10,
-    make_classification_kwargs: dict[str, Any] = {},
+    make_classification_kwargs: dict[str, Any] | None = None,
     random_state: int | np.random.RandomState | None = 0,
     train_split: float = 0.75,
     stratified_train_test: bool = False,
