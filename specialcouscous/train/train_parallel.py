@@ -804,6 +804,7 @@ def evaluate_parallel_from_checkpoint_balanced_synthetic_data(
         distributed_random_forest = DistributedRandomForest(
             n_trees_global=n_trees,
             comm=mpi_comm,
+            random_state=random_state_model,
             shared_global_model=False,
         )
     store_timing(timer, global_results, local_results)
@@ -1061,6 +1062,7 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
         distributed_random_forest = DistributedRandomForest(
             n_trees_global=n_trees,
             comm=mpi_comm,
+            random_state=random_state_model,
             shared_global_model=False,
         )
     store_timing(timer, global_results, local_results)
