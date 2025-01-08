@@ -22,6 +22,65 @@ from specialcouscous.utils.result_handling import construct_output_path, save_da
 log = logging.getLogger(__name__)  # Get logger instance.
 
 
+def get_confusion_matrix_serial(
+    classifier: RandomForestClassifier,
+    samples: np.ndarray,
+    targets: np.ndarray,
+    use_weighted_voting: bool,
+    output_path: pathlib.Path,
+    base_filename: str,
+    label: str,
+) -> np.ndarray:
+    """
+    Calculate and save confusion matrix.
+
+    Parameters
+    ----------
+    classifier : RandomForestClassifier
+        The random forest model.
+    samples : np.ndarray
+        The samples to evaluate.
+    targets : np.ndarray
+        The corresponding targets.
+    use_weighted_voting : bool
+        Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
+    output_path : pathlib.Path
+        The output directory to save results to.
+    base_filename : str
+        The base file name, including UUID.
+    label : str
+        A label, e.g., "train" or "test".
+
+    Returns
+    -------
+    np.ndarray
+        The confusion matrix.
+    """
+    if use_weighted_voting:
+        confusion_matrix_serial = confusion_matrix(
+            y_true=targets, y_pred=classifier.predict(samples), normalize=None
+        )
+    else:
+        tree_wise_predictions = np.array(
+            [
+                tree.predict(samples, check_input=False)
+                for tree in classifier.estimators_
+            ]
+        )
+        majority_votes = DistributedRandomForest.calc_majority_vote(
+            tree_wise_predictions=tree_wise_predictions
+        )
+        confusion_matrix_serial = confusion_matrix(
+            y_true=targets, y_pred=majority_votes, normalize=None
+        )
+    np.savetxt(
+        output_path / (base_filename + f"_confusion_matrix_{label}.csv"),
+        confusion_matrix_serial,
+        delimiter=",",
+    )
+    return confusion_matrix_serial
+
+
 def train_serial_on_synthetic_data(
     n_samples: int,
     n_features: int,
@@ -150,65 +209,6 @@ def train_serial_on_synthetic_data(
 
     # Calculate confusion matrix + accuracy.
     global_results["accuracy_test"] = clf.score(test_data.x, test_data.y)
-
-    def get_confusion_matrix_serial(
-        classifier: RandomForestClassifier,
-        samples: np.ndarray,
-        targets: np.ndarray,
-        use_weighted_voting: bool,
-        output_path: pathlib.Path,
-        base_filename: str,
-        label: str,
-    ) -> np.ndarray:
-        """
-        Calculate and save confusion matrix.
-
-        Parameters
-        ----------
-        classifier : RandomForestClassifier
-            The random forest model.
-        samples : np.ndarray
-            The samples to evaluate.
-        targets : np.ndarray
-            The corresponding targets.
-        use_weighted_voting : bool
-            Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
-        output_path : pathlib.Path
-            The output directory to save results to.
-        base_filename : str
-            The base file name, including UUID.
-        label : str
-            A label, e.g., "train" or "test".
-
-        Returns
-        -------
-        np.ndarray
-            The confusion matrix.
-        """
-        if use_weighted_voting:
-            confusion_matrix_serial = confusion_matrix(
-                y_true=targets, y_pred=classifier.predict(samples), normalize=None
-            )
-        else:
-            tree_wise_predictions = np.array(
-                [
-                    tree.predict(samples, check_input=False)
-                    for tree in classifier.estimators_
-                ]
-            )
-            majority_votes = DistributedRandomForest.calc_majority_vote(
-                tree_wise_predictions=tree_wise_predictions
-            )
-            confusion_matrix_serial = confusion_matrix(
-                y_true=targets, y_pred=majority_votes, normalize=None
-            )
-        np.savetxt(
-            output_path / (base_filename + f"_confusion_matrix_{label}.csv"),
-            confusion_matrix_serial,
-            delimiter=",",
-        )
-        return confusion_matrix_serial
-
     confusion_matrix_test = get_confusion_matrix_serial(
         classifier=clf,
         samples=test_data.x,
