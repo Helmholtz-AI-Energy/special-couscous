@@ -487,8 +487,6 @@ class SyntheticDataset:
 
     Attributes
     ----------
-    DEFAULT_CONFIG_MAKE_CLASSIFICATION : dict[str, int]
-        Default parameters to use for ``sklearn``'s ``make_classification`` function.
     n_classes : int
         The number of classes.
     n_samples : int
@@ -518,8 +516,6 @@ class SyntheticDataset:
     plot_skellam_distributions()
         Plot class frequencies for different Skellam distributions as line plot.
     """
-
-    DEFAULT_CONFIG_MAKE_CLASSIFICATION = {"flip_y": 0, "n_informative": 8}
 
     def __init__(
         self,
