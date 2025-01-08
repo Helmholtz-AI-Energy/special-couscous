@@ -16,7 +16,7 @@ def generate_breaking_iid_job_scripts(
     submit: bool = False,
 ) -> None:
     """
-    Generate the job scripts for the breaking IID experiments.
+    Generate the job scripts for the breaking-IID experiments.
 
     To study the effect of breaking IID for distributed RFs, we perform a series of 16-node experiments combining
     different types and degrees of class imbalances. The experiments are based on the corresponding weak scaling setup,
@@ -25,6 +25,7 @@ def generate_breaking_iid_job_scripts(
     We compare three different imbalance factors µ = {0.5, 2, ∞} for both global and local imbalance, resulting in nine
     combinations. Each experiment is run with different seed combinations. The overall number of experiments is
     determined by the number of data seeds x the number of model seeds provided in the main script.
+    Note that both model and data are distributed (similar to the chunking experiments).
 
     Parameters
     ----------

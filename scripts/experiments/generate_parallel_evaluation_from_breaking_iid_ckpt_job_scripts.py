@@ -20,23 +20,7 @@ def generate_parallel_evaluation_from_breaking_iid_ckpt_job_scripts(
     submit: bool = False,
 ) -> None:
     """
-    Generate the job scripts for parallel evaluation of weak scaling experiments from pickled model checkpoints.
-
-    NOTE: We estimated 1500 and 450 trees to be trainable in serial in 3 days for 1M samples with 10k features and 10M
-    samples with 1k features, respectively, and chose the closest number evenly divisible by 64 as a baseline.
-    With number of samples n, number of features m, and number of trees t:
-
-    Strong scaling:
-    n6m4 baseline (n, m, t) = (10^6, 10^4, 1600) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 448)
-
-    Weak scaling:
-    n6m4 baseline (n, m, t) = (10^6, 10^4, 800) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 224)
-
-    NOTE: All strong-scaling experiments used high-memory nodes, i.e., #SBATCH --mem=486400mb, except for the 64-node
-    experiment which used the normal nodes. This is due to the fact that HoreKa has only 32 high-memory nodes. However,
-    as the problem size per node decreases with increasing number of nodes in strong scaling, this was not a problem here
-    but only for weak scaling. That is why the base problem size of weak scaling is only half the base problem size of
-    strong scaling.
+    Generate the job scripts for parallel evaluation of breaking-IID experiments from pickled model checkpoints.
 
     Parameters
     ----------
@@ -65,12 +49,9 @@ def generate_parallel_evaluation_from_breaking_iid_ckpt_job_scripts(
     submit : bool, optional
         Whether to submit jobs to the cluster. Default is False.
     """
-    # All weak-scaling style experiments should take approx. the same time (in min).
-    # Note that the time is reduced compared to normal weak scaling as both model and data are distributed.
     mem = 243200  # Use standard nodes.
-    n_nodes = 16
-    # time = 4 * 3600 // n_nodes
-    time = 2880
+    n_nodes = 16  # Breaking-IID experiments all use 16 nodes.
+    time = 120  # Runtime estimated from trial runs
 
     print(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
