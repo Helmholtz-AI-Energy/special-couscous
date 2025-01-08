@@ -27,7 +27,6 @@ if __name__ == "__main__":
     data_set = root_dir.split(os.sep)[-1]
     # Dictionary to store the values grouped by (dataset, number_of_tasks, data seed)
     results = defaultdict(list)
-    data_set = root_dir.split(os.sep)[-1]
 
     # Walk through the directory structure to find CSV files
     for filename in pathlib.Path(root_dir).glob("**/*.csv"):
