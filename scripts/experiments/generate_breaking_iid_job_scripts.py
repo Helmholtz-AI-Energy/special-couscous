@@ -22,9 +22,9 @@ def generate_breaking_iid_job_scripts(
     different types and degrees of class imbalances. The experiments are based on the corresponding weak scaling setup,
     i.e., n6m4 baseline (n, m, t) = (10^6, 10^4, 800) and n7m3 baseline: (n, m, t) = (10^7, 10^3, 224) with number of
     samples n, number of features m, and number of trees t.
-    We compare three different imbalance factors µ= {0.5,2,∞} for both global and local imbalance, resulting in nine
-    combinations. Each experiment is run with nine different seed combinations (three model seeds for each of three data
-    seeds).
+    We compare three different imbalance factors µ = {0.5, 2, ∞} for both global and local imbalance, resulting in nine
+    combinations. Each experiment is run with different seed combinations. The overall number of experiments is
+    determined by the number of data seeds x the number of model seeds provided in the main script.
 
     Parameters
     ----------
