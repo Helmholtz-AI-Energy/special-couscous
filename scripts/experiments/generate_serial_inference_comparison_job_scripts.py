@@ -64,8 +64,8 @@ mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
 python -u ${{BASE_DIR}}/${{SCRIPT}} \\
-    --n_samples {10 ** log_n_samples} \\
-    --n_features {10 ** log_n_features} \\
+    --n_samples {10**log_n_samples} \\
+    --n_features {10**log_n_features} \\
     --n_trees {n_trees} \\
     --n_classes {n_classes} \\
     --random_state {data_seed} \\
