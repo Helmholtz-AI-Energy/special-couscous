@@ -2,6 +2,7 @@ import os
 import pathlib
 import re
 
+import numpy as np
 import pandas
 
 
@@ -229,10 +230,18 @@ def find_checkpoint_dir_and_uuid(
         raise FileNotFoundError(
             f"No checkpoint directory found for the specified parameters in {base_path}."
         )
-    elif len(matching_dirs) > 1:
-        raise ValueError(f"Multiple checkpoint directories found: {matching_dirs}")
 
-    checkpoint_dir = matching_dirs[0]
+    job_ids = [str(matching_dir.stem).split("_")[0] for matching_dir in matching_dirs]
+    checkpoint_dir = matching_dirs[np.argmin(job_ids)]
+    print(f"Matchings directories are: {matching_dirs}")
+    print(f"Corresponding job IDs: {job_ids}")
+    print(f"Checkpoint directory with the lowest job ID: {checkpoint_dir}")
+
+    # Check whether checkpoint directory contains pickle files.
+    if not any(f.suffix == ".pickle" for f in checkpoint_dir.iterdir() if f.is_file()):
+        raise ValueError(
+            f"No valid checkpoint directory containing `.pickle` files found in {base_path}."
+        )
 
     # Extract the UUID from the results file.
     uuid_pattern = re.compile(r"--[\d\w-]+-([\d\w]+)_results\.csv$")
@@ -242,4 +251,4 @@ def find_checkpoint_dir_and_uuid(
             if match:
                 return checkpoint_dir, match.group(1)
 
-    raise ValueError(f"No UUID found in results files within {checkpoint_dir}")
+    raise ValueError(f"No UUID found in results files within {checkpoint_dir}.")
