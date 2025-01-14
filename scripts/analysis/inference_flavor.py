@@ -344,7 +344,7 @@ if __name__ == "__main__":
     ax5.set_ylabel("Energy / Wh", fontweight="bold", fontsize=labelsize)
     ax5.set_xlabel("Number of nodes", fontweight="bold", fontsize=labelsize)
     ax5.grid(visible)
-    energy_str = f"Overall {(energy_no_shared_model/1000):.2f} kWh consumed"
+    energy_str = f"Overall {(energy_no_shared_model / 1000):.2f} kWh consumed"
     ax5.text(
         0.05,
         0.95,
@@ -377,7 +377,7 @@ if __name__ == "__main__":
         ]
     )
     ax6.grid(visible)
-    energy_str = f"Overall {(energy_shared_model/1000):.2f} kWh consumed"
+    energy_str = f"Overall {(energy_shared_model / 1000):.2f} kWh consumed"
     ax6.text(
         0.05,
         0.95,
@@ -395,9 +395,9 @@ if __name__ == "__main__":
     )  # Save the figure.
 
     print(
-        f"Overall energy consumed (no shared model): {(energy_no_shared_model/1000):.2f} kWh"
+        f"Overall energy consumed (no shared model): {(energy_no_shared_model / 1000):.2f} kWh"
     )
     print(
-        f"Overall energy consumed (shared model): {(energy_shared_model/1000):.2f} kWh"
+        f"Overall energy consumed (shared model): {(energy_shared_model / 1000):.2f} kWh"
     )
     plt.show()  # Show the plot.

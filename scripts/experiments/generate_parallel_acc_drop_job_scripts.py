@@ -55,7 +55,7 @@ def generate_parallel_acc_drop_job_scripts(
 #SBATCH --nodes=1                     # Number of nodes
 #SBATCH --mem={memory}
 #SBATCH --ntasks-per-node={n_tasks}   # Number of tasks per node
-#SBATCH --cpus-per-task={n_trees//n_tasks}   # Number of tasks per node
+#SBATCH --cpus-per-task={n_trees // n_tasks}   # Number of tasks per node
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}

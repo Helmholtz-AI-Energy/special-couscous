@@ -57,7 +57,7 @@ def generate_parallel_evaluation_from_breaking_iid_ckpt_job_scripts(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
     )
 
-    job_name = f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.','')}"
+    job_name = f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.', '')}"
     job_script_name = f"{job_name}.sh"
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
@@ -81,7 +81,7 @@ source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate v
 
 SCRIPT="special-couscous/scripts/examples/evaluate_from_checkpoint_breaking_iid.py"
 
-RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".","")}/
+RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 

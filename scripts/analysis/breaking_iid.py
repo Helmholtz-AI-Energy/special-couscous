@@ -245,7 +245,7 @@ if __name__ == "__main__":
             axs[0, 0].text(
                 j,
                 i,
-                f"{100*global_acc_mean[i, j]:.2f}",
+                f"{100 * global_acc_mean[i, j]:.2f}",
                 ha="center",
                 va="center",
                 color="w",
@@ -273,7 +273,7 @@ if __name__ == "__main__":
             axs[0, 1].text(
                 j,
                 i,
-                f"{100*global_acc_std[i, j]:.2f}",
+                f"{100 * global_acc_std[i, j]:.2f}",
                 ha="center",
                 va="center",
                 color="w",
@@ -300,7 +300,7 @@ if __name__ == "__main__":
             axs[1, 0].text(
                 j,
                 i,
-                f"{100*local_acc_mean[i, j]:.2f}",
+                f"{100 * local_acc_mean[i, j]:.2f}",
                 ha="center",
                 va="center",
                 color="w",
@@ -339,7 +339,7 @@ if __name__ == "__main__":
             axs[1, 1].text(
                 j,
                 i,
-                f"{100*local_acc_std[i, j]:.2f}",
+                f"{100 * local_acc_std[i, j]:.2f}",
                 ha="center",
                 va="center",
                 color="w",
