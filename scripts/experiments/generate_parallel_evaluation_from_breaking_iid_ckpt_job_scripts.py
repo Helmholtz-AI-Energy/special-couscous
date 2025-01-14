@@ -85,7 +85,7 @@ RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/n
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
+srun --mpi=pmix python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --n_samples {10**log_n_samples} \\
     --n_features {10**log_n_features} \\
     --n_classes {n_classes} \\
@@ -100,9 +100,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --n_trees {n_nodes * n_trees} \\
     --random_state_model {model_seed} \\
     --output_dir ${{RESDIR}} \\
-    --output_label ${{SLURM_JOB_ID}} \\
-    --detailed_evaluation \\
-    --save_model
+    --output_label ${{SLURM_JOB_ID}}
                                 """
     output_path = output_path / f"nodes_{n_nodes}"
     os.makedirs(output_path, exist_ok=True)
