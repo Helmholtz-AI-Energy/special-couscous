@@ -1216,6 +1216,55 @@ def make_classification_dataset(
     )
 
 
+def make_classification_dataset_no_split(
+    n_samples: int,
+    n_features: int,
+    n_classes: int = 10,
+    make_classification_kwargs: dict[str, Any] | None = None,
+    random_state: int | np.random.RandomState | None = 0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generate globally balanced synthetic classification dataset for non-distributed case.
+
+    Parameters
+    ----------
+    n_samples : int
+        The number of samples.
+    n_features : int
+        The number of features.
+    n_classes : int
+        The number of classes. Default is 10.
+    make_classification_kwargs : dict[str, Any], optional
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
+    random_state : int | np.random.RandomState, optional
+        The random state for dataset generation and splitting. Default is 0.
+
+    Returns
+    -------
+    numpy.ndarray
+        The samples.
+    numpy.ndarray
+        The targets.
+    """
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+    log.debug(
+        f"Random state before generating the dataset is:\n{random_state.get_state(legacy=True)}\n"
+        f"`make_classification_kwargs`:\n{make_classification_kwargs}"
+    )
+
+    # Generate data as numpy arrays.
+    samples, targets = make_classification(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        random_state=random_state,
+        **make_classification_kwargs,
+    )
+    log.debug(f"First sample is:\n{samples[0]}\nLast sample is:\n{samples[-1]}")
+    return samples.astype(np.float32), targets.astype(np.float32)
+
+
 if __name__ == "__main__":
     output_path = pathlib.Path(__file__).parent.parent / "results" / "breaking_iid_demo"
     output_path.mkdir(parents=True, exist_ok=True)
