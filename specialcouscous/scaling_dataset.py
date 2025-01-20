@@ -349,6 +349,8 @@ def load_and_verify_dataset(args, fail_on_unmatched_config=False):
 
     # verify that the metadata stored within the HDF5 is identical to that specified by the parameters
     expected_dataset_config = dataset_config_from_args(args)
+    expected_dataset_config = {**expected_dataset_config, **expected_dataset_config['make_classification_kwargs']}
+    del expected_dataset_config['make_classification_kwargs']
     actual_dataset_config = {key: value for key, value in attrs.items() if key in expected_dataset_config}
 
     if expected_dataset_config != actual_dataset_config:
@@ -377,8 +379,10 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
 
     # write the dataset to HDF5
     path = dataset_path_from_args(args)
+    additional_attrs = {key: value for key, value in dataset_config.items() if key != 'make_classification_kwargs'}
+    additional_attrs = {**additional_attrs, **dataset_config['make_classification_kwargs']}
     write_scaling_dataset_to_hdf5(
-        global_train_set, local_train_sets, global_test_set, dataset_config, path, override=args.override_data
+        global_train_set, local_train_sets, global_test_set, additional_attrs, path, override=args.override_data
     )
     log.info(f'Dataset successfully written to {path}.')
     log.info(f'To use this dataset, call \'scaling_dataset.load_and_verify_dataset(args)\' with the same CLI arguments.')
