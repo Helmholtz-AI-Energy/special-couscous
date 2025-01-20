@@ -279,12 +279,15 @@ def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
     pathlib.Path
         The path to the HDF5 file for the corresponding dataset.
     """
+    if args.n_train_splits is None:
+        raise ValueError(f'n_train_splits is required for pre-generated datasets. Please specify --n_train_splits.')
+
     return dataset_path(
         root_path=args.data_root_path,
         n_samples=args.n_samples,
         n_features=args.n_features,
         n_classes=args.n_classes,
-        n_nodes=args.n_nodes,
+        n_nodes=args.n_train_splits,
         seed=args.random_state,
     )
 
@@ -304,6 +307,8 @@ def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
     dict[str, Any]
         The configuration parameters passed to generate_scaling_dataset.
     """
+    if args.n_train_splits is None:
+        raise ValueError(f'n_train_splits is required for pre-generated datasets. Please specify --n_train_splits.')
     return {
         'n_samples': args.n_samples,
         'n_features': args.n_features,
