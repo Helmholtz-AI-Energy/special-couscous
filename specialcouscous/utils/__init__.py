@@ -297,4 +297,10 @@ def parse_arguments() -> argparse.Namespace:
         help="The number of local datasets to split the data into when pre-generating or using pre-generated data.",
     )
 
+    parser.add_argument(
+        "--override_data",
+        action="store_true",
+        help="If true, old datasets at the same path will be overwritten.",
+    )
+
     return parser.parse_args()

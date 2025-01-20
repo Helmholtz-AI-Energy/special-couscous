@@ -377,7 +377,9 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
 
     # write the dataset to HDF5
     path = dataset_path_from_args(args)
-    write_scaling_dataset_to_hdf5(global_train_set, local_train_sets, global_test_set, dataset_config, path)
+    write_scaling_dataset_to_hdf5(
+        global_train_set, local_train_sets, global_test_set, dataset_config, path, override=args.override_data
+    )
     log.info(f'Dataset successfully written to {path}.')
     log.info(f'To use this dataset, call \'scaling_dataset.load_and_verify_dataset(args)\' with the same CLI arguments.')
 
