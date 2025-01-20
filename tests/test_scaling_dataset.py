@@ -3,11 +3,8 @@ import pathlib
 
 import pytest
 
-from specialcouscous.synthetic_classification_data import (
-    generate_scaling_dataset,
-    write_scaling_dataset_to_hdf5,
-    read_scaling_dataset_from_hdf5,
-)
+from specialcouscous.scaling_dataset import generate_scaling_dataset, write_scaling_dataset_to_hdf5, \
+    read_scaling_dataset_from_hdf5
 from specialcouscous.utils import set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
