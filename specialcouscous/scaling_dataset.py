@@ -326,7 +326,9 @@ def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def load_and_verify_dataset(args, fail_on_unmatched_config=False):
+def load_and_verify_dataset(
+        args: argparse.Namespace, rank: int | None, fail_on_unmatched_config=False
+) -> tuple[dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]]:
     """
     Try to read the corresponding dataset from HDF5 and verify that the actual dataset config stored in the HDF5 matches
     the config inferred from the current CLI parameter.
@@ -335,17 +337,24 @@ def load_and_verify_dataset(args, fail_on_unmatched_config=False):
     ----------
     args : argparse.Namespace
         The parsed CLI parameters.
+    rank : int | None
+        The rank whose local train set shall be loaded. Set to None to load all ranks.
     fail_on_unmatched_config : bool
         If true, an error is raised if the verification fails. Otherwise, only an error message is printed by the
         (potentially mismatched) dataset is returned anyway.
 
     Returns
     -------
-
+    dict[int, SyntheticDataset] | SyntheticDataset
+        A dict of all local train sets by rank or just the local train set for the given rank.
+    SyntheticDataset
+        The global = local test set.
+    dict[str, Any]
+        Any additional information on the dataset stored as root attribute in the HDF5 file.
     """
     # read dataset from HDF5
     path = dataset_path_from_args(args)
-    local_train_sets, global_test_set, attrs = read_scaling_dataset_from_hdf5(path)
+    local_train_sets, global_test_set, attrs = read_scaling_dataset_from_hdf5(path, rank=rank)
 
     # verify that the metadata stored within the HDF5 is identical to that specified by the parameters
     expected_dataset_config = dataset_config_from_args(args)
