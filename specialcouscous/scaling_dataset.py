@@ -11,9 +11,11 @@ import numpy as np
 from sklearn.utils import check_random_state
 
 from specialcouscous.synthetic_classification_data import SyntheticDataset, DatasetPartition
-from specialcouscous.utils import parse_arguments
+from specialcouscous.utils import parse_arguments, set_logger_config
 
-log = logging.getLogger(__name__)  # Get logger instance.
+# Get logger: specialcouscous.<filename>
+__FILE_PATH = pathlib.Path(__file__)
+log = logging.getLogger(f'{__FILE_PATH.parent.name}.{__FILE_PATH.stem}')
 
 
 def generate_scaling_dataset(
@@ -163,6 +165,7 @@ def write_scaling_dataset_to_hdf5(
     file.attrs["n_ranks"] = len(local_train_sets)
     file.attrs["n_samples_global_train"] = global_train_set.n_samples
     for key, value in additional_global_attrs.items():
+        log.debug(f'Adding attr {key}={value}')
         file.attrs[key] = value
 
     def write_subset_to_group(group_name, dataset, **attrs):
@@ -348,7 +351,7 @@ def load_and_verify_dataset(args, fail_on_unmatched_config=False):
                          f'From CLI {expected_dataset_config}, actual in HDF5 {actual_dataset_config}.')
         if fail_on_unmatched_config:
             raise ValueError(error_message)
-        print(f'Warning: {error_message}')
+        log.warning(f'Warning: {error_message}')
 
     return local_train_sets, global_test_set, attrs
 
@@ -364,16 +367,17 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     """
     # generate the dataset
     dataset_config = dataset_config_from_args(args)
-    print(f'Creating dataset with the following parameters:\n{dataset_config}')
+    log.info(f'Creating dataset with the following parameters:\n{dataset_config}')
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(**dataset_config)
 
     # write the dataset to HDF5
     path = dataset_path_from_args(args)
     write_scaling_dataset_to_hdf5(global_train_set, local_train_sets, global_test_set, dataset_config, path)
-    print(f'Dataset successfully written to {path}.')
-    print(f'To use this dataset, call \'scaling_dataset.load_and_verify_dataset(args)\' with the same CLI arguments.')
+    log.info(f'Dataset successfully written to {path}.')
+    log.info(f'To use this dataset, call \'scaling_dataset.load_and_verify_dataset(args)\' with the same CLI arguments.')
 
 
 if __name__ == "__main__":
+    set_logger_config()
     args = parse_arguments()
     generate_and_save_dataset(args)
