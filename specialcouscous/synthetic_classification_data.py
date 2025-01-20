@@ -881,6 +881,101 @@ class SyntheticDataset:
         return plot_class_distributions(class_frequencies_by_mu, title="")
 
 
+def generate_scaling_dataset(
+    n_samples: int,
+    n_features: int,
+    n_classes: int,
+    n_ranks: int,
+    random_state: int | np.random.RandomState,
+    test_size: float,
+    make_classification_kwargs: dict[str, Any] | None = None,
+    sampling: bool = False,
+    stratified_train_test: bool = False,
+    rank: int | None = None,
+) -> tuple[SyntheticDataset, dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset]:
+    """
+    Generate a dataset to be scaled with the number of nodes. Generates a single global dataset and splits it into
+    n_ranks slices. Returns the global train and test set and either the local train set of the given rank, or a dict of
+    all local train sets (mapping rank -> local train set) when rank is None.
+
+    Parameters
+    ----------
+    n_samples : int
+        The number of samples in the dataset.
+    n_features : int
+        The number of features in the dataset.
+    n_classes : int
+        The number classes in the dataset.
+    n_ranks : int
+        The total/maximum number of ranks to generate the dataset for.
+    random_state : int | np.random.RandomState
+        The random state, used for dataset generation, partition, and distribution.
+    test_size : float
+        Relative size of the test set.
+    make_classification_kwargs : dict[str, Any], optional
+        Additional keyword arguments to ``sklearn.datasets.make_classification``.
+    sampling : bool
+        Whether to partition the dataset using deterministic element counts and shuffling or random sampling.
+        See ``SyntheticDataset.get_local_subset`` for more details.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels.
+    rank : int | None
+        When given, returns the local train set for this rank. Otherwise (i.e. for None), a dict of all local train sets
+        is returned.
+
+    Returns
+    -------
+    SyntheticDataset
+        The global dataset.
+    dict[int, SyntheticDataset] | SyntheticDataset
+        Either the local train subset for this rank (if given) or a dict of all local train sets by rank.
+    SyntheticDataset
+        The global = local test set.
+
+    """
+    random_state = check_random_state(random_state)
+
+    log.debug(f"The random state is:\n{random_state.get_state(legacy=True)}")
+    log.debug(f"Classification kwargs: {make_classification_kwargs}")
+
+    # Step 1: generate balanced global dataset for up to n_ranks nodes
+    global_dataset = SyntheticDataset.generate(
+        n_samples=n_samples,
+        n_features=n_features,
+        n_classes=n_classes,
+        random_state=random_state,
+        make_classification_kwargs=make_classification_kwargs,
+    )
+
+    # Step 2: split into global train and test set
+    # TODO: in this case, the size of the test set scales with n_ranks -> do we want this? if not, what else?
+    log.debug(f"Generate global train-test split: {test_size=}, {stratified_train_test=}.")
+    global_train_set, global_test_set = global_dataset.train_test_split(
+        test_size=test_size,
+        stratify=stratified_train_test,
+        random_state=random_state,
+    )
+    log.debug(f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}")
+
+    # Step 3: partition the global train set into n_ranks local train sets (balanced partition)
+    partition = DatasetPartition(global_train_set.y)
+    assigned_ranks = partition.balanced_partition(n_ranks, random_state, sampling)
+    assigned_indices = partition.assigned_indices_by_rank(assigned_ranks)
+    training_slices = {
+        rank: SyntheticDataset(global_train_set.x[indices], global_train_set.y[indices], None, n_classes)
+        for rank, indices in assigned_indices.items()
+    }
+
+    log.debug(f"Shape of local train set 0 {training_slices[0].x.shape}")
+
+    if rank is not None:
+        log.debug(f"Returning local train set for rank {rank}")
+        return global_train_set, training_slices[rank], global_test_set
+    else:
+        log.debug(f"Returning dict of all local train sets")
+        return global_train_set, training_slices, global_test_set
+
+
 def generate_and_distribute_synthetic_dataset(
     globally_balanced: bool,
     locally_balanced: bool,
