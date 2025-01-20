@@ -284,4 +284,17 @@ def parse_arguments() -> argparse.Namespace:
         help="The considered run's unique identifier. Used to identify the correct checkpoints to load.",
     )
 
+    parser.add_argument(
+        "--data_root_path",
+        type=pathlib.Path,
+        default=pathlib.Path("./data"),
+        help="Path to root data directory. Used only for the scaling law experiments when using pre-generated data.",
+    )
+
+    parser.add_argument(
+        "--n_train_splits",
+        type=int,
+        help="The number of local datasets to split the data into when pre-generating or using pre-generated data.",
+    )
+
     return parser.parse_args()
