@@ -1,9 +1,11 @@
 import collections
 import itertools
 import logging
+import os
 import pathlib
 from typing import Any, Callable, Type
 
+import h5py
 import numpy as np
 import numpy.typing as npt
 import scipy
@@ -974,6 +976,120 @@ def generate_scaling_dataset(
     else:
         log.debug(f"Returning dict of all local train sets")
         return global_train_set, training_slices, global_test_set
+
+
+def write_scaling_dataset_to_hdf5(
+    global_train_set: SyntheticDataset,
+    local_train_sets: dict[int, SyntheticDataset],
+    global_test_set: SyntheticDataset,
+    additional_global_attrs: dict[str, Any],
+    file_path: os.PathLike,
+    override: bool = False,
+) -> None:
+    """
+    Write a scaling dataset as HDF5 file to the given path. The HDF5 file has the following structure:
+    Root Attributes:
+    - '/n_classes': the number of classes in the dataset
+    - '/n_ranks': the number of ranks into which the dataset has been partitioned
+    - '/n_samples_global_train': the number of samples in the global training set
+    - **additional_global_attrs: additional_global_attrs are written directly to the root attributes
+      can for example be used to store the config used to generate this dataset
+
+    Groups:
+    - '/test_set': for the global test_set
+    - '/local_train_sets/rank_{rank}': the local train set for each rank
+
+    Group Attributes:
+    - 'n_samples': samples in this subset
+    - 'label': label of the subset (= group name)
+    - 'rank': assigned rank as int (only for local train sets)
+
+
+    Parameters
+    ----------
+    global_train_set : SyntheticDataset
+        The global train set (used only to extract root attributes)
+    local_train_sets : dict[int, SyntheticDataset]
+        pass
+    global_test_set : SyntheticDataset
+        pass
+    additional_global_attrs : dict[str, Any]
+        pass
+    file_path : os.PathLike
+        The file path of the HDF5 file to write.
+    override : bool
+        If true, will override any existing files at file_path. If false, will raise a FileExistsError
+        should file_path already exist.
+    """
+    file_path = pathlib.Path(file_path)
+    if not override and file_path.exists():
+        raise FileExistsError(f"File {file_path} exists and override is set to {file_path}.")
+    file = h5py.File(file_path, "w")
+
+    file.attrs["n_classes"] = global_train_set.n_classes
+    file.attrs["n_ranks"] = len(local_train_sets)
+    file.attrs["n_samples_global_train"] = global_train_set.n_samples
+    for key, value in additional_global_attrs.items():
+        file.attrs[key] = value
+
+    def write_subset_to_group(group_name, dataset, **attrs):
+        file[f'{group_name}/x'] = dataset.x
+        file[f'{group_name}/y'] = dataset.y
+        file[group_name].attrs["n_samples"] = dataset.n_samples
+        for key, value in attrs.items():
+            file[group_name].attrs[key] = value
+
+    # write global test set to HDF5
+    write_subset_to_group("test_set", global_test_set, label="global_test_set")
+
+    # write local train sets to HDF5
+    for rank, local_train_set in local_train_sets.items():
+        group_name = f"local_train_sets/rank_{rank}"
+        write_subset_to_group(group_name, local_train_set, label=group_name, rank=rank)
+
+
+def read_scaling_dataset_from_hdf5(
+    file_path: os.PathLike,
+    rank: int | None = None,
+) -> tuple[dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]]:
+    """
+    Read a scaling dataset (local train sets and global test set) from the given HDF5 file.
+
+    Parameters
+    ----------
+    file_path : os.PathLike
+        Path to the HDF5 file to read.
+    rank : int | None
+        Optional rank. When given, only the local train set for the specified rank is retrieved. Otherwise, all local
+        train sets are retrieved.
+
+    Returns
+    -------
+    dict[int, SyntheticDataset] | SyntheticDataset
+        A dict of all local train sets by rank or just the local train set for the given rank.
+    SyntheticDataset
+        The global = local test set.
+    dict[str, Any]
+        Any additional information on the dataset stored as root attribute in the HDF5 file.
+    """
+    file = h5py.File(file_path, "r")
+    n_classes = file.attrs["n_classes"]
+    root_attrs = dict(file.attrs)
+
+    def dataset_from_group(group):
+        return SyntheticDataset(
+            group["x"], group["y"], n_samples=int(group.attrs["n_samples"]), n_classes=int(n_classes)
+        )
+
+    global_test_set = dataset_from_group(file['test_set'])
+
+    if rank is None:  # dict of all local train sets
+        local_train_set = {group.attrs['rank']: dataset_from_group(group)
+                           for name, group in file['local_train_sets'].items()}
+    else:  # just the local train set for the given rank
+        local_train_set = dataset_from_group(file[f'local_train_sets/rank_{rank}'])
+
+    return local_train_set, global_test_set, root_attrs
 
 
 def generate_and_distribute_synthetic_dataset(
