@@ -547,7 +547,7 @@ class SyntheticDataset:
             len(np.unique(self.y, axis=0)) if n_classes is None else n_classes
         )
 
-    def __eq__(self, other: SyntheticDataset) -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Compare this dataset to another dataset and return whether they are equal. Two datasets are considered
         equal if their n_samples, n_classes, and (element-wise) y are equal and their (element-wise) features x are
@@ -562,6 +562,8 @@ class SyntheticDataset:
         bool
             Whether this and the other dataset are the same.
         """
+        if not isinstance(other, SyntheticDataset):
+            return False
         if self.n_samples != other.n_samples:
             log.info(
                 f"SyntheticDatasets not equal: {self.n_samples=} != {other.n_samples=}"

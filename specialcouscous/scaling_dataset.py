@@ -4,7 +4,7 @@ import argparse
 import logging
 import os
 import pathlib
-from typing import Any
+from typing import Any, cast
 
 import h5py
 import numpy as np
@@ -181,7 +181,7 @@ def write_scaling_dataset_to_hdf5(
         log.debug(f"Adding attr {key}={value}")
         file.attrs[key] = value
 
-    def write_subset_to_group(group_name, dataset, **attrs):
+    def write_subset_to_group(group_name: Any, dataset: SyntheticDataset, **attrs: Any) -> None:
         file[f"{group_name}/x"] = dataset.x
         file[f"{group_name}/y"] = dataset.y
         file[group_name].attrs["n_samples"] = dataset.n_samples
@@ -227,7 +227,7 @@ def read_scaling_dataset_from_hdf5(
     n_classes = file.attrs["n_classes"]
     root_attrs = dict(file.attrs)
 
-    def dataset_from_group(group):
+    def dataset_from_group(group: h5py.Group) -> SyntheticDataset:
         return SyntheticDataset(
             group["x"],
             group["y"],
@@ -237,6 +237,7 @@ def read_scaling_dataset_from_hdf5(
 
     global_test_set = dataset_from_group(file["test_set"])
 
+    local_train_set: dict[int, SyntheticDataset] | SyntheticDataset  # define type first for mypy
     if rank is None:  # dict of all local train sets
         local_train_set = {
             group.attrs["rank"]: dataset_from_group(group)
@@ -356,7 +357,7 @@ def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def load_and_verify_dataset(
-        args: argparse.Namespace, rank: int | None, fail_on_unmatched_config=False
+    args: argparse.Namespace, rank: int | None, fail_on_unmatched_config: bool = False
 ) -> tuple[dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]]:
     """
     Try to read the corresponding dataset from HDF5 and verify that the actual dataset config stored in the HDF5 matches

@@ -1,13 +1,16 @@
 import logging
 import pathlib
+from typing import cast
 
+import numpy as np
 import pytest
 
 from specialcouscous.scaling_dataset import (
     generate_scaling_dataset,
-    read_scaling_dataset_from_hdf5,
     write_scaling_dataset_to_hdf5,
+    read_scaling_dataset_from_hdf5,
 )
+from specialcouscous.synthetic_classification_data import SyntheticDataset
 from specialcouscous.utils import set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -21,7 +24,7 @@ set_logger_config(
 )
 
 
-def test_create_scaling_dataset():
+def test_create_scaling_dataset() -> None:
     # use mostly default parameters from utils.parse_arguments()
     n_classes = 4  # use only 4 classes
     n_features = 20  # use only 20 features
@@ -57,7 +60,7 @@ def test_create_scaling_dataset():
 
     # check dataset distribution: class- and feature-wise mean should not differ too much between the datasets
     # e.g. mean of the first feature for class 0 should remain fairly consistent across all dataset slices
-    def subset_for_class(dataset, class_index):
+    def subset_for_class(dataset: SyntheticDataset, class_index: int) -> np.ndarray:
         return dataset.x[dataset.y == class_index]
 
     for class_index in range(n_classes):
@@ -74,7 +77,9 @@ def test_create_scaling_dataset():
         # Check mean: mean of all smaller subsets should be within std of mean from global train set
         # TODO: this check does not seem super informative since all means seem to be close to 0 with stds close to 1
         # Maybe there is another, more informative check we could make here?
-        def check_feature_mean(mean_to_check, baseline_mean, allowed_difference):
+        def check_feature_mean(
+            mean_to_check: np.ndarray, baseline_mean: np.ndarray, allowed_difference: np.ndarray
+        ) -> bool:
             return (abs(mean_to_check - baseline_mean) < allowed_difference).all()
 
         assert check_feature_mean(global_test_mean, global_train_mean, global_train_std)
@@ -88,7 +93,7 @@ def test_create_scaling_dataset():
             )
 
 
-def test_write_read_scaling_dataset(tmp_path: pathlib.Path):
+def test_write_read_scaling_dataset(tmp_path: pathlib.Path) -> None:
     # use mostly default parameters from utils.parse_arguments()
     n_classes = 10
     n_features = 100
@@ -113,6 +118,8 @@ def test_write_read_scaling_dataset(tmp_path: pathlib.Path):
         make_classification_kwargs=make_classification_kwargs,
         stratified_train_test=True,
     )
+    # just to shutup mypy: since we don't pass a rank, we have a dict of all ranks, not just a single dataset for one
+    training_slices = cast(dict[int, SyntheticDataset], training_slices)
 
     hdf5_path = tmp_path / "dataset.h5"
     global_attrs = {"test": "test_attr"}
