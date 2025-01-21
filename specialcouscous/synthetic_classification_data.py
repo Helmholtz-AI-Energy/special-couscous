@@ -549,9 +549,10 @@ class SyntheticDataset:
 
     def __eq__(self, other: object) -> bool:
         """
-        Compare this dataset to another dataset and return whether they are equal. Two datasets are considered
-        equal if their n_samples, n_classes, and (element-wise) y are equal and their (element-wise) features x are
-        allmost equal (rtol=1e-05 and atol=1e-08).
+        Compare this dataset to another dataset and return whether they are equal.
+
+        Two datasets are considered equal if their n_samples, n_classes, and (element-wise) y are equal and their
+        (element-wise) features x are almost equal (rtol=1e-05 and atol=1e-08).
 
         Parameters
         ----------

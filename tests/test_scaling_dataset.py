@@ -25,6 +25,14 @@ set_logger_config(
 
 
 def test_create_scaling_dataset() -> None:
+    """
+    Test creating a scaling dataset.
+
+    Create a scaling dataset and ensure all splits (test set and all local train sets) have the correct size and are
+    (roughly) from the same distribution by ensuring the feature- and class-wise means of all splits are within one
+    standard deviation of the mean of the global training set.
+    Note: since all means seem to be close to 0 with stds around 1, it is unclear how meaningful this check really is.
+    """
     # use mostly default parameters from utils.parse_arguments()
     n_classes = 4  # use only 4 classes
     n_features = 20  # use only 20 features
@@ -98,6 +106,19 @@ def test_create_scaling_dataset() -> None:
 
 
 def test_write_read_scaling_dataset(tmp_path: pathlib.Path) -> None:
+    """
+    Test the writing and reading of scaling datasets.
+
+    Generate a scaling dataset and test
+    - writing it to HDF5
+    - writing it to HDF5 when the matching file already exists (once with, once without override)
+    - reading it from HDF5 and comparing it to the original (both reading all ranks at once and rank by rank)
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary path to write the data to.
+    """
     # use mostly default parameters from utils.parse_arguments()
     n_classes = 10
     n_features = 100
