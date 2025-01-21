@@ -4,7 +4,7 @@ import argparse
 import logging
 import os
 import pathlib
-from typing import Any
+from typing import Any, cast
 
 import h5py
 import numpy as np
@@ -432,6 +432,8 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
         **dataset_config
     )
+    # just to shutup mypy: since we don't pass a rank, we have a dict of all ranks, not just a single dataset for one
+    local_train_sets = cast(dict[int, SyntheticDataset], local_train_sets)
 
     # write the dataset to HDF5
     path = dataset_path_from_args(args)

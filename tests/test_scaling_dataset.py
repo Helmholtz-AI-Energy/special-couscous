@@ -48,6 +48,8 @@ def test_create_scaling_dataset() -> None:
         make_classification_kwargs=make_classification_kwargs,
         stratified_train_test=True,
     )
+    # just to shutup mypy: since we don't pass a rank, we have a dict of all ranks, not just a single dataset for one
+    training_slices = cast(dict[int, SyntheticDataset], training_slices)
 
     # check dataset size
     # global train set = 1250 * 0.8 = 1000 samples
