@@ -3,8 +3,11 @@ import pathlib
 
 import pytest
 
-from specialcouscous.scaling_dataset import generate_scaling_dataset, write_scaling_dataset_to_hdf5, \
-    read_scaling_dataset_from_hdf5
+from specialcouscous.scaling_dataset import (
+    generate_scaling_dataset,
+    read_scaling_dataset_from_hdf5,
+    write_scaling_dataset_to_hdf5,
+)
 from specialcouscous.utils import set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -77,8 +80,12 @@ def test_create_scaling_dataset():
         assert check_feature_mean(global_test_mean, global_train_mean, global_train_std)
 
         for local_train_set in training_slices.values():
-            local_train_mean = subset_for_class(local_train_set, class_index).mean(axis=0)
-            assert check_feature_mean(local_train_mean, global_train_mean, global_train_std)
+            local_train_mean = subset_for_class(local_train_set, class_index).mean(
+                axis=0
+            )
+            assert check_feature_mean(
+                local_train_mean, global_train_mean, global_train_std
+            )
 
 
 def test_write_read_scaling_dataset(tmp_path: pathlib.Path):
@@ -111,17 +118,29 @@ def test_write_read_scaling_dataset(tmp_path: pathlib.Path):
     global_attrs = {"test": "test_attr"}
 
     # write scaling dataset to HDF5
-    write_scaling_dataset_to_hdf5(global_train_set, training_slices, global_test_set, global_attrs, hdf5_path)
+    write_scaling_dataset_to_hdf5(
+        global_train_set, training_slices, global_test_set, global_attrs, hdf5_path
+    )
 
     # check overriding: raises exception if override is false but overrides if true
     pytest.raises(
         FileExistsError,
         lambda: write_scaling_dataset_to_hdf5(
-            global_train_set, training_slices, global_test_set, global_attrs, hdf5_path, override=False
+            global_train_set,
+            training_slices,
+            global_test_set,
+            global_attrs,
+            hdf5_path,
+            override=False,
         ),
     )
     write_scaling_dataset_to_hdf5(
-        global_train_set, training_slices, global_test_set, global_attrs, hdf5_path, override=True
+        global_train_set,
+        training_slices,
+        global_test_set,
+        global_attrs,
+        hdf5_path,
+        override=True,
     )
 
     expected_root_attrs = {
@@ -132,15 +151,17 @@ def test_write_read_scaling_dataset(tmp_path: pathlib.Path):
     }
 
     # read entire scaling dataset from HDF5
-    read_local_train_sets, read_global_test_set, read_root_attrs = read_scaling_dataset_from_hdf5(hdf5_path)
+    read_local_train_sets, read_global_test_set, read_root_attrs = (
+        read_scaling_dataset_from_hdf5(hdf5_path)
+    )
     assert read_global_test_set == global_test_set
     assert read_local_train_sets == training_slices
     assert read_root_attrs == expected_root_attrs
 
     # read specific local training set from HDF5
     for rank in range(n_ranks):
-        read_local_train_set, read_global_test_set, read_root_attrs = read_scaling_dataset_from_hdf5(
-            hdf5_path, rank=rank
+        read_local_train_set, read_global_test_set, read_root_attrs = (
+            read_scaling_dataset_from_hdf5(hdf5_path, rank=rank)
         )
         assert read_global_test_set == global_test_set
         assert read_local_train_set == training_slices[rank]

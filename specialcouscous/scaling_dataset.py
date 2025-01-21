@@ -10,12 +10,15 @@ import h5py
 import numpy as np
 from sklearn.utils import check_random_state
 
-from specialcouscous.synthetic_classification_data import SyntheticDataset, DatasetPartition
+from specialcouscous.synthetic_classification_data import (
+    DatasetPartition,
+    SyntheticDataset,
+)
 from specialcouscous.utils import parse_arguments, set_logger_config
 
 # Get logger: specialcouscous.<filename>
 __FILE_PATH = pathlib.Path(__file__)
-log = logging.getLogger(f'{__FILE_PATH.parent.name}.{__FILE_PATH.stem}')
+log = logging.getLogger(f"{__FILE_PATH.parent.name}.{__FILE_PATH.stem}")
 
 
 def generate_scaling_dataset(
@@ -29,7 +32,9 @@ def generate_scaling_dataset(
     sampling: bool = False,
     stratified_train_test: bool = False,
     rank: int | None = None,
-) -> tuple[SyntheticDataset, dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset]:
+) -> tuple[
+    SyntheticDataset, dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset
+]:
     """
     Generate a dataset to be scaled with the number of nodes. Generates a single global dataset and splits it into
     n_ranks slices. Returns the global train and test set and either the local train set of the given rank, or a dict of
@@ -86,20 +91,26 @@ def generate_scaling_dataset(
 
     # Step 2: split into global train and test set
     # TODO: in this case, the size of the test set scales with n_ranks -> do we want this? if not, what else?
-    log.debug(f"Generate global train-test split: {test_size=}, {stratified_train_test=}.")
+    log.debug(
+        f"Generate global train-test split: {test_size=}, {stratified_train_test=}."
+    )
     global_train_set, global_test_set = global_dataset.train_test_split(
         test_size=test_size,
         stratify=stratified_train_test,
         random_state=random_state,
     )
-    log.debug(f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}")
+    log.debug(
+        f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}"
+    )
 
     # Step 3: partition the global train set into n_ranks local train sets (balanced partition)
     partition = DatasetPartition(global_train_set.y)
     assigned_ranks = partition.balanced_partition(n_ranks, random_state, sampling)
     assigned_indices = partition.assigned_indices_by_rank(assigned_ranks)
     training_slices = {
-        rank: SyntheticDataset(global_train_set.x[indices], global_train_set.y[indices], None, n_classes)
+        rank: SyntheticDataset(
+            global_train_set.x[indices], global_train_set.y[indices], None, n_classes
+        )
         for rank, indices in assigned_indices.items()
     }
 
@@ -109,7 +120,7 @@ def generate_scaling_dataset(
         log.debug(f"Returning local train set for rank {rank}")
         return global_train_set, training_slices[rank], global_test_set
     else:
-        log.debug(f"Returning dict of all local train sets")
+        log.debug("Returning dict of all local train sets")
         return global_train_set, training_slices, global_test_set
 
 
@@ -158,19 +169,21 @@ def write_scaling_dataset_to_hdf5(
     """
     file_path = pathlib.Path(file_path)
     if not override and file_path.exists():
-        raise FileExistsError(f"File {file_path} exists and override is set to {file_path}.")
+        raise FileExistsError(
+            f"File {file_path} exists and override is set to {file_path}."
+        )
     file = h5py.File(file_path, "w")
 
     file.attrs["n_classes"] = global_train_set.n_classes
     file.attrs["n_ranks"] = len(local_train_sets)
     file.attrs["n_samples_global_train"] = global_train_set.n_samples
     for key, value in additional_global_attrs.items():
-        log.debug(f'Adding attr {key}={value}')
+        log.debug(f"Adding attr {key}={value}")
         file.attrs[key] = value
 
     def write_subset_to_group(group_name, dataset, **attrs):
-        file[f'{group_name}/x'] = dataset.x
-        file[f'{group_name}/y'] = dataset.y
+        file[f"{group_name}/x"] = dataset.x
+        file[f"{group_name}/y"] = dataset.y
         file[group_name].attrs["n_samples"] = dataset.n_samples
         for key, value in attrs.items():
             file[group_name].attrs[key] = value
@@ -187,7 +200,9 @@ def write_scaling_dataset_to_hdf5(
 def read_scaling_dataset_from_hdf5(
     file_path: os.PathLike,
     rank: int | None = None,
-) -> tuple[dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]]:
+) -> tuple[
+    dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]
+]:
     """
     Read a scaling dataset (local train sets and global test set) from the given HDF5 file.
 
@@ -214,22 +229,32 @@ def read_scaling_dataset_from_hdf5(
 
     def dataset_from_group(group):
         return SyntheticDataset(
-            group["x"], group["y"], n_samples=int(group.attrs["n_samples"]), n_classes=int(n_classes)
+            group["x"],
+            group["y"],
+            n_samples=int(group.attrs["n_samples"]),
+            n_classes=int(n_classes),
         )
 
-    global_test_set = dataset_from_group(file['test_set'])
+    global_test_set = dataset_from_group(file["test_set"])
 
     if rank is None:  # dict of all local train sets
-        local_train_set = {group.attrs['rank']: dataset_from_group(group)
-                           for name, group in file['local_train_sets'].items()}
+        local_train_set = {
+            group.attrs["rank"]: dataset_from_group(group)
+            for name, group in file["local_train_sets"].items()
+        }
     else:  # just the local train set for the given rank
-        local_train_set = dataset_from_group(file[f'local_train_sets/rank_{rank}'])
+        local_train_set = dataset_from_group(file[f"local_train_sets/rank_{rank}"])
 
     return local_train_set, global_test_set, root_attrs
 
 
 def dataset_path(
-    root_path: os.PathLike, n_samples: int, n_features: int, n_classes: int, n_nodes: int, seed: int
+    root_path: os.PathLike,
+    n_samples: int,
+    n_features: int,
+    n_classes: int,
+    n_nodes: int,
+    seed: int,
 ) -> pathlib.Path:
     """
     Construct the dataset path depending on its parameters and make sure all parent directories exist.
@@ -280,7 +305,9 @@ def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
         The path to the HDF5 file for the corresponding dataset.
     """
     if args.n_train_splits is None:
-        raise ValueError(f'n_train_splits is required for pre-generated datasets. Please specify --n_train_splits.')
+        raise ValueError(
+            "n_train_splits is required for pre-generated datasets. Please specify --n_train_splits."
+        )
 
     return dataset_path(
         root_path=args.data_root_path,
@@ -308,21 +335,23 @@ def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
         The configuration parameters passed to generate_scaling_dataset.
     """
     if args.n_train_splits is None:
-        raise ValueError(f'n_train_splits is required for pre-generated datasets. Please specify --n_train_splits.')
+        raise ValueError(
+            "n_train_splits is required for pre-generated datasets. Please specify --n_train_splits."
+        )
     return {
-        'n_samples': args.n_samples,
-        'n_features': args.n_features,
-        'n_classes': args.n_classes,
-        'n_ranks': args.n_train_splits,
-        'random_state': args.random_state,
-        'test_size': 1 - args.train_split,
-        'make_classification_kwargs': {
+        "n_samples": args.n_samples,
+        "n_features": args.n_features,
+        "n_classes": args.n_classes,
+        "n_ranks": args.n_train_splits,
+        "random_state": args.random_state,
+        "test_size": 1 - args.train_split,
+        "make_classification_kwargs": {
             "n_clusters_per_class": args.n_clusters_per_class,
             "n_informative": int(args.frac_informative * args.n_features),
             "n_redundant": int(args.frac_redundant * args.n_features),
             "flip_y": args.flip_y,
         },
-        'stratified_train_test': args.stratified_train_test,
+        "stratified_train_test": args.stratified_train_test,
     }
 
 
@@ -358,16 +387,23 @@ def load_and_verify_dataset(
 
     # verify that the metadata stored within the HDF5 is identical to that specified by the parameters
     expected_dataset_config = dataset_config_from_args(args)
-    expected_dataset_config = {**expected_dataset_config, **expected_dataset_config['make_classification_kwargs']}
-    del expected_dataset_config['make_classification_kwargs']
-    actual_dataset_config = {key: value for key, value in attrs.items() if key in expected_dataset_config}
+    expected_dataset_config = {
+        **expected_dataset_config,
+        **expected_dataset_config["make_classification_kwargs"],
+    }
+    del expected_dataset_config["make_classification_kwargs"]
+    actual_dataset_config = {
+        key: value for key, value in attrs.items() if key in expected_dataset_config
+    }
 
     if expected_dataset_config != actual_dataset_config:
-        error_message = (f'Dataset config does not match current CLI arguments. '
-                         f'From CLI {expected_dataset_config}, actual in HDF5 {actual_dataset_config}.')
+        error_message = (
+            f"Dataset config does not match current CLI arguments. "
+            f"From CLI {expected_dataset_config}, actual in HDF5 {actual_dataset_config}."
+        )
         if fail_on_unmatched_config:
             raise ValueError(error_message)
-        log.warning(f'Warning: {error_message}')
+        log.warning(f"Warning: {error_message}")
 
     return local_train_sets, global_test_set, attrs
 
@@ -383,18 +419,34 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     """
     # generate the dataset
     dataset_config = dataset_config_from_args(args)
-    log.info(f'Creating dataset with the following parameters:\n{dataset_config}')
-    global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(**dataset_config)
+    log.info(f"Creating dataset with the following parameters:\n{dataset_config}")
+    global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
+        **dataset_config
+    )
 
     # write the dataset to HDF5
     path = dataset_path_from_args(args)
-    additional_attrs = {key: value for key, value in dataset_config.items() if key != 'make_classification_kwargs'}
-    additional_attrs = {**additional_attrs, **dataset_config['make_classification_kwargs']}
+    additional_attrs = {
+        key: value
+        for key, value in dataset_config.items()
+        if key != "make_classification_kwargs"
+    }
+    additional_attrs = {
+        **additional_attrs,
+        **dataset_config["make_classification_kwargs"],
+    }
     write_scaling_dataset_to_hdf5(
-        global_train_set, local_train_sets, global_test_set, additional_attrs, path, override=args.override_data
+        global_train_set,
+        local_train_sets,
+        global_test_set,
+        additional_attrs,
+        path,
+        override=args.override_data,
     )
-    log.info(f'Dataset successfully written to {path}.')
-    log.info(f'To use this dataset, call \'scaling_dataset.load_and_verify_dataset(args)\' with the same CLI arguments.')
+    log.info(f"Dataset successfully written to {path}.")
+    log.info(
+        "To use this dataset, call 'scaling_dataset.load_and_verify_dataset(args)' with the same CLI arguments."
+    )
 
 
 if __name__ == "__main__":

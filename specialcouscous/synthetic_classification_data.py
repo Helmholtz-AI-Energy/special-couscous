@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import collections
 import itertools
 import logging
@@ -562,19 +563,23 @@ class SyntheticDataset:
             Whether this and the other dataset are the same.
         """
         if self.n_samples != other.n_samples:
-            log.info(f"SyntheticDatasets not equal: {self.n_samples=} != {other.n_samples=}")
+            log.info(
+                f"SyntheticDatasets not equal: {self.n_samples=} != {other.n_samples=}"
+            )
             return False
 
         if self.n_classes != other.n_classes:
-            log.info(f"SyntheticDatasets not equal: {self.n_classes=} != {other.n_classes=}")
+            log.info(
+                f"SyntheticDatasets not equal: {self.n_classes=} != {other.n_classes=}"
+            )
             return False
 
         if not (self.y == other.y).all():
-            log.info(f"SyntheticDatasets not equal: self.y != other.y")
+            log.info("SyntheticDatasets not equal: self.y != other.y")
             return False
 
         if not np.allclose(self.x, other.x, equal_nan=True):
-            log.info(f"SyntheticDatasets not equal: self.x !≈ other.x")
+            log.info("SyntheticDatasets not equal: self.x !≈ other.x")
             return False
         return True
 
