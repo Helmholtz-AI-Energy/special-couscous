@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=generate_scaling_dataset    # Job name
-#SBATCH --partition=cpuonly                    # Queue for resource allocation
+#SBATCH --partition=large                      # Queue for resource allocation
 #SBATCH --time=60                              # Wall-clock time limit (1h)
 #SBATCH --mem=500gb                            # Main memory -> use high memory nodes
 #SBATCH --cpus-per-task=76                     # Number of CPUs required per (MPI) task
@@ -9,14 +9,14 @@
 #SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
+BASE_DIR=${BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}
 DATA_DIR="${BASE_DIR}/datasets"
 
 
 ml purge              # Unload all currently loaded modules.
 ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
-source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
+source "${BASE_DIR}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
 
 SCRIPT="${BASE_DIR}/special-couscous/specialcouscous/scaling_dataset.py"
 
