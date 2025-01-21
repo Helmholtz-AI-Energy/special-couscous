@@ -7,8 +7,8 @@ import pytest
 
 from specialcouscous.scaling_dataset import (
     generate_scaling_dataset,
-    write_scaling_dataset_to_hdf5,
     read_scaling_dataset_from_hdf5,
+    write_scaling_dataset_to_hdf5,
 )
 from specialcouscous.synthetic_classification_data import SyntheticDataset
 from specialcouscous.utils import set_logger_config
@@ -78,7 +78,9 @@ def test_create_scaling_dataset() -> None:
         # TODO: this check does not seem super informative since all means seem to be close to 0 with stds close to 1
         # Maybe there is another, more informative check we could make here?
         def check_feature_mean(
-            mean_to_check: np.ndarray, baseline_mean: np.ndarray, allowed_difference: np.ndarray
+            mean_to_check: np.ndarray,
+            baseline_mean: np.ndarray,
+            allowed_difference: np.ndarray,
         ) -> bool:
             return (abs(mean_to_check - baseline_mean) < allowed_difference).all()
 
