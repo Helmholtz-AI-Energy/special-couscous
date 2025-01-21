@@ -36,9 +36,11 @@ def generate_scaling_dataset(
     SyntheticDataset, dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset
 ]:
     """
-    Generate a dataset to be scaled with the number of nodes. Generates a single global dataset and splits it into
-    n_ranks slices. Returns the global train and test set and either the local train set of the given rank, or a dict of
-    all local train sets (mapping rank -> local train set) when rank is None.
+    Generate a dataset to be scaled with the number of nodes.
+
+    Generates a single global dataset and splits it into n_ranks slices. Returns the global train and test set and
+    either the local train set of the given rank, or a dict of all local train sets (mapping rank -> local train set)
+    when rank is None.
 
     Parameters
     ----------
@@ -133,7 +135,9 @@ def write_scaling_dataset_to_hdf5(
     override: bool = False,
 ) -> None:
     """
-    Write a scaling dataset as HDF5 file to the given path. The HDF5 file has the following structure:
+    Write a scaling dataset as HDF5 file to the given path.
+
+    The HDF5 file has the following structure:
     Root Attributes:
     - '/n_classes': the number of classes in the dataset
     - '/n_ranks': the number of ranks into which the dataset has been partitioned
@@ -297,7 +301,7 @@ def dataset_path(
 
 def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
     """
-    Wrapper for dataset_path which directly takes the args object from the CLI parser.
+    Generate dataset_path directly from args object from the CLI parser (wrapper for dataset_path).
 
     Parameters
     ----------
@@ -366,6 +370,8 @@ def load_and_verify_dataset(
     dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]
 ]:
     """
+    Load dataset from HDF5 and verify that the configuration matches the CLI arguments.
+
     Try to read the corresponding dataset from HDF5 and verify that the actual dataset config stored in the HDF5 matches
     the config inferred from the current CLI parameter.
 
