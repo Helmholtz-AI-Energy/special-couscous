@@ -160,11 +160,12 @@ def write_scaling_dataset_to_hdf5(
     global_train_set : SyntheticDataset
         The global train set (used only to extract root attributes)
     local_train_sets : dict[int, SyntheticDataset]
-        pass
+        A dict of all local train sets by rank.
     global_test_set : SyntheticDataset
-        pass
+        The global = local test set.
     additional_global_attrs : dict[str, Any]
-        pass
+        A dict of additional attributes to write root attributes to the HDF5 file. Can for example be used to save the
+        config parameters used to generate this dataset.
     file_path : os.PathLike
         The file path of the HDF5 file to write.
     override : bool
