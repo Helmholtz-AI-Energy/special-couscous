@@ -455,6 +455,7 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
         The parsed CLI parameters.
     """
     # Generate the dataset.
+    args.random_state_slicing = args.random_state
     dataset_config = dataset_config_from_args(args, unpack_kwargs=False)
     log.info(f"Creating dataset with the following parameters:\n{dataset_config}")
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
