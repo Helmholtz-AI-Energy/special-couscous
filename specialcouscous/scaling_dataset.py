@@ -337,7 +337,7 @@ def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
 
 
 def dataset_config_from_args(
-    args: argparse.Namespace, unpack_kwargs: bool = False
+    args: argparse.Namespace, unpack_kwargs: bool = False, shuffle: bool | None = None
 ) -> dict[str, Any]:
     """
     Convert the CLI parameters to the configuration passed to ``generate_scaling_dataset``.
@@ -350,6 +350,8 @@ def dataset_config_from_args(
         Whether to unpack the make_classification_kwargs or keep them as nested dict.
         Leave as False to get correct config for dataset generation, set to True to unpack the nested dict, e.g., for
         using the config as HDF5 attributes.
+    shuffle : bool | None
+        Optional way to set the shuffle parameter in make_classification_kwargs,
 
     Returns
     -------
@@ -375,6 +377,8 @@ def dataset_config_from_args(
         "n_redundant": int(args.frac_redundant * args.n_features),
         "flip_y": args.flip_y,
     }
+    if shuffle is not None:
+        make_classification_kwargs['shuffle'] = shuffle
     if unpack_kwargs:
         return {**general_kwargs, **make_classification_kwargs}
     else:
