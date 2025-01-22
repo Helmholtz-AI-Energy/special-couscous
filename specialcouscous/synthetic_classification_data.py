@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import itertools
 import logging
@@ -544,6 +546,45 @@ class SyntheticDataset:
         self.n_classes = (
             len(np.unique(self.y, axis=0)) if n_classes is None else n_classes
         )
+
+    def __eq__(self, other: object) -> bool:
+        """
+        Compare this dataset to another dataset and return whether they are equal.
+
+        Two datasets are considered equal if their ``n_samples``, ``n_classes``, and (element-wise) ``y`` are equal and their
+        (element-wise) features ``x`` are almost equal (``rtol=1e-05`` and ``atol=1e-08``).
+
+        Parameters
+        ----------
+        other : SyntheticDataset
+
+        Returns
+        -------
+        bool
+            Whether this and the other dataset are the same.
+        """
+        if not isinstance(other, SyntheticDataset):
+            return False
+        if self.n_samples != other.n_samples:
+            log.info(
+                f"SyntheticDatasets not equal: {self.n_samples=} != {other.n_samples=}"
+            )
+            return False
+
+        if self.n_classes != other.n_classes:
+            log.info(
+                f"SyntheticDatasets not equal: {self.n_classes=} != {other.n_classes=}"
+            )
+            return False
+
+        if not (self.y == other.y).all():
+            log.info("SyntheticDatasets not equal: self.y != other.y")
+            return False
+
+        if not np.allclose(self.x, other.x, equal_nan=True):
+            log.info("SyntheticDatasets not equal: self.x !≈ other.x")
+            return False
+        return True
 
     def __str__(self) -> str:
         """
