@@ -38,7 +38,7 @@ def generate_scaling_dataset(
     """
     Generate a dataset to be scaled with the number of nodes.
 
-    Generates a single global dataset and splits it into n_ranks slices. Returns the global train and test set and
+    Generates a single global dataset and splits it into ``n_ranks`` slices. Returns the global train and test set and
     either the local train set of the given rank, or a dict of all local train sets (mapping rank -> local train set)
     when rank is None.
 
@@ -49,7 +49,7 @@ def generate_scaling_dataset(
     n_features : int
         The number of features in the dataset.
     n_classes : int
-        The number classes in the dataset.
+        The number of classes in the dataset.
     n_ranks : int
         The total/maximum number of ranks to generate the dataset for.
     random_state : int | np.random.RandomState
@@ -82,7 +82,7 @@ def generate_scaling_dataset(
     log.debug(f"The random state is:\n{random_state.get_state(legacy=True)}")
     log.debug(f"Classification kwargs: {make_classification_kwargs}")
 
-    # Step 1: generate balanced global dataset for up to n_ranks nodes
+    # Step 1: Generate balanced global dataset for up to `n_ranks` nodes.
     global_dataset = SyntheticDataset.generate(
         n_samples=n_samples,
         n_features=n_features,
@@ -91,7 +91,7 @@ def generate_scaling_dataset(
         make_classification_kwargs=make_classification_kwargs,
     )
 
-    # Step 2: split into global train and test set
+    # Step 2: Split into global train and test set.
     # TODO: in this case, the size of the test set scales with n_ranks -> do we want this? if not, what else?
     log.debug(
         f"Generate global train-test split: {test_size=}, {stratified_train_test=}."
@@ -105,7 +105,7 @@ def generate_scaling_dataset(
         f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}"
     )
 
-    # Step 3: partition the global train set into n_ranks local train sets (balanced partition)
+    # Step 3: Partition the global train set into `n_ranks` local train sets (balanced partition).
     partition = DatasetPartition(global_train_set.y)
     assigned_ranks = partition.balanced_partition(n_ranks, random_state, sampling)
     assigned_indices = partition.assigned_indices_by_rank(assigned_ranks)
@@ -116,7 +116,7 @@ def generate_scaling_dataset(
         for rank, indices in assigned_indices.items()
     }
 
-    log.debug(f"Shape of local train set 0 {training_slices[0].x.shape}")
+    log.debug(f"Shape of local train set 0 is {training_slices[0].x.shape}.")
 
     if rank is not None:
         log.debug(f"Returning local train set for rank {rank}")
@@ -168,8 +168,8 @@ def write_scaling_dataset_to_hdf5(
     file_path : os.PathLike
         The file path of the HDF5 file to write.
     override : bool
-        If true, will override any existing files at file_path. If false, will raise a FileExistsError
-        should file_path already exist.
+        If True, will override any existing files at ``file_path``. If False, will raise a ``FileExistsError``
+        should ``file_path`` already exist.
     """
     file_path = pathlib.Path(file_path)
     if not override and file_path.exists():
@@ -194,10 +194,10 @@ def write_scaling_dataset_to_hdf5(
         for key, value in attrs.items():
             file[group_name].attrs[key] = value
 
-    # write global test set to HDF5
+    # Write global test set to HDF5.
     write_subset_to_group("test_set", global_test_set, label="global_test_set")
 
-    # write local train sets to HDF5
+    # Write local train sets to HDF5.
     for rank, local_train_set in local_train_sets.items():
         group_name = f"local_train_sets/rank_{rank}"
         write_subset_to_group(group_name, local_train_set, label=group_name, rank=rank)
@@ -245,13 +245,13 @@ def read_scaling_dataset_from_hdf5(
 
     local_train_set: (
         dict[int, SyntheticDataset] | SyntheticDataset
-    )  # define type first for mypy
-    if rank is None:  # dict of all local train sets
+    )  # Define type first for mypy.
+    if rank is None:  # Dict of all local train sets
         local_train_set = {
             group.attrs["rank"]: dataset_from_group(group)
             for name, group in file["local_train_sets"].items()
         }
-    else:  # just the local train set for the given rank
+    else:  # Just the local train set for the given rank
         local_train_set = dataset_from_group(file[f"local_train_sets/rank_{rank}"])
 
     return local_train_set, global_test_set, root_attrs
@@ -301,7 +301,7 @@ def dataset_path(
 
 def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
     """
-    Generate dataset_path directly from args object from the CLI parser (wrapper for dataset_path).
+    Generate ``dataset_path`` directly from args object from the CLI parser (wrapper for ``dataset_path``).
 
     Parameters
     ----------
@@ -330,7 +330,7 @@ def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
 
 def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
     """
-    Convert the CLI parameters to the configuration passed to generate_scaling_dataset.
+    Convert the CLI parameters to the configuration passed to ``generate_scaling_dataset``.
 
     Parameters
     ----------
@@ -341,7 +341,7 @@ def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
     Returns
     -------
     dict[str, Any]
-        The configuration parameters passed to generate_scaling_dataset.
+        The configuration parameters passed to ``generate_scaling_dataset``.
     """
     if args.n_train_splits is None:
         raise ValueError(
@@ -394,13 +394,13 @@ def load_and_verify_dataset(
     dict[str, Any]
         Any additional information on the dataset stored as root attribute in the HDF5 file.
     """
-    # read dataset from HDF5
+    # Read dataset from HDF5.
     path = dataset_path_from_args(args)
     local_train_sets, global_test_set, attrs = read_scaling_dataset_from_hdf5(
         path, rank=rank
     )
 
-    # verify that the metadata stored within the HDF5 is identical to that specified by the parameters
+    # Verify that the metadata stored within the HDF5 is identical to that specified by the parameters.
     expected_dataset_config = dataset_config_from_args(args)
     expected_dataset_config = {
         **expected_dataset_config,
@@ -432,16 +432,16 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     args : argparse.Namespace
         The parsed CLI parameters.
     """
-    # generate the dataset
+    # Generate the dataset.
     dataset_config = dataset_config_from_args(args)
     log.info(f"Creating dataset with the following parameters:\n{dataset_config}")
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
         **dataset_config
     )
-    # just to shutup mypy: since we don't pass a rank, we have a dict of all ranks, not just a single dataset for one
+    # Just to shutup mypy: Since we don't pass a rank, we have a dict of all ranks, not just a single dataset for one.
     local_train_sets = cast(dict[int, SyntheticDataset], local_train_sets)
 
-    # write the dataset to HDF5
+    # Write the dataset to HDF5.
     path = dataset_path_from_args(args)
     additional_attrs = {
         key: value
@@ -462,7 +462,7 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     )
     log.info(f"Dataset successfully written to {path}.")
     log.info(
-        "To use this dataset, call 'scaling_dataset.load_and_verify_dataset(args)' with the same CLI arguments."
+        "To use this dataset, call `scaling_dataset.load_and_verify_dataset(args)` with the same CLI arguments."
     )
 
 
