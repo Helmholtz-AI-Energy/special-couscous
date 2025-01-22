@@ -26,8 +26,9 @@ def generate_scaling_dataset(
     n_features: int,
     n_classes: int,
     n_ranks: int,
-    random_state: int | np.random.RandomState,
     test_size: float,
+    random_state: int | np.random.RandomState,
+    random_state_slicing: int | np.random.RandomState | None = None,
     make_classification_kwargs: dict[str, Any] | None = None,
     sampling: bool = False,
     stratified_train_test: bool = False,
@@ -52,10 +53,13 @@ def generate_scaling_dataset(
         The number of classes in the dataset.
     n_ranks : int
         The total/maximum number of ranks to generate the dataset for.
-    random_state : int | np.random.RandomState
-        The random state, used for dataset generation, partition, and distribution.
     test_size : float
         Relative size of the test set.
+    random_state : int | np.random.RandomState
+        The random state, used for dataset generation. If no random_state_slicing is passed, this random state is also
+        used for partition and distribution.
+    random_state_slicing : int | np.random.RandomState | None
+        The random state used for dataset partition and distribution. If None, the general random_state will be used.
     make_classification_kwargs : dict[str, Any], optional
         Additional keyword arguments to ``sklearn.datasets.make_classification``.
     sampling : bool
@@ -78,6 +82,7 @@ def generate_scaling_dataset(
 
     """
     random_state = check_random_state(random_state)
+    random_state_slicing = random_state if random_state_slicing is None else check_random_state(random_state_slicing)
 
     log.debug(f"The random state is:\n{random_state.get_state(legacy=True)}")
     log.debug(f"Classification kwargs: {make_classification_kwargs}")
@@ -99,7 +104,7 @@ def generate_scaling_dataset(
     global_train_set, global_test_set = global_dataset.train_test_split(
         test_size=test_size,
         stratify=stratified_train_test,
-        random_state=random_state,
+        random_state=random_state_slicing,
     )
     log.debug(
         f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}"
@@ -107,7 +112,7 @@ def generate_scaling_dataset(
 
     # Step 3: Partition the global train set into `n_ranks` local train sets (balanced partition).
     partition = DatasetPartition(global_train_set.y)
-    assigned_ranks = partition.balanced_partition(n_ranks, random_state, sampling)
+    assigned_ranks = partition.balanced_partition(n_ranks, random_state_slicing, sampling)
     assigned_indices = partition.assigned_indices_by_rank(assigned_ranks)
     training_slices = {
         rank: SyntheticDataset(
