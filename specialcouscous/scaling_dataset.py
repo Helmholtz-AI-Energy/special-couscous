@@ -146,7 +146,7 @@ def write_scaling_dataset_to_hdf5(
       can for example be used to store the config used to generate this dataset
 
     Groups:
-    - '/test_set': for the global test_set
+    - '/test_set': the global test_set
     - '/local_train_sets/rank_{rank}': the local train set for each rank
 
     Group Attributes:
@@ -174,7 +174,7 @@ def write_scaling_dataset_to_hdf5(
     file_path = pathlib.Path(file_path)
     if not override and file_path.exists():
         raise FileExistsError(
-            f"File {file_path} exists and override is set to {file_path}."
+            f"File {file_path} exists and override is set to {override}."
         )
     file = h5py.File(file_path, "w")
 
@@ -382,7 +382,7 @@ def load_and_verify_dataset(
     rank : int | None
         The rank whose local train set shall be loaded. Set to None to load all ranks.
     fail_on_unmatched_config : bool
-        If true, an error is raised if the verification fails. Otherwise, only an error message is printed by the
+        If true, an error is raised if the verification fails. Otherwise, only an error message is printed and the
         (potentially mismatched) dataset is returned anyway.
 
     Returns
