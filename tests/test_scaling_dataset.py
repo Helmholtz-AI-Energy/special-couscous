@@ -85,8 +85,8 @@ def test_create_scaling_dataset() -> None:
         print(f"Global train std:  {global_train_std[:5]}")
 
         # Check mean: Mean of all smaller subsets should be within std of mean from global train set.
-        # TODO: this check does not seem super informative since all means seem to be close to 0 with stds close to 1
-        # Maybe there is another, more informative check we could make here?
+        # Note: this check does not seem super informative since all means seem to be close to 0 with stds close to 1
+        # Maybe there is another, more informative check we could make here? (see Issue #30)
         def check_feature_mean(
             mean_to_check: np.ndarray,
             baseline_mean: np.ndarray,

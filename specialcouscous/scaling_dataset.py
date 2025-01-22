@@ -96,7 +96,6 @@ def generate_scaling_dataset(
     )
 
     # Step 2: Split into global train and test set.
-    # TODO: in this case, the size of the test set scales with n_ranks -> do we want this? if not, what else?
     log.debug(
         f"Generate global train-test split: {test_size=}, {stratified_train_test=}."
     )
