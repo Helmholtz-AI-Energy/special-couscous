@@ -84,7 +84,6 @@ def generate_scaling_dataset(
     random_state = check_random_state(random_state)
     random_state_slicing = random_state if random_state_slicing is None else check_random_state(random_state_slicing)
 
-    log.debug(f"The random state is:\n{random_state.get_state(legacy=True)}")
     log.debug(f"Classification kwargs: {make_classification_kwargs}")
 
     # Step 1: Generate balanced global dataset for up to `n_ranks` nodes.
@@ -478,6 +477,6 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    set_logger_config()
+    set_logger_config(level=logging.DEBUG)
     args = parse_arguments()
     generate_and_save_dataset(args)
