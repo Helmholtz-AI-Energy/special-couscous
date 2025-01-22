@@ -202,6 +202,8 @@ def write_scaling_dataset_to_hdf5(
     for rank, local_train_set in local_train_sets.items():
         group_name = f"local_train_sets/rank_{rank}"
         write_subset_to_group(group_name, local_train_set, label=group_name, rank=rank)
+    log.info(f"Dataset successfully written to {file_path}.")
+    log.info("To use this dataset, call `scaling_dataset.load_and_verify_dataset(args)` with the same CLI arguments.")
 
 
 def read_scaling_dataset_from_hdf5(
@@ -329,7 +331,7 @@ def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
     )
 
 
-def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
+def dataset_config_from_args(args: argparse.Namespace, unpack_kwargs: bool = False) -> dict[str, Any]:
     """
     Convert the CLI parameters to the configuration passed to ``generate_scaling_dataset``.
 
@@ -337,32 +339,39 @@ def dataset_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
     ----------
     args : argparse.Namespace
         The parsed CLI parameters.
-
+    unpack_kwargs : bool
+        Whether to unpack the make_classification_kwargs or keep them as nested dict.
+        Leave as False to get correct config for dataset generation, set to True to unpack the nested dict, e.g., for
+        using the config as HDF5 attributes.
 
     Returns
     -------
     dict[str, Any]
-        The configuration parameters passed to ``generate_scaling_dataset``.
+        The configuration parameters as dict.
     """
     if args.n_train_splits is None:
         raise ValueError(
             "n_train_splits is required for pre-generated datasets. Please specify --n_train_splits."
         )
-    return {
+    general_kwargs = {
         "n_samples": args.n_samples,
         "n_features": args.n_features,
         "n_classes": args.n_classes,
         "n_ranks": args.n_train_splits,
         "random_state": args.random_state,
         "test_size": 1 - args.train_split,
-        "make_classification_kwargs": {
-            "n_clusters_per_class": args.n_clusters_per_class,
-            "n_informative": int(args.frac_informative * args.n_features),
-            "n_redundant": int(args.frac_redundant * args.n_features),
-            "flip_y": args.flip_y,
-        },
         "stratified_train_test": args.stratified_train_test,
     }
+    make_classification_kwargs = {
+        "n_clusters_per_class": args.n_clusters_per_class,
+        "n_informative": int(args.frac_informative * args.n_features),
+        "n_redundant": int(args.frac_redundant * args.n_features),
+        "flip_y": args.flip_y,
+    }
+    if unpack_kwargs:
+        return {**general_kwargs, **make_classification_kwargs}
+    else:
+        return {**general_kwargs, 'make_classification_kwargs': make_classification_kwargs}
 
 
 def load_and_verify_dataset(
@@ -434,7 +443,7 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
         The parsed CLI parameters.
     """
     # Generate the dataset.
-    dataset_config = dataset_config_from_args(args)
+    dataset_config = dataset_config_from_args(args, unpack_kwargs=False)
     log.info(f"Creating dataset with the following parameters:\n{dataset_config}")
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
         **dataset_config
@@ -444,27 +453,8 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
 
     # Write the dataset to HDF5.
     path = dataset_path_from_args(args)
-    additional_attrs = {
-        key: value
-        for key, value in dataset_config.items()
-        if key != "make_classification_kwargs"
-    }
-    additional_attrs = {
-        **additional_attrs,
-        **dataset_config["make_classification_kwargs"],
-    }
-    write_scaling_dataset_to_hdf5(
-        global_train_set,
-        local_train_sets,
-        global_test_set,
-        additional_attrs,
-        path,
-        override=args.override_data,
-    )
-    log.info(f"Dataset successfully written to {path}.")
-    log.info(
-        "To use this dataset, call `scaling_dataset.load_and_verify_dataset(args)` with the same CLI arguments."
-    )
+    attrs = dataset_config_from_args(args, unpack_kwargs=True)
+    write_scaling_dataset_to_hdf5(global_train_set, local_train_sets, global_test_set, attrs, path, args.override_data)
 
 
 if __name__ == "__main__":
