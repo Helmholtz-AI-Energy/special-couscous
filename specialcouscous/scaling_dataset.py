@@ -469,6 +469,7 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     # Write the dataset to HDF5.
     path = dataset_path_from_args(args)
     attrs = dataset_config_from_args(args, unpack_kwargs=True)
+    attrs["memory_efficient_generation"] = False
     write_scaling_dataset_to_hdf5(
         global_train_set,
         local_train_sets,
@@ -479,7 +480,119 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     )
 
 
+def add_useless_features(
+        x: np.ndarray, n_useless: int, random_state: np.random.RandomState, shuffle: bool, shift: float = 0.0,
+        scale: float = 1.0
+) -> np.ndarray:
+    """
+    Add useless noise features to a given array of features.
+
+    Generate n_useless additional features by sampling random noise from a standard normal distribution, shifting and
+    scaling by shift/scale. If shuffle is True, the features (but not the samples) are shuffled.
+
+    Parameters
+    ----------
+    x : np.ndarray
+    n_useless : int
+        The number of useless features to add.
+    random_state : np.random.RandomState
+        The random state to use for sampling the features.
+    shuffle : bool
+        Whether to shuffle the features after appending the new features.
+    shift : float
+        The value by which to shift the random features (before scaling).
+    scale : float
+        The value by which to scale the random features (after shifting).
+
+    Returns
+    -------
+    np.ndarray
+        The feature array x with the new, useless features added.
+    """
+    # Create useless features from random noise
+    n_samples = x.shape[0]
+    useless_features = random_state.standard_normal(size=(n_samples, n_useless))
+    # Shift and scale the new features
+    useless_features = (useless_features + shift) * scale
+
+    # append useless features to dataset (after existing features)
+    x = np.concat([x, useless_features], axis=1)
+
+    if shuffle:  # Shuffle features only
+        feature_indices = np.arange(x.shape[1])
+        random_state.shuffle(feature_indices)
+        x[:, :] = x[:, feature_indices]
+
+    return x
+
+
+def generate_and_save_dataset_memory_efficient(args: argparse.Namespace, shuffle: bool = True) -> None:
+    """
+    Generate a scaling dataset based on the given CLI parameters in a more memory-efficient way.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        The parsed CLI parameters.
+    shuffle : bool
+        The shuffle parameter for make_classification. Set this to False, together with setting flip_y < 0 to obtain
+        identical results with the normal data generation approach.
+    """
+    # Step 0: Prepare data generation config
+    args.random_state_slicing = args.random_state
+    dataset_config = dataset_config_from_args(args, unpack_kwargs=False, shuffle=shuffle)
+    log.info(f"Aiming to create dataset with the following parameters:\n{dataset_config}")
+
+    # count useful and useless features, generate only useful features for now
+    n_features = args.n_features
+    n_useful = sum(dataset_config["make_classification_kwargs"].get(key, 0)
+                   for key in ['n_informative', 'n_redundant', 'n_repeated'])
+    n_useless = n_features - n_useful
+    dataset_config["n_features"] = n_useful
+    log.info(f"Creating dataset with only useful features using the following parameters:\n{dataset_config}")
+
+    # convert random seed to random state to reuse later
+    random_state_generation = check_random_state(args.random_state)
+    dataset_config['random_state'] = random_state_generation
+
+    # Step 1: Generate global dataset without the useless features
+    log.info('Start generation of global dataset without useless features.')
+    global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
+        **dataset_config
+    )
+    # Just to shutup mypy: Since we don't pass a rank, we have a dict of all ranks, not just a single dataset for one.
+    local_train_sets = cast(dict[int, SyntheticDataset], local_train_sets)
+    log.info('Dataset generation done.')
+
+    # Step 2: Write the dataset without the useless features to HDF5.
+    log.info('Start writing global dataset to HDF5.')
+    path = dataset_path_from_args(args)
+    attrs = dataset_config_from_args(args, unpack_kwargs=True, shuffle=shuffle)
+    attrs["memory_efficient_generation"] = True
+    write_scaling_dataset_to_hdf5(
+        global_train_set,
+        local_train_sets,
+        global_test_set,
+        attrs,
+        path,
+        args.override_data,
+    )
+    log.info(f'Done writing global dataset to HDF5 {path}.')
+
+    # Step 3: Add useless features one-by-one to each dataset slice
+    log.info('Start adding useless features to each slice.')
+    file = h5py.File(path, "r+")
+    for group_name in ["test_set"] + [f'local_train_sets/{name}' for name in file['local_train_sets']]:
+        log.debug(f'Adding useless features to {group_name}')
+        group = file[group_name]
+        useful_features = group["x"]
+        del group["x"]  # need to delete old features since we are changing the shape
+        group["x"] = add_useless_features(useful_features, n_useless, random_state_generation, shuffle)
+    log.info('Done adding useless features.')
+
+
 if __name__ == "__main__":
     set_logger_config(level=logging.DEBUG)
     args = parse_arguments()
-    generate_and_save_dataset(args)
+    # generate_and_save_dataset(args)
+    generate_and_save_dataset_memory_efficient(args)
