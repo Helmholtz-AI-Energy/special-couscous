@@ -203,7 +203,9 @@ def write_scaling_dataset_to_hdf5(
         group_name = f"local_train_sets/rank_{rank}"
         write_subset_to_group(group_name, local_train_set, label=group_name, rank=rank)
     log.info(f"Dataset successfully written to {file_path}.")
-    log.info("To use this dataset, call `scaling_dataset.load_and_verify_dataset(args)` with the same CLI arguments.")
+    log.info(
+        "To use this dataset, call `scaling_dataset.load_and_verify_dataset(args)` with the same CLI arguments."
+    )
 
 
 def read_scaling_dataset_from_hdf5(
@@ -331,7 +333,9 @@ def dataset_path_from_args(args: argparse.Namespace) -> pathlib.Path:
     )
 
 
-def dataset_config_from_args(args: argparse.Namespace, unpack_kwargs: bool = False) -> dict[str, Any]:
+def dataset_config_from_args(
+    args: argparse.Namespace, unpack_kwargs: bool = False
+) -> dict[str, Any]:
     """
     Convert the CLI parameters to the configuration passed to ``generate_scaling_dataset``.
 
@@ -371,7 +375,10 @@ def dataset_config_from_args(args: argparse.Namespace, unpack_kwargs: bool = Fal
     if unpack_kwargs:
         return {**general_kwargs, **make_classification_kwargs}
     else:
-        return {**general_kwargs, 'make_classification_kwargs': make_classification_kwargs}
+        return {
+            **general_kwargs,
+            "make_classification_kwargs": make_classification_kwargs,
+        }
 
 
 def load_and_verify_dataset(
@@ -454,7 +461,14 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     # Write the dataset to HDF5.
     path = dataset_path_from_args(args)
     attrs = dataset_config_from_args(args, unpack_kwargs=True)
-    write_scaling_dataset_to_hdf5(global_train_set, local_train_sets, global_test_set, attrs, path, args.override_data)
+    write_scaling_dataset_to_hdf5(
+        global_train_set,
+        local_train_sets,
+        global_test_set,
+        attrs,
+        path,
+        args.override_data,
+    )
 
 
 if __name__ == "__main__":
