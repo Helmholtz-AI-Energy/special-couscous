@@ -602,10 +602,9 @@ def generate_and_save_dataset_memory_efficient(
     # Step 3: Add useless features one-by-one to each dataset slice
     log.info("Start adding useless features to each slice.")
     file = h5py.File(path, "r+")
-    for group_name in ["test_set"] + [
-        f"local_train_sets/{name}" for name in file["local_train_sets"]
-    ]:
-        log.debug(f"Adding useless features to {group_name}")
+    log.info(f"Current pos of random_state_generation: {random_state_generation.get_state()[2]}")
+    for group_name in [f'local_train_sets/{name}' for name in file['local_train_sets']] + ["test_set"]:
+        log.debug(f'Adding useless features to {group_name}')
         group = file[group_name]
         useful_features = group["x"]
         del group["x"]  # need to delete old features since we are changing the shape
