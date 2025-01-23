@@ -1,3 +1,4 @@
+import argparse
 import logging
 import pathlib
 from typing import cast
@@ -8,7 +9,7 @@ import pytest
 from specialcouscous.scaling_dataset import (
     generate_scaling_dataset,
     read_scaling_dataset_from_hdf5,
-    write_scaling_dataset_to_hdf5,
+    write_scaling_dataset_to_hdf5, generate_and_save_dataset, generate_and_save_dataset_memory_efficient,
 )
 from specialcouscous.synthetic_classification_data import SyntheticDataset
 from specialcouscous.utils import set_logger_config
@@ -198,3 +199,89 @@ def test_write_read_scaling_dataset(tmp_path: pathlib.Path) -> None:
         assert read_global_test_set == global_test_set
         assert read_local_train_set == training_slices[rank]
         assert read_root_attrs == expected_root_attrs
+
+
+@pytest.fixture()
+def default_args(tmp_path: pathlib.Path) -> argparse.Namespace:
+    """
+    Initialize a default namespace as could be parsed by parse_arguments().
+
+    Returns
+    -------
+    argparse.Namespace
+        The namespace filled with default values.
+    tmp_path : pathlib.Path
+        Temporary path to write the data to (set as data_root_path).
+    """
+    args = argparse.Namespace()
+
+    args.n_samples = 100
+    args.n_features = 20
+    args.n_classes = 2
+    args.n_train_splits = 1
+    args.random_state = 0
+    args.train_split = 0.2
+    args.stratified_train_test = True
+    args.n_clusters_per_class = 1
+    args.frac_informative = 0.1
+    args.frac_redundant = 0.1
+    args.flip_y = 0.01
+    args.data_root_path = tmp_path
+    args.override_data = False
+
+    return args
+
+
+# @pytest.mark.parametrize("frac_useless", [0.0, 0.2, 0.8])
+@pytest.mark.parametrize("frac_useless", [0.0])
+def test_memory_efficient_scaling_dataset(default_args, tmp_path: pathlib.Path, frac_useless: float) -> None:
+    """
+    Test the memory efficient dataset generation
+
+    Generate a scaling dataset and test
+    - writing it to HDF5.
+    - writing it to HDF5 when the matching file already exists (once with, once without override).
+    - reading it from HDF5 and comparing it to the original (both reading all ranks at once and rank by rank).
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary path to write the data to.
+    frac_useless : float
+        Fraction of useless features.
+    """
+    #
+    default_args.flip_y = 0.0
+    default_args.frac_informative = (1. - frac_useless) / 2.
+    default_args.frac_redundant = (1. - frac_useless) / 2.
+    log.info(f'frac_informative: {default_args.frac_informative}, frac_redundant: {default_args.frac_redundant}')
+    shuffle = False
+    file_name = ("n_samples_{n_samples}__n_features_{n_features}__n_classes_{n_classes}/"
+                 "{n_train_splits}_ranks__seed_{random_state}.h5").format(**vars(default_args))
+
+    # Generate two datasets: one with the original approach, one with the memory efficient approach.
+    default_args.data_root_path = tmp_path / "original"
+    generate_and_save_dataset(default_args, shuffle)
+    default_args.data_root_path = tmp_path / "memory_efficient"
+    generate_and_save_dataset_memory_efficient(default_args, shuffle)
+
+    # Read both datasets back from the HDF5 file.
+    original_local_train_sets, original_global_test_set, original_root_attrs = (
+        read_scaling_dataset_from_hdf5(tmp_path / "original" / file_name)
+    )
+    memory_efficient_local_train_sets, memory_efficient_global_test_set, memory_efficient_root_attrs = (
+        read_scaling_dataset_from_hdf5(tmp_path / "memory_efficient" / file_name)
+    )
+
+    # Check if both HDF5 files store the same datasets (both global test and all local train sets)
+    assert original_local_train_sets == memory_efficient_local_train_sets
+    assert original_global_test_set == memory_efficient_global_test_set
+
+    # Check if the attributes are the same except for the "memory_efficient_generation" value
+    assert not original_root_attrs["memory_efficient_generation"]
+    assert memory_efficient_root_attrs["memory_efficient_generation"]
+
+    def other_attributes(attributes):
+        return {k: v for k, v in attributes.items() if k != "memory_efficient_generation"}
+
+    assert other_attributes(original_root_attrs) == other_attributes(memory_efficient_root_attrs)
