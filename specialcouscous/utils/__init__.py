@@ -303,4 +303,10 @@ def parse_arguments() -> argparse.Namespace:
         help="If true, old datasets at the same path will be overwritten.",
     )
 
+    parser.add_argument(
+        "--low_mem_data_generation",
+        action="store_true",
+        help="If true, will use memory_efficient approach when pre-generating datasets.",
+    )
+
     return parser.parse_args()

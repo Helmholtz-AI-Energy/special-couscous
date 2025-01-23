@@ -635,6 +635,11 @@ def generate_and_save_dataset_memory_efficient(
     shuffle : bool
         The shuffle parameter for make_classification. Set this to False, together with setting flip_y < 0 to obtain
         identical results with the normal data generation approach.
+    reproduce_random_state : bool
+        Whether to reproduce the random state exactly before generating the useless features. This can be used to
+        generate the exact same dataset as make_classification (for example, for the test cases).
+        Note that both shuffling, and random partition over more than one rank reorder the samples and are not
+        reproduced, thus leading to slightly different results.
     """
     # Step 0: Prepare data generation config
     args.random_state_slicing = args.random_state
@@ -686,6 +691,10 @@ def generate_and_save_dataset_memory_efficient(
     log.info("Preparing random state.")
     random_state_generation = check_random_state(args.random_state)
     if reproduce_random_state:
+        if shuffle or args.n_train_splits > 1:
+            log.warning(f'Passed {reproduce_random_state=} but {shuffle=} and {args.n_train_splits=} > 1.'
+                        'Note that shuffling and random partitioning across nodes is currently not reproduced, '
+                        'i.e. the values will be the same but shuffled differently.')
         reproduce_random_state_before_useless_features(
             random_state=random_state_generation,
             n_samples=args.n_samples,
@@ -714,5 +723,7 @@ def generate_and_save_dataset_memory_efficient(
 if __name__ == "__main__":
     set_logger_config(level=logging.DEBUG)
     args = parse_arguments()
-    # generate_and_save_dataset(args)
-    generate_and_save_dataset_memory_efficient(args)
+    if args.low_mem_data_generation:
+        generate_and_save_dataset_memory_efficient(args)
+    else:
+        generate_and_save_dataset(args)
