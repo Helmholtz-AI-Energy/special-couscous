@@ -10,7 +10,7 @@
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}
-SCRIPT_DIR=${SCRIPT_DIR:-BASE_DIR}
+SCRIPT_DIR="${SCRIPT_DIR:-BASE_DIR}"
 DATA_DIR="${BASE_DIR}/datasets"
 VENV=${VENV:-${BASE_DIR}"/special-couscous-venv-openmpi4"}
 
