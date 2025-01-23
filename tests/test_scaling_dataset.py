@@ -9,10 +9,12 @@ from sklearn.datasets import make_classification
 from sklearn.utils import check_random_state
 
 from specialcouscous.scaling_dataset import (
+    generate_and_save_dataset,
+    generate_and_save_dataset_memory_efficient,
     generate_scaling_dataset,
     read_scaling_dataset_from_hdf5,
-    write_scaling_dataset_to_hdf5, generate_and_save_dataset, generate_and_save_dataset_memory_efficient,
     reproduce_random_state_before_useless_features,
+    write_scaling_dataset_to_hdf5,
 )
 from specialcouscous.synthetic_classification_data import SyntheticDataset
 from specialcouscous.utils import set_logger_config
@@ -261,7 +263,7 @@ def test_reproduce_random_state_before_useless_features() -> None:
             True if the two are the same.
 
         Raises
-        -------
+        ------
         AssertionError
             If the two are different (based on their state).
         """
@@ -307,9 +309,9 @@ def test_reproduce_random_state_before_useless_features() -> None:
 
 
 @pytest.mark.parametrize("frac_useless", [0.0, 0.2, 0.8])
-def test_memory_efficient_scaling_dataset(default_args, tmp_path: pathlib.Path, frac_useless: float) -> None:
+def test_memory_efficient_scaling_dataset(default_args: argparse.Namespace, tmp_path: pathlib.Path, frac_useless: float) -> None:
     """
-    Test the memory efficient dataset generation
+    Test the memory efficient dataset generation.
 
     Generate a scaling dataset and test
     - writing it to HDF5.
@@ -318,6 +320,8 @@ def test_memory_efficient_scaling_dataset(default_args, tmp_path: pathlib.Path, 
 
     Parameters
     ----------
+    default_args : argparse.Namespace
+        The argparse namespace as it would be parsed by parse_arguments().
     tmp_path : pathlib.Path
         Temporary path to write the data to.
     frac_useless : float
@@ -354,7 +358,20 @@ def test_memory_efficient_scaling_dataset(default_args, tmp_path: pathlib.Path, 
     assert not original_root_attrs["memory_efficient_generation"]
     assert memory_efficient_root_attrs["memory_efficient_generation"]
 
-    def other_attributes(attributes):
+    def other_attributes(attributes: dict) -> dict:
+        """
+        Filter "memory_efficient_generation" from HDF5 attributes.
+
+        Parameters
+        ----------
+        attributes : dict
+            The HDF5 attributes.
+
+        Returns
+        -------
+        dict
+            The HDF5 attributes without "memory_efficient_generation".
+        """
         return {k: v for k, v in attributes.items() if k != "memory_efficient_generation"}
 
     assert other_attributes(original_root_attrs) == other_attributes(memory_efficient_root_attrs)
