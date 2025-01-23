@@ -249,8 +249,8 @@ def read_scaling_dataset_from_hdf5(
 
     def dataset_from_group(group: h5py.Group) -> SyntheticDataset:
         return SyntheticDataset(
-            group["x"],
-            group["y"],
+            group["x"][...],
+            group["y"][...],
             n_samples=int(group.attrs["n_samples"]),
             n_classes=int(n_classes),
         )
