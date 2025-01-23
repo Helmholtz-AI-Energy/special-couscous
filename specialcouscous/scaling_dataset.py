@@ -99,20 +99,20 @@ def generate_scaling_dataset(
         random_state=random_state,
         make_classification_kwargs=make_classification_kwargs,
     )
-    log.debug(f"Pos of random_state_generation after generate: {random_state.get_state()[2]}")
+    log.debug(
+        f"Pos of random_state_generation after generate: {random_state.get_state()[2]}"
+    )
 
     # Step 2: Split into global train and test set.
-    kwargs = {'stratify': stratified_train_test}
+    kwargs = {"stratify": stratified_train_test}
     if not make_classification_kwargs.get("shuffle", True):
         log.debug(
             f"Shuffle is False -> global train-test split without shuffling, ignoring {stratified_train_test=}."
         )
-        kwargs = {'shuffle': False, 'stratify': False}
+        kwargs = {"shuffle": False, "stratify": False}
     log.debug(f"Generate global train-test split: {test_size=}.")
     global_train_set, global_test_set = global_dataset.train_test_split(
-        test_size=test_size,
-        random_state=random_state_slicing,
-        **kwargs
+        test_size=test_size, random_state=random_state_slicing, **kwargs
     )
     log.debug(
         f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}"
@@ -130,7 +130,9 @@ def generate_scaling_dataset(
         )
         for rank, indices in assigned_indices.items()
     }
-    log.info(f"Current pos of random_state_slicing: {random_state_slicing.get_state()[2]}")
+    log.info(
+        f"Current pos of random_state_slicing: {random_state_slicing.get_state()[2]}"
+    )
 
     log.debug(f"Shape of local train set 0 is {training_slices[0].x.shape}.")
 
@@ -461,7 +463,9 @@ def load_and_verify_dataset(
     return local_train_sets, global_test_set, attrs
 
 
-def generate_and_save_dataset(args: argparse.Namespace, shuffle: bool | None = None) -> None:
+def generate_and_save_dataset(
+    args: argparse.Namespace, shuffle: bool | None = None
+) -> None:
     """
     Generate a scaling dataset based on the given CLI parameters.
 
@@ -475,7 +479,9 @@ def generate_and_save_dataset(args: argparse.Namespace, shuffle: bool | None = N
     """
     # Generate the dataset.
     args.random_state_slicing = args.random_state
-    dataset_config = dataset_config_from_args(args, unpack_kwargs=False, shuffle=shuffle)
+    dataset_config = dataset_config_from_args(
+        args, unpack_kwargs=False, shuffle=shuffle
+    )
     log.info(f"Creating dataset with the following parameters:\n{dataset_config}")
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
         **dataset_config
@@ -548,8 +554,15 @@ def add_useless_features(
 
 
 def reproduce_random_state_before_useless_features(
-        random_state: int | np.random.RandomState, n_samples: int, n_classes: int, n_clusters_per_class: int,
-        n_informative: int, n_redundant: int, n_repeated: int = 0, hypercube: bool = True) -> np.random.RandomState:
+    random_state: int | np.random.RandomState,
+    n_samples: int,
+    n_classes: int,
+    n_clusters_per_class: int,
+    n_informative: int,
+    n_redundant: int,
+    n_repeated: int = 0,
+    hypercube: bool = True,
+) -> np.random.RandomState:
     """
     Reproduce the random state during make_classification before the useless feature generation.
 
@@ -593,7 +606,9 @@ def reproduce_random_state_before_useless_features(
     if not hypercube:
         random_state.standard_normal(size=(n_clusters + n_informative))
 
-    random_state.standard_normal(size=(n_samples, n_informative))  # informative feature creation
+    random_state.standard_normal(
+        size=(n_samples, n_informative)
+    )  # informative feature creation
 
     uniform_sizes = [
         n_informative * n_informative * n_clusters,  # cluster creation
@@ -606,7 +621,9 @@ def reproduce_random_state_before_useless_features(
 
 
 def generate_and_save_dataset_memory_efficient(
-    args: argparse.Namespace, shuffle: bool = True, reproduce_random_state: bool = False,
+    args: argparse.Namespace,
+    shuffle: bool = True,
+    reproduce_random_state: bool = False,
 ) -> None:
     """
     Generate a scaling dataset based on the given CLI parameters in a more memory-efficient way.
@@ -675,11 +692,16 @@ def generate_and_save_dataset_memory_efficient(
             n_classes=args.n_classes,
             n_clusters_per_class=args.n_clusters_per_class,
             n_informative=dataset_config["make_classification_kwargs"]["n_informative"],
-            n_redundant=dataset_config["make_classification_kwargs"]["n_redundant"])
-    log.debug(f"Current pos of random_state_generation: {random_state_generation.get_state()[2]}")
+            n_redundant=dataset_config["make_classification_kwargs"]["n_redundant"],
+        )
+    log.debug(
+        f"Current pos of random_state_generation: {random_state_generation.get_state()[2]}"
+    )
     file = h5py.File(path, "r+")
-    for group_name in [f'local_train_sets/{name}' for name in file['local_train_sets']] + ["test_set"]:
-        log.debug(f'Adding useless features to {group_name}')
+    for group_name in [
+        f"local_train_sets/{name}" for name in file["local_train_sets"]
+    ] + ["test_set"]:
+        log.debug(f"Adding useless features to {group_name}")
         group = file[group_name]
         useful_features = group["x"]
         del group["x"]  # need to delete old features since we are changing the shape

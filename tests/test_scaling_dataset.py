@@ -246,7 +246,9 @@ def test_reproduce_random_state_before_useless_features() -> None:
     the same random seed) followed by generating the flip mask (since the mask is always generated, even for flip == 0).
     """
 
-    def random_state_eq(first: np.random.RandomState, second: np.random.RandomState) -> bool:
+    def random_state_eq(
+        first: np.random.RandomState, second: np.random.RandomState
+    ) -> bool:
         """
         Ensure that two numpy random states are the same by comparing their state.
 
@@ -289,27 +291,46 @@ def test_reproduce_random_state_before_useless_features() -> None:
     random_state_eq(random_state_baseline, random_state_reproduced)
 
     n_samples = 100
-    make_classification_kwargs = {"n_samples": n_samples, "n_classes": 10, "n_clusters_per_class": 2,
-                                  "n_informative": 10, "n_redundant": 5, "n_repeated": 2}
-    n_features = sum(v for k, v in make_classification_kwargs.items()
-                     if k in ["n_informative", "n_redundant", "n_repeated"])
+    make_classification_kwargs = {
+        "n_samples": n_samples,
+        "n_classes": 10,
+        "n_clusters_per_class": 2,
+        "n_informative": 10,
+        "n_redundant": 5,
+        "n_repeated": 2,
+    }
+    n_features = sum(
+        v
+        for k, v in make_classification_kwargs.items()
+        if k in ["n_informative", "n_redundant", "n_repeated"]
+    )
 
-    make_classification(random_state=random_state_baseline, n_features=n_features, shuffle=False, flip_y=0.0,
-                        **make_classification_kwargs)
+    make_classification(
+        random_state=random_state_baseline,
+        n_features=n_features,
+        shuffle=False,
+        flip_y=0.0,
+        **make_classification_kwargs,
+    )
 
     random_state_returned = reproduce_random_state_before_useless_features(
-        random_state_reproduced, **make_classification_kwargs)
+        random_state_reproduced, **make_classification_kwargs
+    )
     assert random_state_returned is random_state_reproduced
     random_state_reproduced.uniform(size=n_samples)
 
     random_state_eq(random_state_reproduced, random_state_baseline)
 
     for _ in range(10):
-        assert random_state_reproduced.randint(100) == random_state_baseline.randint(100)
+        assert random_state_reproduced.randint(100) == random_state_baseline.randint(
+            100
+        )
 
 
 @pytest.mark.parametrize("frac_useless", [0.0, 0.2, 0.8])
-def test_memory_efficient_scaling_dataset(default_args: argparse.Namespace, tmp_path: pathlib.Path, frac_useless: float) -> None:
+def test_memory_efficient_scaling_dataset(
+    default_args: argparse.Namespace, tmp_path: pathlib.Path, frac_useless: float
+) -> None:
     """
     Test the memory efficient dataset generation.
 
@@ -329,26 +350,34 @@ def test_memory_efficient_scaling_dataset(default_args: argparse.Namespace, tmp_
     """
     #
     default_args.flip_y = 0.0
-    default_args.frac_informative = (1. - frac_useless) / 2.
-    default_args.frac_redundant = (1. - frac_useless) / 2.
-    log.info(f'frac_informative: {default_args.frac_informative}, frac_redundant: {default_args.frac_redundant}')
+    default_args.frac_informative = (1.0 - frac_useless) / 2.0
+    default_args.frac_redundant = (1.0 - frac_useless) / 2.0
+    log.info(
+        f"frac_informative: {default_args.frac_informative}, frac_redundant: {default_args.frac_redundant}"
+    )
     shuffle = False
-    file_name = ("n_samples_{n_samples}__n_features_{n_features}__n_classes_{n_classes}/"
-                 "{n_train_splits}_ranks__seed_{random_state}.h5").format(**vars(default_args))
+    file_name = (
+        "n_samples_{n_samples}__n_features_{n_features}__n_classes_{n_classes}/"
+        "{n_train_splits}_ranks__seed_{random_state}.h5"
+    ).format(**vars(default_args))
 
     # Generate two datasets: one with the original approach, one with the memory efficient approach.
     default_args.data_root_path = tmp_path / "original"
     generate_and_save_dataset(default_args, shuffle)
     default_args.data_root_path = tmp_path / "memory_efficient"
-    generate_and_save_dataset_memory_efficient(default_args, shuffle, reproduce_random_state=True)
+    generate_and_save_dataset_memory_efficient(
+        default_args, shuffle, reproduce_random_state=True
+    )
 
     # Read both datasets back from the HDF5 file.
     original_local_train_sets, original_global_test_set, original_root_attrs = (
         read_scaling_dataset_from_hdf5(tmp_path / "original" / file_name)
     )
-    memory_efficient_local_train_sets, memory_efficient_global_test_set, memory_efficient_root_attrs = (
-        read_scaling_dataset_from_hdf5(tmp_path / "memory_efficient" / file_name)
-    )
+    (
+        memory_efficient_local_train_sets,
+        memory_efficient_global_test_set,
+        memory_efficient_root_attrs,
+    ) = read_scaling_dataset_from_hdf5(tmp_path / "memory_efficient" / file_name)
 
     # Check if both HDF5 files store the same datasets (both global test and all local train sets)
     assert original_local_train_sets == memory_efficient_local_train_sets
@@ -372,6 +401,10 @@ def test_memory_efficient_scaling_dataset(default_args: argparse.Namespace, tmp_
         dict
             The HDF5 attributes without "memory_efficient_generation".
         """
-        return {k: v for k, v in attributes.items() if k != "memory_efficient_generation"}
+        return {
+            k: v for k, v in attributes.items() if k != "memory_efficient_generation"
+        }
 
-    assert other_attributes(original_root_attrs) == other_attributes(memory_efficient_root_attrs)
+    assert other_attributes(original_root_attrs) == other_attributes(
+        memory_efficient_root_attrs
+    )
