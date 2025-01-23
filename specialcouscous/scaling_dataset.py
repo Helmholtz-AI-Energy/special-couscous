@@ -98,15 +98,20 @@ def generate_scaling_dataset(
         random_state=random_state,
         make_classification_kwargs=make_classification_kwargs,
     )
+    log.debug(f"Pos of random_state_generation after generate: {random_state.get_state()[2]}")
 
     # Step 2: Split into global train and test set.
-    log.debug(
-        f"Generate global train-test split: {test_size=}, {stratified_train_test=}."
-    )
+    kwargs = {'stratify': stratified_train_test}
+    if not make_classification_kwargs.get("shuffle", True):
+        log.debug(
+            f"Shuffle is False -> global train-test split without shuffling, ignoring {stratified_train_test=}."
+        )
+        kwargs = {'shuffle': False, 'stratify': False}
+    log.debug(f"Generate global train-test split: {test_size=}.")
     global_train_set, global_test_set = global_dataset.train_test_split(
         test_size=test_size,
-        stratify=stratified_train_test,
         random_state=random_state_slicing,
+        **kwargs
     )
     log.debug(
         f"Shape of global train set {global_train_set.x.shape}, test set {global_test_set.x.shape}"
@@ -124,6 +129,7 @@ def generate_scaling_dataset(
         )
         for rank, indices in assigned_indices.items()
     }
+    log.info(f"Current pos of random_state_slicing: {random_state_slicing.get_state()[2]}")
 
     log.debug(f"Shape of local train set 0 is {training_slices[0].x.shape}.")
 
@@ -374,6 +380,7 @@ def dataset_config_from_args(
         "n_classes": args.n_classes,
         "n_ranks": args.n_train_splits,
         "random_state": args.random_state,
+        "random_state_slicing": args.random_state_slicing,
         "test_size": 1 - args.train_split,
         "stratified_train_test": args.stratified_train_test,
     }
@@ -453,7 +460,7 @@ def load_and_verify_dataset(
     return local_train_sets, global_test_set, attrs
 
 
-def generate_and_save_dataset(args: argparse.Namespace) -> None:
+def generate_and_save_dataset(args: argparse.Namespace, shuffle: bool | None = None) -> None:
     """
     Generate a scaling dataset based on the given CLI parameters.
 
@@ -461,10 +468,13 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
     ----------
     args : argparse.Namespace
         The parsed CLI parameters.
+    shuffle : bool | None
+        The shuffle parameter for make_classification. Set this to False, together with setting flip_y < 0 to obtain
+        identical results with the memory efficient data generation approach.
     """
     # Generate the dataset.
     args.random_state_slicing = args.random_state
-    dataset_config = dataset_config_from_args(args, unpack_kwargs=False)
+    dataset_config = dataset_config_from_args(args, unpack_kwargs=False, shuffle=shuffle)
     log.info(f"Creating dataset with the following parameters:\n{dataset_config}")
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
         **dataset_config
@@ -474,7 +484,7 @@ def generate_and_save_dataset(args: argparse.Namespace) -> None:
 
     # Write the dataset to HDF5.
     path = dataset_path_from_args(args)
-    attrs = dataset_config_from_args(args, unpack_kwargs=True)
+    attrs = dataset_config_from_args(args, unpack_kwargs=True, shuffle=shuffle)
     attrs["memory_efficient_generation"] = False
     write_scaling_dataset_to_hdf5(
         global_train_set,
