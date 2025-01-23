@@ -82,6 +82,7 @@ def generate_scaling_dataset(
         The global = local test set.
 
     """
+    make_classification_kwargs = {} if make_classification_kwargs is None else make_classification_kwargs
     random_state = check_random_state(random_state)
     random_state_slicing = (
         random_state
