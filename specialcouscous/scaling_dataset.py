@@ -9,6 +9,7 @@ from typing import Any, cast
 import h5py
 import numpy as np
 from sklearn.utils import check_random_state
+from sklearn.datasets._samples_generator import _generate_hypercube
 
 from specialcouscous.synthetic_classification_data import (
     DatasetPartition,
@@ -546,8 +547,66 @@ def add_useless_features(
     return x
 
 
+def reproduce_random_state_before_useless_features(
+        random_state: int | np.random.RandomState, n_samples: int, n_classes: int, n_clusters_per_class: int,
+        n_informative: int, n_redundant: int, n_repeated: int = 0, hypercube: bool = True) -> np.random.RandomState:
+    """
+    Reproduce the random state during make_classification before the useless feature generation.
+
+    Since make_classification will generate a flip mask even for flip_y == 0, we cannot disable all changes to the
+    random seed after generating the useful features (even with shuffle=False, flip_y=0.0 and no useless features and
+    specified shift and scale). To reproduce the exact same useless features, we thus need to reproduce the random state
+    make_classification would have used when generating the useless features.
+    This function takes a random state (or seed) and performs the same number of random generations as
+    make_classification would before generating the useless features using the given parameters.
+
+    Parameters
+    ----------
+    random_state : int | np.random.RandomState
+        Random state or seed, represents the state before make_classification. When passing a random state, the state is
+        modified and is identical to the one returned by this function.
+    n_samples : int
+        Number of samples passed to make_classification.
+    n_classes : int
+        Number of samples passed to make_classification.
+    n_clusters_per_class : int
+        Number of classes passed to make_classification.
+    n_informative : int
+        Number of informative features passed to make_classification.
+    n_redundant : int
+        Number of redundant features passed to make_classification.
+    n_repeated : int
+        Number of repeated features passed to make_classification.
+    hypercube : bool
+        The hypercube parameter passed to make_classification.
+
+    Returns
+    -------
+    np.random.RandomState
+        The random state as it would be during make_classification before generating the random features.
+    """
+    random_state = check_random_state(random_state)
+    log.debug(f"Before pos of random_state: {random_state.get_state()[2]}")
+
+    n_clusters = n_classes * n_clusters_per_class
+    _generate_hypercube(n_clusters, n_informative, random_state)
+    if not hypercube:
+        random_state.standard_normal(size=(n_clusters + n_informative))
+
+    random_state.standard_normal(size=(n_samples, n_informative))  # informative feature creation
+
+    uniform_sizes = [
+        n_informative * n_informative * n_clusters,  # cluster creation
+        n_informative * n_redundant,  # redundant feature creation
+        n_repeated,  # repeated feature creation
+    ]
+    random_state.uniform(size=sum(uniform_sizes))
+    log.debug(f"After pos of random_state: {random_state.get_state()[2]}")
+    return random_state
+
+
 def generate_and_save_dataset_memory_efficient(
-    args: argparse.Namespace, shuffle: bool = True
+    args: argparse.Namespace, shuffle: bool = True, reproduce_random_state: bool = False,
 ) -> None:
     """
     Generate a scaling dataset based on the given CLI parameters in a more memory-efficient way.
@@ -581,10 +640,6 @@ def generate_and_save_dataset_memory_efficient(
         f"Creating dataset with only useful features using the following parameters:\n{dataset_config}"
     )
 
-    # convert random seed to random state to reuse later
-    random_state_generation = check_random_state(args.random_state)
-    dataset_config["random_state"] = random_state_generation
-
     # Step 1: Generate global dataset without the useless features
     log.info("Start generation of global dataset without useless features.")
     global_train_set, local_train_sets, global_test_set = generate_scaling_dataset(
@@ -611,8 +666,18 @@ def generate_and_save_dataset_memory_efficient(
 
     # Step 3: Add useless features one-by-one to each dataset slice
     log.info("Start adding useless features to each slice.")
+    log.info("Preparing random state.")
+    random_state_generation = check_random_state(args.random_state)
+    if reproduce_random_state:
+        reproduce_random_state_before_useless_features(
+            random_state=random_state_generation,
+            n_samples=args.n_samples,
+            n_classes=args.n_classes,
+            n_clusters_per_class=args.n_clusters_per_class,
+            n_informative=dataset_config["make_classification_kwargs"]["n_informative"],
+            n_redundant=dataset_config["make_classification_kwargs"]["n_redundant"])
+    log.debug(f"Current pos of random_state_generation: {random_state_generation.get_state()[2]}")
     file = h5py.File(path, "r+")
-    log.info(f"Current pos of random_state_generation: {random_state_generation.get_state()[2]}")
     for group_name in [f'local_train_sets/{name}' for name in file['local_train_sets']] + ["test_set"]:
         log.debug(f'Adding useless features to {group_name}')
         group = file[group_name]
