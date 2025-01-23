@@ -82,7 +82,9 @@ def generate_scaling_dataset(
         The global = local test set.
 
     """
-    make_classification_kwargs = {} if make_classification_kwargs is None else make_classification_kwargs
+    make_classification_kwargs = (
+        {} if make_classification_kwargs is None else make_classification_kwargs
+    )
     random_state = check_random_state(random_state)
     random_state_slicing = (
         random_state
@@ -693,9 +695,11 @@ def generate_and_save_dataset_memory_efficient(
     random_state_generation = check_random_state(args.random_state)
     if reproduce_random_state:
         if shuffle or args.n_train_splits > 1:
-            log.warning(f'Passed {reproduce_random_state=} but {shuffle=} and {args.n_train_splits=} > 1.'
-                        'Note that shuffling and random partitioning across nodes is currently not reproduced, '
-                        'i.e. the values will be the same but shuffled differently.')
+            log.warning(
+                f"Passed {reproduce_random_state=} but {shuffle=} and {args.n_train_splits=} > 1."
+                "Note that shuffling and random partitioning across nodes is currently not reproduced, "
+                "i.e. the values will be the same but shuffled differently."
+            )
         reproduce_random_state_before_useless_features(
             random_state=random_state_generation,
             n_samples=args.n_samples,

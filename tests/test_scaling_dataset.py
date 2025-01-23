@@ -314,7 +314,8 @@ def test_reproduce_random_state_before_useless_features() -> None:
     )
 
     random_state_returned = reproduce_random_state_before_useless_features(
-        random_state_reproduced, **make_classification_kwargs  # type: ignore[arg-type]
+        random_state_reproduced,
+        **make_classification_kwargs,  # type: ignore[arg-type]
     )
     assert random_state_returned is random_state_reproduced
     random_state_reproduced.uniform(size=n_samples)
