@@ -349,7 +349,6 @@ def test_memory_efficient_scaling_dataset(
         Fraction of useless features.
     """
     #
-    default_args.flip_y = 0.0
     default_args.frac_informative = (1.0 - frac_useless) / 2.0
     default_args.frac_redundant = (1.0 - frac_useless) / 2.0
     log.info(
