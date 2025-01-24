@@ -798,7 +798,6 @@ def continue_memory_efficient_dataset_generation(
         args, unpack_kwargs=False, shuffle=shuffle
     )
     n_features = args.n_features
-    n_samples = args.n_samples
     n_useful = sum(
         dataset_config["make_classification_kwargs"].get(key, 0)
         for key in ["n_informative", "n_redundant", "n_repeated"]
