@@ -309,4 +309,10 @@ def parse_arguments() -> argparse.Namespace:
         help="If true, will use memory_efficient approach when pre-generating datasets.",
     )
 
+    parser.add_argument(
+        "--continue_data_generation",
+        action="store_true",
+        help="If true, continue memory_efficient dataset generation from previous checkpoint.",
+    )
+
     return parser.parse_args()

@@ -557,6 +557,43 @@ def add_useless_features(
     return x
 
 
+def reproduce_random_state_add_useless_features(
+    n_samples: int,
+    n_useful: int,
+    n_useless: int,
+    random_state: np.random.RandomState,
+    shuffle: bool,
+) -> np.random.RandomState:
+    """
+    Reproduce the random state change from add_useless_features.
+
+    Performs only the random sampling operations of add_useless_features.
+
+    Parameters
+    ----------
+    n_samples : int
+        The number of samples (i.e. x.shape[0] for features x).
+    n_useful : int
+        The number of useful features (information, redundant, repeated) (i.e. x.shape[1] for useful features x).
+    n_useless : int
+        The number of useless features to add.
+    random_state : np.random.RandomState
+        The random state to use for sampling the features.
+    shuffle : bool
+        Whether to shuffle the features after appending the new features.
+
+    Returns
+    -------
+    np.random.RandomState
+        The feature array x with the new, useless features added.
+    """
+    random_state.standard_normal(size=(n_samples, n_useless))
+    if shuffle:
+        feature_indices = np.arange(n_useful + n_useless)
+        random_state.shuffle(feature_indices)
+    return random_state
+
+
 def reproduce_random_state_before_useless_features(
     random_state: int | np.random.RandomState,
     n_samples: int,
@@ -729,10 +766,117 @@ def generate_and_save_dataset_memory_efficient(
     log.info("Done adding useless features.")
 
 
+def continue_memory_efficient_dataset_generation(
+    args: argparse.Namespace,
+    shuffle: bool = True,
+    reproduce_random_state: bool = False,
+) -> None:
+    """
+    Continue the generation of useless features from a previous run.
+
+    Continue a memory-efficient dataset generation run that was aborted during the useless feature generation phase.
+    There needs to be a matching HDF5 file with the same parameters. The useful features are assumed to be generated
+    correctly. For each slice (global test and local train sets) the HDF5 either contains only the useful features
+    (then, useless features will be added) or already contain all features (useful and useless). The cases are
+    differentiated by the shape of their feature array.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        The parsed CLI parameters.
+    shuffle : bool
+        The shuffle parameter for make_classification. Set this to False, together with setting flip_y < 0 to obtain
+        identical results with the normal data generation approach.
+    reproduce_random_state : bool
+        Whether to reproduce the random state exactly before generating the useless features. This can be used to
+        generate the exact same dataset as make_classification (for example, for the test cases).
+        Note that both shuffling, and random partition over more than one rank reorder the samples and are not
+        reproduced, thus leading to slightly different results.
+    """
+    args.random_state_slicing = args.random_state
+    dataset_config = dataset_config_from_args(
+        args, unpack_kwargs=False, shuffle=shuffle
+    )
+    n_features = args.n_features
+    n_samples = args.n_samples
+    n_useful = sum(
+        dataset_config["make_classification_kwargs"].get(key, 0)
+        for key in ["n_informative", "n_redundant", "n_repeated"]
+    )
+    n_useless = n_features - n_useful
+
+    # Read HDF5 file and confirm matching attributes
+    path = dataset_path_from_args(args)
+    log.info(f'Reading HDF5 file from {path}.')
+    file = h5py.File(path, "r+")
+    expected_attrs = dataset_config_from_args(args, unpack_kwargs=True, shuffle=shuffle)
+    expected_attrs["memory_efficient_generation"] = True
+    file_attributes = {key: value.item() for key, value in file.attrs.items() if key != "n_samples_global_train"}
+    if file_attributes != expected_attrs:
+        print(file_attributes.keys() - expected_attrs.keys())
+        print(expected_attrs.keys() - file_attributes.keys())
+        raise ValueError(f'Mismatch dataset attributes: expected {expected_attrs} but got {file_attributes} from HDF5.')
+
+    # Prepare random state
+    log.info("Preparing random state.")
+    random_state = check_random_state(args.random_state)
+    if reproduce_random_state:
+        if shuffle or args.n_train_splits > 1:
+            log.warning(
+                f"Passed {reproduce_random_state=} but {shuffle=} and {args.n_train_splits=} > 1."
+                "Note that shuffling and random partitioning across nodes is currently not reproduced, "
+                "i.e. the values will be the same but shuffled differently."
+            )
+        reproduce_random_state_before_useless_features(
+            random_state=random_state,
+            n_samples=args.n_samples,
+            n_classes=args.n_classes,
+            n_clusters_per_class=args.n_clusters_per_class,
+            n_informative=dataset_config["make_classification_kwargs"]["n_informative"],
+            n_redundant=dataset_config["make_classification_kwargs"]["n_redundant"],
+        )
+    log.debug(
+        f"Current pos of random state: {random_state.get_state()[2]}"
+    )
+
+    # Check for useless features and add where missing
+    log.info("Start checking each slice for useless features and add where missing.")
+    for group_name in [
+        f"local_train_sets/{name}" for name in file["local_train_sets"]
+    ] + ["test_set"]:
+        log.debug(
+            f"Adding useless features to {group_name}. Current random state pos: {random_state.get_state()[2]}"
+        )
+        group = file[group_name]
+
+        if len(group["x"].shape) != 2 or group["x"].shape[1] not in [n_useful, n_features]:
+            raise ValueError(
+                f'Unexpected feature shape {group["x"].shape} in group {group_name}.'
+                f'Expected either only useful features (shape (_, {n_useful})) '
+                f'or useful and useless features (shape (_, {n_features})).')
+
+        samples, features = group["x"].shape
+        if features == n_useful:  # only useful features, add as before
+            log.debug(f'Missing useless features, adding useless features now.')
+            useful_features = group["x"]
+            del group["x"]  # need to delete old features since we are changing the shape
+            group["x"] = add_useless_features(useful_features, n_useless, random_state, shuffle)
+        elif features == n_features:  # already has useful features, only simulate random state
+            log.debug(f'Already contains all features, incrementing random state.')
+            reproduce_random_state_add_useless_features(samples, n_useful, n_useless, random_state, shuffle)
+    log.info("Done adding useless features.")
+
+
 if __name__ == "__main__":
     set_logger_config(level=logging.DEBUG)
     args = parse_arguments()
     if args.low_mem_data_generation:
-        generate_and_save_dataset_memory_efficient(args)
+        if args.continue_data_generation:
+            log.info("Continuing memory efficient dataset generation.")
+            continue_memory_efficient_dataset_generation(args)
+        else:
+            log.info("Generating dataset with memory efficient approach.")
+            generate_and_save_dataset_memory_efficient(args)
     else:
+        log.info("Generating dataset with standard make_classification approach.")
         generate_and_save_dataset(args)
