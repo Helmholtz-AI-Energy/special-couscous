@@ -523,6 +523,7 @@ def add_useless_features(
     Parameters
     ----------
     x : np.ndarray
+        The useful features.
     n_useless : int
         The number of useless features to add.
     random_state : np.random.RandomState
@@ -653,7 +654,7 @@ def generate_and_save_dataset_memory_efficient(
         f"Aiming to create dataset with the following parameters:\n{dataset_config}"
     )
 
-    # count useful and useless features, generate only useful features for now
+    # Count useful and useless features, generate only useful features for now
     n_features = args.n_features
     n_useful = sum(
         dataset_config["make_classification_kwargs"].get(key, 0)
@@ -715,7 +716,10 @@ def generate_and_save_dataset_memory_efficient(
     for group_name in [
         f"local_train_sets/{name}" for name in file["local_train_sets"]
     ] + ["test_set"]:
-        log.debug(f"Adding useless features to {group_name}")
+        log.debug(
+            f"Adding useless features to {group_name}."
+            f"Current random state pos: {random_state_generation.get_state()[2]}"
+        )
         group = file[group_name]
         useful_features = group["x"]
         del group["x"]  # need to delete old features since we are changing the shape
