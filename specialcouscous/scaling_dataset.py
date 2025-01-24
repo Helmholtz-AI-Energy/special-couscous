@@ -807,15 +807,21 @@ def continue_memory_efficient_dataset_generation(
 
     # Read HDF5 file and confirm matching attributes
     path = dataset_path_from_args(args)
-    log.info(f'Reading HDF5 file from {path}.')
+    log.info(f"Reading HDF5 file from {path}.")
     file = h5py.File(path, "r+")
     expected_attrs = dataset_config_from_args(args, unpack_kwargs=True, shuffle=shuffle)
     expected_attrs["memory_efficient_generation"] = True
-    file_attributes = {key: value.item() for key, value in file.attrs.items() if key != "n_samples_global_train"}
+    file_attributes = {
+        key: value.item()
+        for key, value in file.attrs.items()
+        if key != "n_samples_global_train"
+    }
     if file_attributes != expected_attrs:
         print(file_attributes.keys() - expected_attrs.keys())
         print(expected_attrs.keys() - file_attributes.keys())
-        raise ValueError(f'Mismatch dataset attributes: expected {expected_attrs} but got {file_attributes} from HDF5.')
+        raise ValueError(
+            f"Mismatch dataset attributes: expected {expected_attrs} but got {file_attributes} from HDF5."
+        )
 
     # Prepare random state
     log.info("Preparing random state.")
@@ -835,9 +841,7 @@ def continue_memory_efficient_dataset_generation(
             n_informative=dataset_config["make_classification_kwargs"]["n_informative"],
             n_redundant=dataset_config["make_classification_kwargs"]["n_redundant"],
         )
-    log.debug(
-        f"Current pos of random state: {random_state.get_state()[2]}"
-    )
+    log.debug(f"Current pos of random state: {random_state.get_state()[2]}")
 
     # Check for useless features and add where missing
     log.info("Start checking each slice for useless features and add where missing.")
@@ -849,21 +853,33 @@ def continue_memory_efficient_dataset_generation(
         )
         group = file[group_name]
 
-        if len(group["x"].shape) != 2 or group["x"].shape[1] not in [n_useful, n_features]:
+        if len(group["x"].shape) != 2 or group["x"].shape[1] not in [
+            n_useful,
+            n_features,
+        ]:
             raise ValueError(
-                f'Unexpected feature shape {group["x"].shape} in group {group_name}.'
-                f'Expected either only useful features (shape (_, {n_useful})) '
-                f'or useful and useless features (shape (_, {n_features})).')
+                f"Unexpected feature shape {group['x'].shape} in group {group_name}."
+                f"Expected either only useful features (shape (_, {n_useful})) "
+                f"or useful and useless features (shape (_, {n_features}))."
+            )
 
         samples, features = group["x"].shape
         if features == n_useful:  # only useful features, add as before
-            log.debug(f'Missing useless features, adding useless features now.')
+            log.debug("Missing useless features, adding useless features now.")
             useful_features = group["x"]
-            del group["x"]  # need to delete old features since we are changing the shape
-            group["x"] = add_useless_features(useful_features, n_useless, random_state, shuffle)
-        elif features == n_features:  # already has useful features, only simulate random state
-            log.debug(f'Already contains all features, incrementing random state.')
-            reproduce_random_state_add_useless_features(samples, n_useful, n_useless, random_state, shuffle)
+            del group[
+                "x"
+            ]  # need to delete old features since we are changing the shape
+            group["x"] = add_useless_features(
+                useful_features, n_useless, random_state, shuffle
+            )
+        elif (
+            features == n_features
+        ):  # already has useful features, only simulate random state
+            log.debug("Already contains all features, incrementing random state.")
+            reproduce_random_state_add_useless_features(
+                samples, n_useful, n_useless, random_state, shuffle
+            )
     log.info("Done adding useless features.")
 
 
