@@ -758,11 +758,12 @@ def generate_and_save_dataset_memory_efficient(
             f"Current random state pos: {random_state_generation.get_state()[2]}"
         )
         group = file[group_name]
-        useful_features = group["x"]
-        del group["x"]  # need to delete old features since we are changing the shape
-        group["x"] = add_useless_features(
-            useful_features, n_useless, random_state_generation, shuffle
+        full_features = add_useless_features(
+            group["x"], n_useless, random_state_generation, shuffle
         )
+        log.debug(f"Done generating useless features for {group_name}. Updating HDF5.")
+        del group["x"]  # need to delete old features since we are changing the shape
+        group["x"] = full_features
     log.info("Done adding useless features.")
 
 
