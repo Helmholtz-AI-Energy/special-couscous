@@ -698,8 +698,8 @@ def generate_and_save_dataset_memory_efficient(
     args : argparse.Namespace
         The parsed CLI parameters.
     shuffle : bool
-        The shuffle parameter for make_classification. Set this to False, together with setting flip_y < 0 to obtain
-        identical results with the normal data generation approach.
+        The shuffle parameter for make_classification. Set this to False to reproduce the results of the normal data
+        generation approach more closely.
     reproduce_random_state : bool
         Whether to reproduce the random state exactly before generating the useless features. This can be used to
         generate the exact same dataset as make_classification (for example, for the test cases).
@@ -810,8 +810,8 @@ def continue_memory_efficient_dataset_generation(
     args : argparse.Namespace
         The parsed CLI parameters.
     shuffle : bool
-        The shuffle parameter for make_classification. Set this to False, together with setting flip_y < 0 to obtain
-        identical results with the normal data generation approach.
+        The shuffle parameter for make_classification. Set this to False to reproduce the results of the normal data
+        generation approach more closely.
     reproduce_random_state : bool
         Whether to reproduce the random state exactly before generating the useless features. This can be used to
         generate the exact same dataset as make_classification (for example, for the test cases).

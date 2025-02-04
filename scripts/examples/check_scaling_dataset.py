@@ -15,7 +15,7 @@ def load_and_check_dataset(dataset: str, n_ranks: int = 64) -> None:
     dataset : str
         Name of the baseline single-node dataset (n6m4 or n7m3).
     n_ranks : int
-        The maximum number of ranks, the check will load slices range(n_ranks) for the HDF5. Default is 64.
+        The maximum number of ranks, the check will load slices range(n_ranks) from the HDF5. Default is 64.
     """
     dataset_dirnames = {
         "n6m4": "n_samples_48250000__n_features_10000__n_classes_10",

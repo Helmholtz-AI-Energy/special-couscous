@@ -333,12 +333,8 @@ def test_memory_efficient_scaling_dataset(
     default_args: argparse.Namespace, tmp_path: pathlib.Path, frac_useless: float
 ) -> None:
     """
-    Test the memory efficient dataset generation.
-
-    Generate a scaling dataset and test
-    - writing it to HDF5.
-    - writing it to HDF5 when the matching file already exists (once with, once without override).
-    - reading it from HDF5 and comparing it to the original (both reading all ranks at once and rank by rank).
+    Test the memory efficient dataset generation by generating and save the same dataset with both approaches (original
+    and memory efficient) and comparing the generated datasets for equality.
 
     Parameters
     ----------
