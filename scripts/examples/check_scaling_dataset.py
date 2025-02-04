@@ -37,7 +37,7 @@ def load_and_check_dataset(dataset: str, n_ranks: int = 64) -> None:
                 f"and {global_test_set.n_classes} classes.\n"
             )
 
-        print(f"Rank {rank:2d}: Local train set: {global_test_set.n_samples} samples.")
+        print(f"Rank {rank:2d}: Local train set: {local_train_set.n_samples} samples.")
 
 
 if __name__ == "__main__":
