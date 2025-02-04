@@ -1,4 +1,5 @@
 import argparse
+import pathlib
 
 from specialcouscous.scaling_dataset import read_scaling_dataset_from_hdf5
 
@@ -25,7 +26,7 @@ def load_and_check_dataset(dataset: str, n_ranks: int = 64) -> None:
 
     for rank in range(n_ranks):
         local_train_set, global_test_set, root_attrs = read_scaling_dataset_from_hdf5(
-            hdf5_path, rank=rank
+            pathlib.Path(hdf5_path), rank=rank
         )
 
         if rank == 0:
