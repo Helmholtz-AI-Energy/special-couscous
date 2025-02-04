@@ -233,8 +233,9 @@ def write_scaling_dataset_to_hdf5(
 def read_scaling_dataset_from_hdf5(
     file_path: os.PathLike,
     rank: int | None = None,
+    with_global_test: bool = True,
 ) -> tuple[
-    dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset, dict[str, Any]
+    dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset | None, dict[str, Any]
 ]:
     """
     Read a scaling dataset (local train sets and global test set) from the given HDF5 file.
@@ -246,13 +247,15 @@ def read_scaling_dataset_from_hdf5(
     rank : int | None
         Optional rank. When given, only the local train set for the specified rank is retrieved. Otherwise, all local
         train sets are retrieved.
+    with_global_test : bool
+        Whether to include the global testset or skip reading it and return None as second return value instead.
 
     Returns
     -------
     dict[int, SyntheticDataset] | SyntheticDataset
         A dict of all local train sets by rank or just the local train set for the given rank.
-    SyntheticDataset
-        The global = local test set.
+    SyntheticDataset | None
+        The global = local test set if with_global_test is True, None otherwise.
     dict[str, Any]
         Any additional information on the dataset stored as root attribute in the HDF5 file.
     """
@@ -285,7 +288,7 @@ def read_scaling_dataset_from_hdf5(
             n_classes=int(n_classes),
         )
 
-    global_test_set = dataset_from_group(file["test_set"])
+    global_test_set = dataset_from_group(file["test_set"]) if with_global_test else None
 
     local_train_set: (
         dict[int, SyntheticDataset] | SyntheticDataset

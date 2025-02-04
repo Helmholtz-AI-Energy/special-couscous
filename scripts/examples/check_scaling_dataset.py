@@ -28,14 +28,13 @@ def load_and_check_dataset(dataset: str, n_ranks: int = 64) -> None:
 
     for rank in range(n_ranks):
         local_train_set, global_test_set, root_attrs = read_scaling_dataset_from_hdf5(
-            pathlib.Path(hdf5_path), rank=rank
+            pathlib.Path(hdf5_path), rank=rank, with_global_test=(rank == 0)
         )
-        local_train_set = cast(
-            SyntheticDataset, local_train_set
-        )  # explicit cast for mypy
+        local_train_set = cast(SyntheticDataset, local_train_set)
 
         if rank == 0:
             print(f"Root attrs:\n{root_attrs}\n")
+            global_test_set = cast(SyntheticDataset, global_test_set)
             print(
                 f"Global test set: {global_test_set.n_samples} samples "
                 f"with {global_test_set.x.shape[1]} features "
