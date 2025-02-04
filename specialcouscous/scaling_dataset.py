@@ -235,7 +235,9 @@ def read_scaling_dataset_from_hdf5(
     rank: int | None = None,
     with_global_test: bool = True,
 ) -> tuple[
-    dict[int, SyntheticDataset] | SyntheticDataset, SyntheticDataset | None, dict[str, Any]
+    dict[int, SyntheticDataset] | SyntheticDataset,
+    SyntheticDataset | None,
+    dict[str, Any],
 ]:
     """
     Read a scaling dataset (local train sets and global test set) from the given HDF5 file.
