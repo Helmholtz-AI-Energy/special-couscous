@@ -133,7 +133,7 @@ def generate_scaling_dataset(
         )
         for rank, indices in assigned_indices.items()
     }
-    log.info(
+    log.debug(
         f"Current pos of random_state_slicing: {random_state_slicing.get_state()[2]}"
     )
 
