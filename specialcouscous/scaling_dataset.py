@@ -137,7 +137,8 @@ def generate_scaling_dataset(
         f"Current pos of random_state_slicing: {random_state_slicing.get_state()[2]}"
     )
 
-    log.debug(f"Shape of local train set 0 is {training_slices[0].x.shape}.")
+    for i in range(n_ranks):
+        log.debug(f"Shape of local train set {i: 2d} is {training_slices[i].x.shape}.")
 
     if rank is not None:
         log.debug(f"Returning local train set for rank {rank}")
@@ -886,6 +887,8 @@ def continue_memory_efficient_dataset_generation(
 if __name__ == "__main__":
     set_logger_config(level=logging.DEBUG)
     args = parse_arguments()
+    log.info(f'Train-split: {args.train_split} ({args.train_split * args.n_samples} train samples, '
+             f'{(1 - args.train_split) * args.n_samples} train samples)')
     if args.low_mem_data_generation:
         if args.continue_data_generation:
             log.info("Continuing memory efficient dataset generation.")
