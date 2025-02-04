@@ -581,8 +581,13 @@ def add_useless_features(
     return x
 
 
-def add_useless_features_to_hdf5(file: h5py.File, group_name: str, random_state: np.random.RandomState, n_useless: int,
-                                 shuffle: bool) -> None:
+def add_useless_features_to_hdf5(
+    file: h5py.File,
+    group_name: str,
+    random_state: np.random.RandomState,
+    n_useless: int,
+    shuffle: bool,
+) -> None:
     """
     Add useless noise features a group in the given HDF5 file by replacing the group's features x.
 
