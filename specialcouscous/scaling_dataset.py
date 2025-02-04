@@ -581,7 +581,24 @@ def add_useless_features(
     return x
 
 
-def add_useless_features_to_hdf5(file, group_name, random_state, n_useless, shuffle):
+def add_useless_features_to_hdf5(file: h5py.File, group_name: str, random_state: np.random.RandomState, n_useless: int,
+                                 shuffle: bool) -> None:
+    """
+    Add useless noise features a group in the given HDF5 file by replacing the group's features x.
+
+    Parameters
+    ----------
+    file : h5py.File
+        The HDF5 file to add useless features to.
+    group_name : str
+        Name of the HDF5 group to add useless features to.
+    random_state : np.random.RandomState
+        The random state to use for sampling the features.
+    n_useless : int
+        The number of useless features to add.
+    shuffle : bool
+        Whether to shuffle the features after appending the new features.
+    """
     log.debug(
         f"Adding useless features to {group_name}."
         f"Current random state pos: {random_state.get_state()[2]}"
