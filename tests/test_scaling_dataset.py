@@ -333,8 +333,10 @@ def test_memory_efficient_scaling_dataset(
     default_args: argparse.Namespace, tmp_path: pathlib.Path, frac_useless: float
 ) -> None:
     """
-    Test the memory efficient dataset generation by generating and save the same dataset with both approaches (original
-    and memory efficient) and comparing the generated datasets for equality.
+    Test the memory efficient dataset generation.
+
+    Generate and save the same dataset with both approaches (original and memory efficient) and compare the generated
+    datasets for equality.
 
     Parameters
     ----------
