@@ -465,6 +465,7 @@ def load_and_verify_dataset(
     local_train_sets, global_test_set, attrs = read_scaling_dataset_from_hdf5(
         path, rank=rank
     )
+    global_test_set = cast(SyntheticDataset, global_test_set)
 
     # Verify that the metadata stored within the HDF5 is identical to that specified by the parameters.
     expected_dataset_config = dataset_config_from_args(args)
