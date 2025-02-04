@@ -258,7 +258,24 @@ def read_scaling_dataset_from_hdf5(
     """
     file = h5py.File(file_path, "r")
     n_classes = file.attrs["n_classes"]
-    root_attrs = dict(file.attrs)
+
+    def unpack_numpy_types(value: Any) -> Any:
+        """
+        Try unpacking numpy types to standard python types (e.g. np.bool_ to bool).
+
+        Parameters
+        ----------
+        value : Any
+            The value to try unpacking.
+
+        Returns
+        -------
+        Either value.item() if value is a numpy type or the unchanged value.
+        """
+        is_numpy_type = type(value).__module__ == np.__name__
+        return value.item() if is_numpy_type else value
+
+    root_attrs = {key: unpack_numpy_types(value) for key, value in file.attrs.items()}
 
     def dataset_from_group(group: h5py.Group) -> SyntheticDataset:
         return SyntheticDataset(
