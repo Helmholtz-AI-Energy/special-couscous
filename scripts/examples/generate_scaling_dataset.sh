@@ -1,18 +1,18 @@
 #!/bin/bash
 #SBATCH --job-name=generate_scaling_dataset    # Job name
 #SBATCH --partition=large                      # Queue for resource allocation
-#SBATCH --time=60                              # Wall-clock time limit (1h)
-#SBATCH --mem=500gb                            # Main memory -> use high memory nodes
+#SBATCH --time=2-00:00:00                      # Wall-clock time limit (2 days = maximum for high-mem nodes)
+#SBATCH --mem=4123930mb                        # Main memory -> use high memory nodes
 #SBATCH --cpus-per-task=76                     # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL                        # Notify user by email when certain event types occur.
 #SBATCH --nodes=1                              # Number of nodes
 #SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}
-SCRIPT_DIR="${SCRIPT_DIR:-BASE_DIR}"
-DATA_DIR="${BASE_DIR}/datasets"
-VENV=${VENV:-${BASE_DIR}"/special-couscous-venv-openmpi4"}
+BASE_DIR=${BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}  # root dir of the special-couscous repository
+SCRIPT_DIR="${SCRIPT_DIR:-"${BASE_DIR}/specialcouscous"}"                  # root of the specialcouscous python package
+DATA_DIR="${BASE_DIR}/datasets"                                            # dataset dir to write the generated datasets to
+VENV=${VENV:-${BASE_DIR}"/special-couscous-venv-openmpi4"}                 # path to the python venv to use
 
 echo "BASE_DIR: ${BASE_DIR}"
 echo "SCRIPT_DIR: ${SCRIPT_DIR}"
@@ -25,7 +25,7 @@ ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${VENV}"/bin/activate  # Activate venv.
 
-SCRIPT="${SCRIPT_DIR}/specialcouscous/scaling_dataset.py"
+SCRIPT="${SCRIPT_DIR}/scaling_dataset.py"
 
 # NOTE: pass #ranks, #samples, and #features as arguments to this bash script, e.g. as
 #     sbatch generate_scaling_dataset.sh --n_train_splits 64 --n_samples 64000000 --n_features 10000   (for n6m4)
