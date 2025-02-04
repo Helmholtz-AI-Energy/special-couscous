@@ -2,9 +2,18 @@ import os
 import pathlib
 
 
-def generate_job_script(n_nodes: int, log_n_samples_local: int, log_n_features: int, n_trees_local: int,
-                        data_seed: int, model_seed: int, output_path: pathlib.Path, n_classes: int = 10,
-                        train_split: float = 0.75, n_nodes_max: int = 64) -> None:
+def generate_job_script(
+    n_nodes: int,
+    log_n_samples_local: int,
+    log_n_features: int,
+    n_trees_local: int,
+    data_seed: int,
+    model_seed: int,
+    output_path: pathlib.Path,
+    n_classes: int = 10,
+    train_split: float = 0.75,
+    n_nodes_max: int = 64,
+) -> None:
     """
     Generate the job scripts for the experiments scaling model and data simultaneously.
 
@@ -41,15 +50,17 @@ def generate_job_script(n_nodes: int, log_n_samples_local: int, log_n_features: 
     n_trees_global = n_trees_local * n_nodes
 
     # Number of train samples is scaled with nodes, global test set remains unchanged
-    n_samples_local = 10 ** log_n_samples_local
+    n_samples_local = 10**log_n_samples_local
     n_samples_local_train = n_samples_local * train_split
     n_samples_global_test = n_samples_local * (1 - train_split)
     n_samples_global = int(n_samples_local_train * n_nodes_max + n_samples_global_test)
 
     actual_train_split = 1 - (n_samples_global_test / n_samples_global)
 
-    print(f"Current config uses {n_nodes} nodes with {n_trees_global} trees and {n_samples_global} samples."
-          f"Train split is {actual_train_split:.15f}.")
+    print(
+        f"Current config uses {n_nodes} nodes with {n_trees_global} trees and {n_samples_global} samples."
+        f"Train split is {actual_train_split:.15f}."
+    )
 
     job_name = f"n{log_n_samples_local}_m{log_n_features}_nodes_{n_nodes}_modelseed_{model_seed}"
     job_script_name = f"{job_name}.sh"
@@ -98,13 +109,13 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     script_path = output_path / job_script_name
     with open(script_path, "wt") as f:
         f.write(script_content)
-        print(f'Script successfully written to {script_path.absolute()}.')
+        print(f"Script successfully written to {script_path.absolute()}.")
 
 
 if __name__ == "__main__":
     data_sets = [(6, 4, 800), (7, 3, 224)]
     data_seed = 0
-    model_seeds = [1] # [1, 2, 3]
+    model_seeds = [1]  # [1, 2, 3]
     output_path = pathlib.Path("./train/")
     os.makedirs(output_path, exist_ok=True)
 
@@ -112,4 +123,12 @@ if __name__ == "__main__":
 
     for model_seed in model_seeds:
         for log_n_samples, log_n_features, n_trees in data_sets:
-            generate_job_script(n_nodes, log_n_samples, log_n_features, n_trees, data_seed, model_seed, output_path)
+            generate_job_script(
+                n_nodes,
+                log_n_samples,
+                log_n_features,
+                n_trees,
+                data_seed,
+                model_seed,
+                output_path,
+            )

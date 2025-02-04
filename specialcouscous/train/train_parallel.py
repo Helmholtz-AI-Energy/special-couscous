@@ -1344,7 +1344,9 @@ def train_parallel_on_growing_balanced_synthetic_data(
     # -------------- Load the data --------------
     log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Load pre-generated dataset.")
     with MPITimer(mpi_comm, name="data loading") as timer:
-        train_data, test_data, data_attrs = load_and_verify_dataset(cli_args, mpi_comm.rank, True)
+        train_data, test_data, data_attrs = load_and_verify_dataset(
+            cli_args, mpi_comm.rank, True
+        )
         configuration = {**configuration, **data_attrs}
     store_timing(timer, global_results, local_results)
 
