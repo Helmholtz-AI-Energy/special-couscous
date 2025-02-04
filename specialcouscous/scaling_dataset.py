@@ -587,9 +587,7 @@ def add_useless_features_to_hdf5(file, group_name, random_state, n_useless, shuf
         f"Current random state pos: {random_state.get_state()[2]}"
     )
     group = file[group_name]
-    full_features = add_useless_features(
-        group["x"], n_useless, random_state, shuffle
-    )
+    full_features = add_useless_features(group["x"], n_useless, random_state, shuffle)
     log.debug(f"Done generating useless features for {group_name}. Updating HDF5.")
     del group["x"]  # need to delete old features since we are changing the shape
     group["x"] = full_features
@@ -791,7 +789,9 @@ def generate_and_save_dataset_memory_efficient(
     for group_name in [
         f"local_train_sets/{name}" for name in file["local_train_sets"]
     ] + ["test_set"]:
-        add_useless_features_to_hdf5(file, group_name, random_state_generation, n_useless, shuffle)
+        add_useless_features_to_hdf5(
+            file, group_name, random_state_generation, n_useless, shuffle
+        )
     log.info("Done adding useless features.")
 
 
@@ -894,7 +894,9 @@ def continue_memory_efficient_dataset_generation(
         samples, features = group["x"].shape
         if features == n_useful:  # only useful features, add as before
             log.debug("Missing useless features, adding useless features now.")
-            add_useless_features_to_hdf5(file, group_name, random_state, n_useless, shuffle)
+            add_useless_features_to_hdf5(
+                file, group_name, random_state, n_useless, shuffle
+            )
         elif (
             features == n_features
         ):  # already has useful features, only simulate random state
