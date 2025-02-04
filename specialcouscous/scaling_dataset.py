@@ -887,8 +887,10 @@ def continue_memory_efficient_dataset_generation(
 if __name__ == "__main__":
     set_logger_config(level=logging.DEBUG)
     args = parse_arguments()
-    log.info(f'Train-split: {args.train_split} ({args.train_split * args.n_samples} train samples, '
-             f'{(1 - args.train_split) * args.n_samples} train samples)')
+    log.info(
+        f"Train-split: {args.train_split} ({args.train_split * args.n_samples} train samples, "
+        f"{(1 - args.train_split) * args.n_samples} train samples)"
+    )
     if args.low_mem_data_generation:
         if args.continue_data_generation:
             log.info("Continuing memory efficient dataset generation.")
