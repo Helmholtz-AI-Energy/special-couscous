@@ -1257,6 +1257,7 @@ def make_classification_dataset(
     )
 
 
+# TODO: can be removed?
 def make_classification_dataset_no_split(
     n_samples: int,
     n_features: int,

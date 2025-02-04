@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import pathlib
@@ -13,11 +14,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
 from specialcouscous.rf_parallel import DistributedRandomForest
+from specialcouscous.scaling_dataset import load_and_verify_dataset
 from specialcouscous.synthetic_classification_data import (
     SyntheticDataset,
     generate_and_distribute_synthetic_dataset,
     make_classification_dataset,
-    make_classification_dataset_no_split,
 )
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 from specialcouscous.utils.timing import MPITimer
@@ -1243,14 +1244,10 @@ def get_output_path(
 
 
 def train_parallel_on_growing_balanced_synthetic_data(
-    n_samples: int,
-    n_features: int,
-    n_classes: int,
-    make_classification_kwargs: dict[str, Any] | None = None,
+    cli_args: argparse.Namespace,
     random_state: int | np.random.RandomState = 0,
     random_state_model: int | None = None,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
-    train_split: float = 0.75,
     n_trees: int = 100,
     shared_global_model: bool = True,
     detailed_evaluation: bool = False,
@@ -1260,23 +1257,21 @@ def train_parallel_on_growing_balanced_synthetic_data(
     save_model: bool = True,
 ) -> None:
     """
-    Train and evaluate a distributed random forest on globally balanced synthetic data.
+    Train and evaluate a distributed random forest while scaling both model and data with the number of ranks.
 
-    In this setup:
-    - Each rank operates on a local training dataset drawn from the same global data distribution.
-    - The test dataset, also drawn from the global distribution, is shared across all ranks, ensuring consistent
-      evaluation.
+    Assumes the scaling dataset has been pre-generated with scaling_dataset.py
+    Steps:
+    1. Load the corresponding pre-generated dataset for the given CLI parameters (loading the local train set for the
+       current rank and the global test set).
+    2. Train the local RF model on the local train set
+    3. Checkpoint the local RF model and potentially build a shared global model
+    4. Evaluate the RF model on the global test set (and optionally the local train sets)
 
     Parameters
     ----------
-    n_samples : int
-        The number of samples in the dataset.
-    n_features : int
-        The number of features in the dataset.
-    n_classes : int
-        The number of classes in the dataset.
-    make_classification_kwargs : dict[str, Any], optional
-        Additional keyword arguments to ``sklearn.datasets.make_classification``.
+    cli_args : argparse.Namespace
+        The CLI namespace used to find and load the correct pre-generated dataset. Should use the same parameters as
+        used for the dataset generation (on mismatch, an error is raised).
     random_state : int | np.random.RandomState
         The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
         state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
@@ -1288,8 +1283,6 @@ def train_parallel_on_growing_balanced_synthetic_data(
         different ``RandomState`` instance on each rank passed to the rank-local classifier.
     mpi_comm : MPI.Comm
         The MPI communicator to distribute over.
-    train_split : float
-        Relative size of the train set.
     n_trees : int
         The number of trees in the global forest.
     shared_global_model : bool
@@ -1317,7 +1310,7 @@ def train_parallel_on_growing_balanced_synthetic_data(
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
     configuration = locals()
-    for key in ["mpi_comm", "output_dir", "detailed_evaluation"]:
+    for key in ["mpi_comm", "output_dir", "detailed_evaluation", "cli_args"]:
         del configuration[key]
     configuration["comm_size"] = mpi_comm.size
 
@@ -1348,44 +1341,12 @@ def train_parallel_on_growing_balanced_synthetic_data(
         random_state.randint(0, np.iinfo(np.int32).max) + mpi_comm.rank
     )
 
-    # -------------- Generate the data --------------
-    # Calculate number of training and test samples.
-    n_train_samples = int(n_samples * train_split)
-    n_test_samples = n_samples - n_train_samples
-
-    if mpi_comm.rank == 0:
-        log.info("Generating synthetic data.")
-    with MPITimer(mpi_comm, name="data generation") as timer:
-        train_samples, train_targets = make_classification_dataset_no_split(
-            n_samples=n_train_samples,
-            n_features=n_features,
-            n_classes=n_classes,
-            make_classification_kwargs=make_classification_kwargs,
-            random_state=random_state_train,
-        )
-        test_samples, test_targets = make_classification_dataset_no_split(
-            n_samples=n_test_samples,
-            n_features=n_features,
-            n_classes=n_classes,
-            make_classification_kwargs=make_classification_kwargs,
-            random_state=random_state,
-        )
-        log.info(
-            f"First train sample is:\n{train_samples[0]}\nLast train sample is:\n{train_samples[-1]}\n"
-            f""
-            f"First test sample is:\n{test_samples[0]}\nLast test sample is:\n{test_samples[-1]}"
-        )
-        train_data = SyntheticDataset(x=train_samples, y=train_targets)
-        test_data = SyntheticDataset(x=test_samples, y=test_targets)
+    # -------------- Load the data --------------
+    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Load pre-generated dataset.")
+    with MPITimer(mpi_comm, name="data loading") as timer:
+        train_data, test_data, data_attrs = load_and_verify_dataset(cli_args, mpi_comm.rank, True)
+        configuration = {**configuration, **data_attrs}
     store_timing(timer, global_results, local_results)
-    log.info(
-        f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
-        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}."
-    )
-
-    log.debug(
-        f"[{mpi_comm.rank}/{mpi_comm.size}]: First two test samples are: \n{test_data.x[0:1]}"
-    )
 
     # -------------- Set up distributed random forest --------------
     log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Set up classifier.")
@@ -1442,7 +1403,7 @@ def train_parallel_on_growing_balanced_synthetic_data(
         mpi_comm, name="test"
     ) as timer:  # Evaluate trained model on test data.
         distributed_random_forest.evaluate(
-            test_data.x, test_data.y, n_classes, shared_global_model
+            test_data.x, test_data.y, test_data.n_classes, shared_global_model
         )
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
@@ -1475,7 +1436,7 @@ def train_parallel_on_growing_balanced_synthetic_data(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
         distributed_random_forest.evaluate(
-            train_data.x, train_data.y, n_classes, shared_global_model
+            train_data.x, train_data.y, train_data.n_classes, shared_global_model
         )
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results

@@ -29,27 +29,18 @@ if __name__ == "__main__":
 
     if comm.rank == 0:
         log.info(
-            "***********************************************************************\n"
-            "* Distributed Random Forest Classification of Balanced Synthetic Data *\n"
-            "***********************************************************************\n"
+            "****************************************************************************************\n"
+            "* Distributed Random Forest Classification with Simultaneous Scaling of Model and Data *\n"
+            "****************************************************************************************\n"
             f"Hyperparameters used are:\n{args}"
         )
 
     # Train distributed random forest on balanced synthetic classification data.
     train_parallel_on_growing_balanced_synthetic_data(
-        n_samples=args.n_samples,
-        n_features=args.n_features,
-        n_classes=args.n_classes,
-        make_classification_kwargs={
-            "n_clusters_per_class": args.n_clusters_per_class,
-            "n_informative": int(args.frac_informative * args.n_features),
-            "n_redundant": int(args.frac_redundant * args.n_features),
-            "flip_y": args.flip_y,
-        },
+        cli_args=args,
         random_state=args.random_state,
         random_state_model=args.random_state_model,
         mpi_comm=comm,
-        train_split=args.train_split,
         n_trees=args.n_trees,
         shared_global_model=args.shared_global_model,
         detailed_evaluation=args.detailed_evaluation,
