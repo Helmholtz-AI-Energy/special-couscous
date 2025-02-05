@@ -1153,7 +1153,7 @@ def save_model_parallel(
     file_path = path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle")
     with open(file_path, "wb") as f:
         pickle.dump(clf, f, protocol=5)
-    log.info(f'Model saved successfully to {file_path}')
+    log.info(f"Model saved successfully to {file_path}")
 
 
 def store_timing(
@@ -1389,7 +1389,9 @@ def train_parallel_on_growing_balanced_synthetic_data(
     # Save model to disk.
     if save_model:
         if load_checkpoint:
-            log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Model loaded from checkpoint, skipping model save.")
+            log.info(
+                f"[{mpi_comm.rank}/{mpi_comm.size}]: Model loaded from checkpoint, skipping model save."
+            )
         else:
             save_model_parallel(
                 mpi_comm, distributed_random_forest.clf, output_path, base_filename
