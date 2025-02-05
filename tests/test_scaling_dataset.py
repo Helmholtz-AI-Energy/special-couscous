@@ -211,12 +211,15 @@ def default_args(tmp_path: pathlib.Path) -> argparse.Namespace:
     """
     Initialize a default namespace as could be parsed by parse_arguments().
 
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary path to write the data to (set as data_root_path).
+
     Returns
     -------
     argparse.Namespace
         The namespace filled with default values.
-    tmp_path : pathlib.Path
-        Temporary path to write the data to (set as data_root_path).
     """
     args = argparse.Namespace()
 
