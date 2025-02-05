@@ -145,7 +145,9 @@ if __name__ == "__main__":
 
     nodes = [1, 2, 4, 8, 16, 32, 64]
 
-    for n_nodes, model_seed, dataset_config in itertools.product(nodes, model_seeds, data_sets):
+    for n_nodes, model_seed, dataset_config in itertools.product(
+        nodes, model_seeds, data_sets
+    ):
         log_n_samples, log_n_features, n_trees = dataset_config
 
         checkpoint_path = model_checkpoints[(log_n_samples, log_n_features, model_seed)]
