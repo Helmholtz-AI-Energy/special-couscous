@@ -1150,11 +1150,10 @@ def save_model_parallel(
     base_filename : str
         The base file name, including UUID.
     """
-    with open(
-        path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
-        "wb",
-    ) as f:
+    file_path = path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle")
+    with open(file_path, "wb") as f:
         pickle.dump(clf, f, protocol=5)
+    log.info(f'Model saved successfully to {file_path}')
 
 
 def store_timing(
