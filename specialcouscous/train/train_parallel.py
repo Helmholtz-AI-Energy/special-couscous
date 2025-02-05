@@ -4,7 +4,7 @@ import os
 import pathlib
 import pickle
 import re
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas
@@ -1347,6 +1347,7 @@ def train_parallel_on_growing_balanced_synthetic_data(
         train_data, test_data, data_attrs = load_and_verify_dataset(
             cli_args, mpi_comm.rank, True
         )
+        train_data = cast(SyntheticDataset, train_data)
         configuration = {**configuration, **data_attrs}
     store_timing(timer, global_results, local_results)
 
