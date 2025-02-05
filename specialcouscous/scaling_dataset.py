@@ -589,7 +589,9 @@ def add_useless_features(
     """
     # Create useless features from random noise
     n_samples = x.shape[0]
-    useless_features = random_state.standard_normal(size=(n_samples, n_useless)).astype(np.float32)
+    useless_features = random_state.standard_normal(size=(n_samples, n_useless)).astype(
+        np.float32
+    )
     # Shift and scale the new features
     useless_features = (useless_features + shift) * scale
 
