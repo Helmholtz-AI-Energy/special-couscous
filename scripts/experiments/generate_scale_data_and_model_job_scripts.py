@@ -1,3 +1,4 @@
+import argparse
 import os
 import pathlib
 
@@ -77,22 +78,25 @@ def generate_job_script(
 #SBATCH --account=hk-project-p0022229
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
+BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}  # root dir of the special-couscous workspace
+SCRIPT_DIR="${{SCRIPT_DIR:-"${{BASE_DIR}}/special-couscous"}}"               # root of the special-couscous repository
+DATA_DIR="${{BASE_DIR}}/datasets"                                            # dataset dir to write the generated datasets to
+VENV=${{VENV:-${{BASE_DIR}}"/special-couscous-venv-openmpi4"}}               # path to the python venv to use
+RESDIR="${{BASE_DIR}}"/results/scale_data_and_model/n{log_n_samples_local}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
 
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 ml purge              # Unload all currently loaded modules.
 ml load compiler/gnu  # Load required modules.
 ml load mpi/openmpi/4.1
-source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
+source "${{VENV}}"/bin/activate  # Activate venv.
 
-SCRIPT="special-couscous/scripts/examples/rf_parallel_synthetic_scale_data_and_model.py"
+SCRIPT="${{SCRIPT_DIR}}/scripts/examples/rf_parallel_synthetic_scale_data_and_model.py"
 
-RESDIR="${{BASE_DIR}}"/results/scale_data_and_model/n{log_n_samples_local}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
+srun python -u ${{SCRIPT}} \\
     --n_samples {n_samples_global} \\
     --n_features {10**log_n_features} \\
     --n_classes {n_classes} \\
@@ -103,7 +107,9 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --output_dir ${{RESDIR}} \\
     --output_label ${{SLURM_JOB_ID}} \\
     --detailed_evaluation \\
-    --save_model
+    --save_model \\
+    --data_root_path ${{DATA_DIR}} \\
+    --n_train_splits {n_nodes_max}
 """
 
     script_path = output_path / job_script_name
@@ -113,18 +119,27 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
 
 
 if __name__ == "__main__":
-    data_sets = [(6, 4, 800), (7, 3, 224)]
-    data_seed = 0
-    model_seeds = [1]  # [1, 2, 3]
-    output_path = pathlib.Path("./train/")
-    os.makedirs(output_path, exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--tiny', action='store_true',
+                        help='Pass this to use the tiny test forest instead of the full scale forest')
+    parser.add_argument('--n_nodes', type=int, default=64, help='Number of nodes to run the training for.')
+    args = parser.parse_args()
 
-    n_nodes = 64
+    full_scale_data_sets = [(6, 4, 800), (7, 3, 224)]
+    tiny_data_sets = [(6, 4, 10), (7, 3, 10)]
+    data_sets = tiny_data_sets if args.tiny else full_scale_data_sets
+
+    data_seed = 0
+    model_seeds = [1] if args.tiny else [1, 2, 3]
+
+    script_dir_name = "scale_data_and_model__train" + ("__tiny" if args.tiny else "")
+    output_path = pathlib.Path(".") / script_dir_name
+    os.makedirs(output_path, exist_ok=True)
 
     for model_seed in model_seeds:
         for log_n_samples, log_n_features, n_trees in data_sets:
             generate_job_script(
-                n_nodes,
+                args.n_nodes,
                 log_n_samples,
                 log_n_features,
                 n_trees,
