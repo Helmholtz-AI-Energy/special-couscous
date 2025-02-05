@@ -16,7 +16,9 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
 @pytest.fixture(params=[0.0, 0.01])
-def prepare_dataset_and_args(tmp_path: pathlib.Path, request: SubRequest) -> argparse.Namespace:
+def prepare_dataset_and_args(
+    tmp_path: pathlib.Path, request: SubRequest
+) -> argparse.Namespace:
     """
     Initialize a default namespace and generate a corresponding dataset, return the namespace.
 
