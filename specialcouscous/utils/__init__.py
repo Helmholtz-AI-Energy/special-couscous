@@ -271,6 +271,12 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--load_from_checkpoint",
+        action="store_true",
+        help="Whether to load the model from checkpoint (currently only used for scale data and model experiment).",
+    )
+
+    parser.add_argument(
         "--checkpoint_path",
         type=pathlib.Path,
         default=pathlib.Path("./"),
