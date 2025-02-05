@@ -461,6 +461,7 @@ def load_and_verify_dataset(
         Any additional information on the dataset stored as root attribute in the HDF5 file.
     """
     # Read dataset from HDF5.
+    args.random_state_slicing = args.random_state
     path = dataset_path_from_args(args)
     local_train_sets, global_test_set, attrs = read_scaling_dataset_from_hdf5(
         path, rank=rank
@@ -483,6 +484,21 @@ def load_and_verify_dataset(
             f"Dataset config does not match current CLI arguments. "
             f"From CLI {expected_dataset_config}, actual in HDF5 {actual_dataset_config}."
         )
+        missing_keys_hdf5 = [key for key in expected_dataset_config if key not in actual_dataset_config]
+        additional_keys_hdf5 = [key for key in actual_dataset_config if key not in expected_dataset_config]
+        keys_with_mismatched_values = [
+            key for key, value in expected_dataset_config.items()
+            if key in actual_dataset_config and actual_dataset_config[key] != value
+        ]
+        if missing_keys_hdf5:
+            log.debug(f'Missing keys in HDF5: {missing_keys_hdf5}')
+        if additional_keys_hdf5:
+            log.debug(f'Additional keys in HDF5: {additional_keys_hdf5}')
+        if keys_with_mismatched_values:
+            log.debug(f'Mismatched values:')
+        for key in keys_with_mismatched_values:
+            log.debug(f'{key}: expected {expected_dataset_config[key]} but got {actual_dataset_config[key]}')
+
         if fail_on_unmatched_config:
             raise ValueError(error_message)
         log.warning(f"Warning: {error_message}")
