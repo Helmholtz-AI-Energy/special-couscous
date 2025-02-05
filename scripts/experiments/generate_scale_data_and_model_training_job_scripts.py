@@ -16,7 +16,7 @@ def generate_job_script(
     n_nodes_max: int = 64,
 ) -> None:
     """
-    Generate the job scripts for the experiments scaling model and data simultaneously.
+    Generate the job scripts for the training experiments scaling model and data simultaneously.
 
     Based on the weak scaling experiments but using rf_parallel_synthetic_scale_data_and_model.py instead of
     rf_parallel_synthetic.py
