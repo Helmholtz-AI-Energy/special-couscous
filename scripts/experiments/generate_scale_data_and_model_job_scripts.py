@@ -120,9 +120,17 @@ srun python -u ${{SCRIPT}} \\
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tiny', action='store_true',
-                        help='Pass this to use the tiny test forest instead of the full scale forest')
-    parser.add_argument('--n_nodes', type=int, default=64, help='Number of nodes to run the training for.')
+    parser.add_argument(
+        "--tiny",
+        action="store_true",
+        help="Pass this to use the tiny test forest instead of the full scale forest",
+    )
+    parser.add_argument(
+        "--n_nodes",
+        type=int,
+        default=64,
+        help="Number of nodes to run the training for.",
+    )
     args = parser.parse_args()
 
     full_scale_data_sets = [(6, 4, 800), (7, 3, 224)]
