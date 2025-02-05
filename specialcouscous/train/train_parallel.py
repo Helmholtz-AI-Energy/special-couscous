@@ -1254,6 +1254,9 @@ def train_parallel_on_growing_balanced_synthetic_data(
     output_label: str = "",
     experiment_id: str = "",
     save_model: bool = True,
+    load_checkpoint: bool = False,
+    checkpoint_path: str | pathlib.Path = pathlib.Path("../"),
+    checkpoint_uid: str = "",
 ) -> None:
     """
     Train and evaluate a distributed random forest while scaling both model and data with the number of ranks.
@@ -1298,6 +1301,13 @@ def train_parallel_on_growing_balanced_synthetic_data(
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
+    load_checkpoint : bool
+        If set to true, a trained model is loaded from a checkpoint and evaluated instead of training the model from
+        scratch before evaluation.
+    checkpoint_path : pathlib.Path | str
+        The directory containing the pickled local model checkpoints to load.
+    checkpoint_uid : str
+        The considered run's unique identifier. Used to identify the correct checkpoints to load.
     """
     if detailed_evaluation and not shared_global_model:
         if mpi_comm.rank == 0:
@@ -1361,11 +1371,15 @@ def train_parallel_on_growing_balanced_synthetic_data(
         )
     store_timing(timer, global_results, local_results)
 
-    # -------------- Train distributed random forest --------------
-    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Train local random forest.")
-    with MPITimer(mpi_comm, name="training") as timer:
-        distributed_random_forest.train(train_data.x, train_data.y)
-    store_timing(timer, global_results, local_results)
+    # -------------- Train or load distributed random forest --------------
+    if load_checkpoint:
+        # Load pickled model checkpoints.
+        distributed_random_forest.load_checkpoints(checkpoint_path, checkpoint_uid)
+    else:
+        log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Train local random forest.")
+        with MPITimer(mpi_comm, name="training") as timer:
+            distributed_random_forest.train(train_data.x, train_data.y)
+        store_timing(timer, global_results, local_results)
 
     # -------------- Checkpoint trained rank-local subforests --------------
     # Create output directory to save model checkpoints (and configuration + evaluation results later on).
@@ -1374,9 +1388,12 @@ def train_parallel_on_growing_balanced_synthetic_data(
     )
     # Save model to disk.
     if save_model:
-        save_model_parallel(
-            mpi_comm, distributed_random_forest.clf, output_path, base_filename
-        )
+        if load_checkpoint:
+            log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Model loaded from checkpoint, skipping model save.")
+        else:
+            save_model_parallel(
+                mpi_comm, distributed_random_forest.clf, output_path, base_filename
+            )
     # -------------- Gather local results, generate dataframe, output collective results --------------
     # Convert local results to array, ensure the values are in the same order on all ranks by sorting the keys. At this
     # point, only the training times are saved. Note that this dump will be overwritten in the end. However, it serves

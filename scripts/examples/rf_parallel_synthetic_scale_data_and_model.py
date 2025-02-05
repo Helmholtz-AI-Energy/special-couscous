@@ -48,4 +48,7 @@ if __name__ == "__main__":
         output_label=args.output_label,
         experiment_id=args.experiment_id,
         save_model=args.save_model,
+        load_checkpoint=args.checkpoint_uid != "",
+        checkpoint_path=args.checkpoint_path,
+        checkpoint_uid=args.checkpoint_uid,
     )
