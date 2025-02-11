@@ -15,6 +15,25 @@ pd.set_option("display.max_rows", None)
 log = logging.getLogger("specialcouscous.data_processing")
 
 
+def convert_to_gb(memory_value: str, unit: str) -> float:
+    """
+    Convert memory value to GB.
+
+    Parameters
+    ----------
+    memory_value : str
+        The memory value.
+    unit : str
+        The unit of the value. Must be either "MB", "GB", or "TB".
+    """
+    value = float(memory_value)  # Convert the captured value to float
+    if unit == "TB":
+        return value * 1024  # Convert TB to GB
+    elif unit == "MB":
+        return value / 1024  # Convert MB to GB
+    return value  # GB remains the same
+
+
 def read_dataframe(path):
     dataframe = pd.read_csv(path)
 
@@ -72,7 +91,13 @@ def parse_log_file(path):
     energy_match = re.search(pattern_energy, input_text)
     energy_consumed = float(energy_match.group(0))  # type:ignore
 
-    return wall_clock_time, energy_consumed
+    pattern_memory = r"Memory Utilized:\s*([0-9]+\.?[0-9]*)\s*(MB|GB|TB)"
+    memory_match = re.search(pattern_memory, input_text)
+    memory_utilized = memory_match.group(1)  # type:ignore
+    unit = memory_match.group(2)  # type:ignore
+    memory_in_gb = convert_to_gb(memory_utilized, unit)
+
+    return wall_clock_time, energy_consumed, memory_in_gb
 
 
 def process_run_dir(path, dataset_label):
@@ -82,15 +107,16 @@ def process_run_dir(path, dataset_label):
     assert len(csv_files) == 1 and len(log_files) == 1
 
     dataframe = read_dataframe(csv_files[0])
-    wall_clock_time, energy_consumed = parse_log_file(log_files[0])
+    wall_clock_time, energy_consumed, memory_in_gb = parse_log_file(log_files[0])
     run_key = ' '.join([path.parents[1].name, f"{number_of_tasks:2d}", log_files[0].stem])
-    log.info(f"Run {run_key}: Wall-clock time {wall_clock_time:>8.0f} s, "
+    log.info(f"Run {run_key}: Wall-clock time {wall_clock_time:>8.0f} s, Memory utilized {memory_in_gb} GB"
              f"Energy consumed: {energy_consumed:>10.2f} Watthours")
 
     dataframe["n_nodes"] = number_of_tasks
     dataframe["model_seed"] = model_seed
     dataframe.loc[dataframe.comm_rank == "global", "wall_clock_time_sec"] = wall_clock_time
     dataframe.loc[dataframe.comm_rank == "global", "energy_consumed_watthours"] = energy_consumed
+    dataframe.loc[dataframe.comm_rank == "global", "memory_gb"] = memory_in_gb
     dataframe["dataset"] = dataset_label
 
     return dataframe
