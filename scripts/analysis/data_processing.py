@@ -3,7 +3,6 @@ import logging
 import os
 import pathlib
 import re
-import sys
 
 import pandas as pd
 
@@ -139,11 +138,24 @@ def process_experiment_dir(root_dir, scaling_type='strong'):
     # Add mean local accuracies to global rank
     local_accuracies = [column for column in results_df.columns if re.match(r'accuracy_.*local.*', column)]
     aggregations = {column: "mean" for column in local_accuracies}
-    key_columns = ['dataset', 'model_seed', 'n_nodes']
+    key_columns = {'dataset', 'model_seed', 'n_nodes', 'mu_partition', 'mu_data'}
+    key_columns = list(key_columns.intersection(set(results_df.columns)))
     mean_local_accuracies = results_df.groupby(key_columns).agg(aggregations).reset_index()
     mean_local_accuracies.rename(columns=lambda column: column.replace('local', 'mean_local'), inplace=True)
     results_df = pd.merge(results_df, mean_local_accuracies, on=key_columns)
 
+    # Add serial runtimes and speedup/efficiency
+    if scaling_type is not None:
+        results_df = add_speedup_efficiency(results_df, scaling_type)
+
+    log.info(f"List of columns in unaggregated dataframe: {list(results_df.columns)}")
+
+    results_df = results_df.sort_values(by=["dataset", "comm_size", "comm_rank"])
+
+    return results_df
+
+
+def add_speedup_efficiency(results_df, scaling_type):
     # Add serial runtimes (by model seed)
     time_columns = [column for column in results_df.columns if "time" in column]
     key_columns = ['dataset', 'model_seed']
@@ -158,11 +170,6 @@ def process_experiment_dir(root_dir, scaling_type='strong'):
         log.debug(f'Adding column {new_col_name}')
         assert new_col_name not in results_df.columns
         results_df[new_col_name] = results_df[serial_column] / results_df[parallel_column]
-
-    log.info(f"List of columns in unaggregated dataframe: {list(results_df.columns)}")
-
-    results_df = results_df.sort_values(by=["dataset", "comm_size", "comm_rank"])
-
     return results_df
 
 
@@ -193,7 +200,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir')
-    parser.add_argument('--scaling_type', type=str, default='strong', choices=['strong', 'weak'])
+    parser.add_argument('--scaling_type', type=str, choices=['strong', 'weak'])
     args = parser.parse_args()
 
     root_dir = pathlib.Path(args.data_dir)
@@ -206,10 +213,10 @@ if __name__ == "__main__":
     aggregated_results = aggregated_results.sort_values(by=["dataset", "comm_size", "comm_rank"])
     print_columns = ['dataset', 'comm_size', 'comm_rank',
                      'accuracy_global_test_mean', 'accuracy_mean_local_test_mean',
-                     'wall_clock_time_sec_mean', ]
+                     'wall_clock_time_sec_mean']
     if args.scaling_type == 'strong':
         print_columns += ['wall_clock_speedup_mean', 'speedup_training_mean']
-    else:
+    elif args.scaling_type == 'weak':
         print_columns += ['wall_clock_efficiency_mean', 'efficiency_training_mean']
     global_results = aggregated_results[aggregated_results.comm_rank == 'global']
     print(global_results[print_columns])
