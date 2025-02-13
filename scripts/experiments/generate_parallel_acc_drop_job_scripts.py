@@ -63,7 +63,7 @@ BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 ml purge              # Unload all currently loaded modules.
-ml load compiler/gnu  # Load required modules.
+ml load compiler/llvm  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
 
