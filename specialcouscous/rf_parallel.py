@@ -3,6 +3,7 @@ import logging
 import pathlib
 import pickle
 
+import joblib
 import numpy as np
 import sklearn.tree
 from mpi4py import MPI
@@ -57,6 +58,7 @@ class DistributedRandomForest:
         random_state: int | None = None,
         shared_global_model: bool = True,
         add_rank: bool = False,
+        node_local_jobs: int = -1,
     ) -> None:
         """
         Initialize a distributed random forest object.
@@ -74,9 +76,13 @@ class DistributedRandomForest:
         add_rank : bool
             Whether to use random integers generated from the model base seed (False) or the sum of the base seed and
             the local rank to initialize the local random forest model (True). Default is False.
+        node_local_jobs : int
+            The number of jobs to train the local classifiers with, passed as n_jobs to the underlying local
+            classifiers. Default is -1 to use all available cores.
         """
         self.comm = comm  # Communicator to use
         # --- MODEL SETTINGS ---
+        self.node_local_jobs = node_local_jobs
         self.n_trees_global = (
             n_trees_global  # Number of trees in global random forest model
         )
@@ -176,8 +182,12 @@ class DistributedRandomForest:
         """
         # Set up and train local subforest using rank-specific random state.
         clf = RandomForestClassifier(
-            n_estimators=self.n_trees_local, random_state=self.random_state
+            n_estimators=self.n_trees_local, random_state=self.random_state, n_jobs=self.node_local_jobs
         )
+        expected_n_jobs = 1 if clf.n_jobs is None else clf.n_jobs
+        if expected_n_jobs < 0:
+            expected_n_jobs = joblib.cpu_count() + 1 + expected_n_jobs
+        log.info(f'Training local random forest with {expected_n_jobs} jobs.')
         clf.fit(train_samples, train_targets)
         return clf
 
