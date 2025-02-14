@@ -32,7 +32,7 @@ def compute_and_store_class_frequencies(
     class_frequencies_dict = dataset.get_class_frequency()
     class_frequencies = np.zeros(dataset.n_classes)
     for cls, frequency in class_frequencies_dict.items():
-        class_frequencies[cls] = frequency
+        class_frequencies[int(cls)] = frequency
 
     np.savetxt(path, class_frequencies, delimiter=",")
     return class_frequencies
@@ -73,6 +73,8 @@ def store_class_frequencies_train(
     n_classes : int
         The number of classes, default 10.
     """
+    dir_name = f"{random_state_data}_{str(mu_data).replace('.', '')}_{str(mu_partition).replace('.', '')}"
+    (base_path / dir_name).mkdir(exist_ok=True, parents=True)
     random_state_data = check_random_state(random_state_data)
     make_classification_kwargs = {
         "n_clusters_per_class": 1,
@@ -80,7 +82,6 @@ def store_class_frequencies_train(
         "n_redundant": int(0.1 * n_features),
         "flip_y": 0.01,
     }
-    dir_name = f"{random_state_data}_{str(mu_data).replace('.', '')}_{str(mu_partition).replace('.', '')}"
     global_train_class_frequencies = np.zeros(n_classes)
 
     for rank in range(n_nodes):
