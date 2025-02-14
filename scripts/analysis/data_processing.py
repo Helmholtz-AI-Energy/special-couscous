@@ -34,6 +34,7 @@ def convert_to_gb(memory_value: str, unit: str) -> float:
 
 
 def read_dataframe(path):
+    log.debug(f'Parsing result csv: {path}')
     dataframe = pd.read_csv(path)
 
     if "accuracy_global_test" not in dataframe.columns:  # Serial run, slightly different data layout
@@ -49,6 +50,7 @@ def read_dataframe(path):
 
 
 def extract_info_from_path(path):
+    log.debug(f'Extracting info from {path}')
     # Extract relevant information from the path.
     parts = str(path).split(os.sep)
     number_of_tasks = int(parts[-2].split("_")[1])
@@ -77,6 +79,7 @@ def extract_accuracies_from_csv(path):
 
 
 def parse_log_file(path):
+    log.debug(f'Parsing log file: {path}')
     with open(path, "r") as file:  # Load input text from the file.
         input_text = file.read()
 
@@ -89,6 +92,8 @@ def parse_log_file(path):
     pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
     energy_match = re.search(pattern_energy, input_text)
     energy_consumed = float(energy_match.group(0))  # type:ignore
+    pattern_node_power_draw = r"Average node power draw: (\d+(\.\d+)?) Watt"
+    avg_node_power_draw = float(re.search(pattern_node_power_draw, input_text).group(1))
 
     pattern_memory = r"Memory Utilized:\s*([0-9]+\.?[0-9]*)\s*(MB|GB|TB)"
     memory_match = re.search(pattern_memory, input_text)
@@ -96,26 +101,29 @@ def parse_log_file(path):
     unit = memory_match.group(2)  # type:ignore
     memory_in_gb = convert_to_gb(memory_utilized, unit)
 
-    return wall_clock_time, energy_consumed, memory_in_gb
+    return {'wall_clock_time_sec': wall_clock_time, 'energy_consumed_watthours': energy_consumed,
+            'memory_gb': memory_in_gb, 'avg_node_power_draw_watt': avg_node_power_draw}
 
 
 def process_run_dir(path, dataset_label):
+    log.debug(f'Parsing dir {path}')
     number_of_tasks, model_seed = extract_info_from_path(path)
-    csv_files = list(path.glob('*results.csv'))
+    csv_files = list(path.glob('*_results.csv'))
     log_files = list(path.glob('slurm*.out'))
     assert len(csv_files) == 1 and len(log_files) == 1
 
     dataframe = read_dataframe(csv_files[0])
-    wall_clock_time, energy_consumed, memory_in_gb = parse_log_file(log_files[0])
-    run_key = ' '.join([path.parents[1].name, f"{number_of_tasks:2d}", log_files[0].stem])
-    log.info(f"Run {run_key}: Wall-clock time {wall_clock_time:>8.0f} s, Memory utilized {memory_in_gb} GB"
-             f"Energy consumed: {energy_consumed:>10.2f} Watthours")
+    parsed_from_log_file = parse_log_file(log_files[0])
+    parsed_from_log_file['exp_node_power_draw'] = parsed_from_log_file['energy_consumed_watthours'] / (parsed_from_log_file['wall_clock_time_sec'] / 3600) / number_of_tasks
+    run_key = ' '.join([path.parents[1].name, f"{number_of_tasks:2d}", str(model_seed), log_files[0].stem])
+    parsed_values = ', '.join([f'{key}: {value:>10.2f}' for key, value in parsed_from_log_file.items()])
+    log.info(f"Run {run_key}: {parsed_values}")
 
     dataframe["n_nodes"] = number_of_tasks
     dataframe["model_seed"] = model_seed
-    dataframe.loc[dataframe.comm_rank == "global", "wall_clock_time_sec"] = wall_clock_time
-    dataframe.loc[dataframe.comm_rank == "global", "energy_consumed_watthours"] = energy_consumed
-    dataframe.loc[dataframe.comm_rank == "global", "memory_gb"] = memory_in_gb
+
+    for key, value in parsed_from_log_file.items():
+        dataframe.loc[dataframe.comm_rank == "global", key] = value
     dataframe["dataset"] = dataset_label
 
     return dataframe
@@ -140,7 +148,7 @@ def process_experiment_dir(root_dir, scaling_type='strong'):
     aggregations = {column: "mean" for column in local_accuracies}
     key_columns = {'dataset', 'model_seed', 'n_nodes', 'mu_partition', 'mu_data'}
     key_columns = list(key_columns.intersection(set(results_df.columns)))
-    mean_local_accuracies = results_df.groupby(key_columns).agg(aggregations).reset_index()
+    mean_local_accuracies = results_df.groupby(key_columns, dropna=False).agg(aggregations).reset_index()
     mean_local_accuracies.rename(columns=lambda column: column.replace('local', 'mean_local'), inplace=True)
     results_df = pd.merge(results_df, mean_local_accuracies, on=key_columns)
 
@@ -150,7 +158,9 @@ def process_experiment_dir(root_dir, scaling_type='strong'):
 
     log.info(f"List of columns in unaggregated dataframe: {list(results_df.columns)}")
 
-    results_df = results_df.sort_values(by=["dataset", "comm_size", "comm_rank"])
+    results_df.comm_size = results_df.comm_size.astype(int)
+
+    results_df = results_df.sort_values(by=["dataset", "comm_size", "model_seed", "comm_rank"])
 
     return results_df
 
@@ -158,7 +168,10 @@ def process_experiment_dir(root_dir, scaling_type='strong'):
 def add_speedup_efficiency(results_df, scaling_type):
     # Add serial runtimes (by model seed)
     time_columns = [column for column in results_df.columns if "time" in column]
-    key_columns = ['dataset', 'model_seed']
+    key_columns = ['dataset']
+    if len(results_df[results_df.n_nodes == 1].model_seed.unique()) > 1:
+        key_columns += ['model_seed']
+
     serial_times = results_df[results_df.n_nodes == 1][key_columns + time_columns]
     results_df = pd.merge(results_df, serial_times, on=key_columns, suffixes=('', '_serial'))
 
@@ -175,15 +188,17 @@ def add_speedup_efficiency(results_df, scaling_type):
 
 def aggregate_by_seeds(dataframe, compute_std_for=None):
     # key columns used as keys for aggregation
-    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'n_clusters_per_class', 'frac_informative',
-                   'frac_redundant', 'train_split', 'n_trees', 'shared_global_model', 'save_model', 'comm_size',
-                   'n_nodes', 'dataset', 'detailed_evaluation']
+    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'train_split', 'n_trees', 'comm_size',
+                   'n_nodes', 'dataset']
     # seed/run specific columns, ignored for aggregated dataframe
     seed_specific_columns = ['job_id', 'random_state', 'random_state_model', 'output_label', 'experiment_id',
-                             'result_filename', 'model_seed']
+                             'result_filename', 'model_seed', 'checkpoint_path', 'checkpoint_uid',
+                             'n_clusters_per_class', 'frac_informative', 'frac_redundant', 'shared_global_model',
+                             'save_model', 'detailed_evaluation']
 
     # all remaining columns are aggregated
     value_columns = [column for column in dataframe.columns if column not in key_columns + seed_specific_columns]
+    log.debug(f'Value columns for aggregation are: {value_columns}')
 
     compute_std_for = value_columns if compute_std_for == "all" else compute_std_for
     compute_std_for = compute_std_for or []
@@ -196,7 +211,7 @@ def aggregate_by_seeds(dataframe, compute_std_for=None):
 
 
 if __name__ == "__main__":
-    set_logger_config()
+    set_logger_config(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir')
@@ -206,22 +221,29 @@ if __name__ == "__main__":
     root_dir = pathlib.Path(args.data_dir)
     results_df = process_experiment_dir(root_dir, scaling_type=args.scaling_type)
 
-    results_df.to_csv(root_dir / 'results.csv')
+    results_df.to_csv(root_dir / 'results.csv', index=False)
     log.info(f'Results written to {(root_dir / "results.csv").absolute()}')
 
     aggregated_results = aggregate_by_seeds(results_df, 'all')
     aggregated_results = aggregated_results.sort_values(by=["dataset", "comm_size", "comm_rank"])
     print_columns = ['dataset', 'comm_size', 'comm_rank',
                      'accuracy_global_test_mean', 'accuracy_mean_local_test_mean',
-                     'wall_clock_time_sec_mean']
+                     'wall_clock_time_sec_mean', 'time_sec_training_mean']
     if args.scaling_type == 'strong':
         print_columns += ['wall_clock_speedup_mean', 'speedup_training_mean']
     elif args.scaling_type == 'weak':
         print_columns += ['wall_clock_efficiency_mean', 'efficiency_training_mean']
     global_results = aggregated_results[aggregated_results.comm_rank == 'global']
-    print(global_results[print_columns])
-    aggregated_results.to_csv(root_dir / 'aggregated_results.csv')
+    print(global_results[[col for col in print_columns if col in global_results.columns]])
+    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'train_split', 'n_trees', 'comm_size',
+                   'n_nodes', 'dataset']
+    print(global_results[key_columns])
+    aggregated_results.to_csv(root_dir / 'aggregated_results.csv', index=False)
     log.info(f'Aggregated results written to {(root_dir / "aggregated_results.csv").absolute()}')
+
+    with pd.option_context('display.float_format', '{:0.2f}'.format):
+        print_columns = ['comm_size', 'model_seed', 'output_label', 'time_sec_training', 'wall_clock_time_sec', 'energy_consumed_watthours', 'avg_node_power_draw_watt', 'exp_node_power_draw']
+        print(results_df[results_df.comm_rank == 'global'][[col for col in print_columns if col in results_df.columns]])
 
     overall_energy = results_df["energy_consumed_watthours"].sum()
     print(f'Overall energy consumed: {overall_energy.item()} watthours')
