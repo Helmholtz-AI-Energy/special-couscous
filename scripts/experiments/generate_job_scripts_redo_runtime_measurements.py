@@ -26,7 +26,7 @@ SCRIPT_TEMPLATE = """#!/bin/bash
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 # Unload all currently loaded modules and load required modules.
-ml purge               
+ml purge
 ml load compiler/llvm
 ml load mpi/openmpi/4.1
 
