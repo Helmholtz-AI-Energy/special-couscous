@@ -14,7 +14,7 @@ DATASETS = {
 
 SCRIPT_TEMPLATE = """#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
-#SBATCH --partition=cpuonly           # Queue for resource allocation
+#SBATCH --partition={partition}       # Queue for resource allocation
 #SBATCH --time={time}                 # Wall-clock time limit
 #SBATCH --mem={mem}                   # Main memory
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
@@ -66,7 +66,7 @@ def generate_job_script(path: pathlib.Path, config: dict[str, Any]) -> None:
     config : dict[str, Any]
         The job script configuration as dictionary. Needs to include the following keys: project, script_dir, venv,
         n_classes, script, job_name, additional_args, n_samples, n_features, random_state_data, random_state_model,
-        time, mem, n_nodes, result_dir, n_trees.
+        time, mem, n_nodes, result_dir, n_trees, partition.
     """
     path.parent.mkdir(exist_ok=True, parents=True)
     with open(path, "w") as file:
@@ -88,7 +88,7 @@ def generate_serial_job_scripts(
     ----------
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
-        additional_args. All other keys may be overwritten.
+        mem, additional_args, partition. Keys mem, partition, and all other keys may be overwritten.
     data_seeds : list[int]
         The list of data seeds.
     model_seeds : list[int]
@@ -115,9 +115,18 @@ def generate_serial_job_scripts(
             "time": MAX_TIME,
             "n_nodes": comm_size,
             "result_dir": result_base_dir / label,
-            "mem": "501600mb",
             "script": "rf_serial_synthetic.py",
         }
+        if n_trees in [
+            1600,
+            448,
+        ]:  # for strong scaling baselines -> use high memory node
+            high_mem_config = {
+                "mem": "501600mb",
+                "time": 2 * 24 * 60,
+                "partition": "large",
+            }
+            run_specific_configs = {**run_specific_configs, **high_mem_config}
         config = {**global_config, **run_specific_configs}
         generate_job_script(base_job_script_path / f"{label}.sh", config)
 
@@ -137,7 +146,7 @@ def generate_strong_scaling_job_scripts(
     ----------
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
-        script, mem, additional_args. All other keys may be overwritten.
+        script, mem, additional_args, partition. All other keys may be overwritten.
     data_seeds : list[int]
         The list of data seeds.
     model_seeds : list[int]
@@ -185,7 +194,7 @@ def generate_weak_scaling_job_scripts(
     ----------
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
-        script, mem, additional_args. All other keys may be overwritten.
+        script, mem, additional_args, partition. All other keys may be overwritten.
     data_seeds : list[int]
         The list of data seeds.
     model_seeds : list[int]
@@ -234,7 +243,7 @@ def generate_chunking_job_scripts(
     ----------
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
-        mem. All other keys may be overwritten.
+        mem, partition. All other keys may be overwritten.
     data_seeds : list[int]
         The list of data seeds.
     model_seeds : list[int]
@@ -284,7 +293,7 @@ def generate_inference_flavor_job_scripts(
     ----------
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
-        script, mem. All other keys may be overwritten.
+        script, mem, partition. All other keys may be overwritten.
     data_seeds : list[int]
         The list of data seeds.
     model_seeds : list[int]
@@ -338,6 +347,7 @@ if __name__ == "__main__":
 
     GLOBAL_CONFIG = {
         "project": "hk-project-p0022229",
+        "partition": "cpuonly",
         "script_dir": script_dir,
         "venv": venv,
         "n_classes": 10,
