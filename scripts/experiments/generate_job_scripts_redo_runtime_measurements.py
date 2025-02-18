@@ -1,0 +1,378 @@
+import itertools
+import pathlib
+from typing import Any
+
+MAX_TIME = 60 * 24 * 3
+NODES = [2, 4, 8, 16, 32, 64]
+
+DATASETS = {
+    "strong": [(6, 4, 1600), (7, 3, 448)],
+    "weak": [(6, 4, 800), (7, 3, 224)],
+    "inference": [(5, 3, 800), (6, 2, 224)],
+}
+
+
+SCRIPT_TEMPLATE = """#!/bin/bash
+#SBATCH --job-name={job_name}         # Job name
+#SBATCH --partition=cpuonly           # Queue for resource allocation
+#SBATCH --time={time}                 # Wall-clock time limit
+#SBATCH --mem={mem}                   # Main memory
+#SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
+#SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
+#SBATCH --nodes={n_nodes}             # Number of nodes
+#SBATCH --ntasks-per-node=1           # One MPI rank per node
+#SBATCH --account={project}
+
+export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
+
+# Unload all currently loaded modules and load required modules.
+ml purge               
+ml load compiler/llvm
+ml load mpi/openmpi/4.1
+
+# Setup paths
+SCRIPT="{script_dir}/{script}"
+RESDIR="{result_dir}_${{SLURM_JOB_ID}}"
+
+# Activate venv
+source {venv}/bin/activate
+
+mkdir -p "${{RESDIR}}"
+cd "${{RESDIR}}" || exit
+
+srun python -u ${{SCRIPT}} \\
+    --n_samples {n_samples} \\
+    --n_features {n_features} \\
+    --n_trees {n_trees} \\
+    --n_classes {n_classes} \\
+    --random_state {random_state_data} \\
+    --random_state_model {random_state_model} \\
+    --detailed_evaluation \\
+    --save_model \\
+    --output_dir ${{RESDIR}} \\
+    --output_label ${{SLURM_JOB_ID}} \\
+    --log_path ${{RESDIR}} {additional_args}
+"""
+
+
+def generate_job_script(path: pathlib.Path, config: dict[str, Any]) -> None:
+    """
+    Generate a job script by filling out the above template with the given configuration and writing it to the given path.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        The path to write the jobscript to.
+    config : dict[str, Any]
+        The job script configuration as dictionary. Needs to include the following keys: project, script_dir, venv,
+        n_classes, script, job_name, additional_args, n_samples, n_features, random_state_data, random_state_model,
+        time, mem, n_nodes, result_dir, n_trees.
+    """
+    path.parent.mkdir(exist_ok=True, parents=True)
+    with open(path, "w") as file:
+        file.write(SCRIPT_TEMPLATE.format(**config))
+    print(f"Job script written to {path}")
+
+
+def generate_serial_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+) -> None:
+    """
+    Generate all serial job scripts.
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        additional_args. All other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    datasets = [*DATASETS["strong"], *DATASETS["weak"], *DATASETS["inference"]]
+    comm_size = 1
+    for dataset, data_seed, model_seed in itertools.product(
+        datasets, data_seeds, model_seeds
+    ):
+        log_n_samples, log_n_features, n_trees = dataset
+        label = f"serial_baseline/n{log_n_samples}_m{log_n_features}_t{n_trees}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "n_samples": 10**log_n_samples,
+            "n_features": 10**log_n_features,
+            "n_trees": n_trees,
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": MAX_TIME,
+            "n_nodes": comm_size,
+            "result_dir": result_base_dir / label,
+            "mem": "501600mb",
+            "script": "rf_serial_synthetic.py",
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
+def generate_strong_scaling_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    comm_sizes: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+):
+    """
+    Generate all strong scaling job scripts.
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        script, mem, additional_args. All other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    datasets = DATASETS["strong"]
+    for dataset, data_seed, model_seed, comm_size in itertools.product(
+        datasets, data_seeds, model_seeds, comm_sizes
+    ):
+        log_n_samples, log_n_features, n_trees = dataset
+        label = f"strong_scaling/n{log_n_samples}_m{log_n_features}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "n_samples": 10**log_n_samples,
+            "n_features": 10**log_n_features,
+            "n_trees": n_trees,
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": int(MAX_TIME / comm_size * 1.2),
+            "n_nodes": comm_size,
+            "result_dir": result_base_dir / label,
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
+def generate_weak_scaling_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    comm_sizes: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+):
+    """
+    Generate all weak scaling job scripts.
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        script, mem, additional_args. All other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    datasets = DATASETS["weak"]
+    for dataset, data_seed, model_seed, comm_size in itertools.product(
+        datasets, data_seeds, model_seeds, comm_sizes
+    ):
+        log_n_samples, log_n_features, n_trees_local = dataset
+        label = f"weak_scaling/n{log_n_samples}_m{log_n_features}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "n_samples": 10**log_n_samples,
+            "n_features": 10**log_n_features,
+            "n_trees": n_trees_local
+            * comm_size,  # weak scaling = global model size scales with n_nodes
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": 3600,
+            "n_nodes": comm_size,
+            "result_dir": result_base_dir / label,
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
+def generate_chunking_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    comm_sizes: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+):
+    """
+    Generate all chunking job scripts.
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        mem. All other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    datasets = DATASETS["strong"]
+    for dataset, data_seed, model_seed, comm_size in itertools.product(
+        datasets, data_seeds, model_seeds, comm_sizes
+    ):
+        log_n_samples, log_n_features, n_trees = dataset
+        label = f"chunking/n{log_n_samples}_m{log_n_features}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "n_samples": 10**log_n_samples,
+            "n_features": 10**log_n_features,
+            "n_trees": n_trees,
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": int(MAX_TIME / comm_size * 1.2),
+            "n_nodes": comm_size,
+            "result_dir": result_base_dir / label,
+            "script": "rf_training_breaking_iid.py",
+            "additional_args": "--shared_test_set",
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
+def generate_inference_flavor_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    comm_sizes: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+):
+    """
+    Generate all inference flavor job scripts.
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        script, mem. All other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    datasets = DATASETS["inference"]
+    for dataset, data_seed, model_seed, comm_size in itertools.product(
+        datasets, data_seeds, model_seeds, comm_sizes
+    ):
+        log_n_samples, log_n_features, n_trees_local = dataset
+        for shared_global_model in [True, False]:
+            shared_model = "shared_model" if shared_global_model else "no_shared_model"
+            label = (
+                f"inference_flavor/n{log_n_samples}_m{log_n_features}/{shared_model}/"
+                f"n_nodes_{comm_size}/{data_seed}_{model_seed}"
+            )
+            run_specific_configs = {
+                "job_name": label,
+                "n_samples": 10**log_n_samples,
+                "n_features": 10**log_n_features,
+                "n_trees": n_trees_local
+                * comm_size,  # weak scaling = global model size scales with n_nodes
+                "random_state_data": data_seed,
+                "random_state_model": model_seed,
+                "time": 120,
+                "n_nodes": comm_size,
+                "result_dir": result_base_dir / label,
+                "additional_args": (
+                    "--shared_global_model" if shared_global_model else ""
+                ),
+            }
+            config = {**global_config, **run_specific_configs}
+            generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
+if __name__ == "__main__":
+    # setup paths
+    base_dir = pathlib.Path(
+        "/hkfs/home/project/hk-project-test-haiga/bk6983/special-couscous"
+    )
+    result_base_dir = base_dir / "results"
+    script_dir = base_dir / "scripts/examples/"
+    base_job_script_path = pathlib.Path(__file__).parent / "redo_runtime_measurements"
+    venv = base_dir / "venv311"
+
+    GLOBAL_CONFIG = {
+        "project": "hk-project-p0022229",
+        "script_dir": script_dir,
+        "venv": venv,
+        "n_classes": 10,
+        "mem": "243200mb",
+        "script": "rf_serial_synthetic.py",
+        "additional_args": "",
+    }
+
+    data_seeds = [0]
+    model_seeds = [1]
+
+    generate_serial_job_scripts(
+        GLOBAL_CONFIG, data_seeds, model_seeds, result_base_dir, base_job_script_path
+    )
+    generate_strong_scaling_job_scripts(
+        GLOBAL_CONFIG,
+        data_seeds,
+        model_seeds,
+        NODES,
+        result_base_dir,
+        base_job_script_path,
+    )
+    generate_weak_scaling_job_scripts(
+        GLOBAL_CONFIG,
+        data_seeds,
+        model_seeds,
+        NODES,
+        result_base_dir,
+        base_job_script_path,
+    )
+    generate_chunking_job_scripts(
+        GLOBAL_CONFIG,
+        data_seeds,
+        model_seeds,
+        NODES,
+        result_base_dir,
+        base_job_script_path,
+    )
+    generate_inference_flavor_job_scripts(
+        GLOBAL_CONFIG,
+        data_seeds,
+        model_seeds,
+        NODES,
+        result_base_dir,
+        base_job_script_path,
+    )
