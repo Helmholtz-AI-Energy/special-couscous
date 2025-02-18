@@ -129,7 +129,7 @@ def generate_strong_scaling_job_scripts(
     comm_sizes: list[int],
     result_base_dir: pathlib.Path,
     base_job_script_path: pathlib.Path,
-):
+) -> None:
     """
     Generate all strong scaling job scripts.
 
@@ -142,6 +142,8 @@ def generate_strong_scaling_job_scripts(
         The list of data seeds.
     model_seeds : list[int]
         The list of model seeds.
+    comm_sizes : list[int]
+        The list comm sizes (node counts).
     result_base_dir : pathlib.Path
         The base directory to write the job results to (subdirectories for experiment and run config will be created).
     base_job_script_path : pathlib.Path
@@ -175,7 +177,7 @@ def generate_weak_scaling_job_scripts(
     comm_sizes: list[int],
     result_base_dir: pathlib.Path,
     base_job_script_path: pathlib.Path,
-):
+) -> None:
     """
     Generate all weak scaling job scripts.
 
@@ -188,6 +190,8 @@ def generate_weak_scaling_job_scripts(
         The list of data seeds.
     model_seeds : list[int]
         The list of model seeds.
+    comm_sizes : list[int]
+        The list comm sizes (node counts).
     result_base_dir : pathlib.Path
         The base directory to write the job results to (subdirectories for experiment and run config will be created).
     base_job_script_path : pathlib.Path
@@ -222,7 +226,7 @@ def generate_chunking_job_scripts(
     comm_sizes: list[int],
     result_base_dir: pathlib.Path,
     base_job_script_path: pathlib.Path,
-):
+) -> None:
     """
     Generate all chunking job scripts.
 
@@ -235,6 +239,8 @@ def generate_chunking_job_scripts(
         The list of data seeds.
     model_seeds : list[int]
         The list of model seeds.
+    comm_sizes : list[int]
+        The list comm sizes (node counts).
     result_base_dir : pathlib.Path
         The base directory to write the job results to (subdirectories for experiment and run config will be created).
     base_job_script_path : pathlib.Path
@@ -270,7 +276,7 @@ def generate_inference_flavor_job_scripts(
     comm_sizes: list[int],
     result_base_dir: pathlib.Path,
     base_job_script_path: pathlib.Path,
-):
+) -> None:
     """
     Generate all inference flavor job scripts.
 
@@ -283,6 +289,8 @@ def generate_inference_flavor_job_scripts(
         The list of data seeds.
     model_seeds : list[int]
         The list of model seeds.
+    comm_sizes : list[int]
+        The list comm sizes (node counts).
     result_base_dir : pathlib.Path
         The base directory to write the job results to (subdirectories for experiment and run config will be created).
     base_job_script_path : pathlib.Path
