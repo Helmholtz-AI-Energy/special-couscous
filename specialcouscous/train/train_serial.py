@@ -5,6 +5,7 @@ import pickle
 import time
 from typing import Any
 
+import joblib
 import numpy as np
 import pandas
 from matplotlib import pyplot as plt
@@ -196,11 +197,17 @@ def train_serial_on_synthetic_data(
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
     clf = RandomForestClassifier(
-        n_estimators=n_trees, random_state=check_random_state(random_state_model)
+        n_estimators=n_trees,
+        random_state=check_random_state(random_state_model),
+        n_jobs=-1,
     )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
     )
+    expected_n_jobs = 1 if clf.n_jobs is None else clf.n_jobs
+    if expected_n_jobs < 0:
+        expected_n_jobs = joblib.cpu_count() + 1 + expected_n_jobs
+    log.info(f"Training local random forest with {expected_n_jobs} jobs.")
 
     log.info("Train.")
     train_start = time.perf_counter()
