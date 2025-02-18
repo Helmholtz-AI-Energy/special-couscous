@@ -352,7 +352,7 @@ if __name__ == "__main__":
         "venv": venv,
         "n_classes": 10,
         "mem": "243200mb",
-        "script": "rf_serial_synthetic.py",
+        "script": "rf_parallel_synthetic.py",
         "additional_args": "",
     }
 
