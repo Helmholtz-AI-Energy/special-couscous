@@ -132,13 +132,13 @@ if __name__ == "__main__":
     # TODO: update with actual checkpoints once the training runs finish
     model_checkpoints = {  # model checkpoints by (n, m, model seed)
         (6, 4, 1): model_checkpoint_base_path
-        / "n6_m4/nodes_64/2906556_0_1/2025/2025-2/2025-02-05",
+        / "n6_m4/nodes_64/2917493_0_1/2025/2025-2/2025-02-13",
         (6, 4, 2): model_checkpoint_base_path
         / "n6_m4/nodes_64/2906556_0_2/2025/2025-2/2025-02-05",
         (6, 4, 3): model_checkpoint_base_path
         / "n6_m4/nodes_64/2906556_0_3/2025/2025-2/2025-02-05",
         (7, 3, 1): model_checkpoint_base_path
-        / "n7_m3/nodes_64/2906556_0_3/2025/2025-2/2025-02-05",
+        / "n7_m3/nodes_64/2917494_0_1/2025/2025-2/2025-02-13",
         (7, 3, 2): model_checkpoint_base_path
         / "n7_m3/nodes_64/2906556_0_2/2025/2025-2/2025-02-05",
         (7, 3, 3): model_checkpoint_base_path
