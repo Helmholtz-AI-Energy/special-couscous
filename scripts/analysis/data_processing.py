@@ -189,11 +189,11 @@ def add_speedup_efficiency(results_df, scaling_type):
 def aggregate_by_seeds(dataframe, compute_std_for=None):
     # key columns used as keys for aggregation
     key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'train_split', 'n_trees', 'comm_size',
-                   'n_nodes', 'dataset']
+                   'n_nodes', 'dataset', 'shared_global_model']
     # seed/run specific columns, ignored for aggregated dataframe
     seed_specific_columns = ['job_id', 'random_state', 'random_state_model', 'output_label', 'experiment_id',
                              'result_filename', 'model_seed', 'checkpoint_path', 'checkpoint_uid',
-                             'n_clusters_per_class', 'frac_informative', 'frac_redundant', 'shared_global_model',
+                             'n_clusters_per_class', 'frac_informative', 'frac_redundant',
                              'save_model', 'detailed_evaluation']
 
     # all remaining columns are aggregated
