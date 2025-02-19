@@ -16,8 +16,8 @@ DATASETS = {
 SERIAL_BASELINE_TIMES = {  # in minutes
     (6, 4, 1600): 138,
     (7, 3, 448): 227,
-    (6, 4, 800): 138,  # estimate from 1600 trees (=)
-    (7, 3, 224): 227,  # estimate from 448 trees (=)
+    (6, 4, 800): 73,
+    (7, 3, 224): 103,
     (5, 3, 76): 1,
     (6, 2, 76): 2,
 }
