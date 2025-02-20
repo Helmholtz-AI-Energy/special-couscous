@@ -427,7 +427,9 @@ if __name__ == "__main__":
     base_dir = pathlib.Path(
         "/hkfs/home/project/hk-project-test-haiga/bk6983/special-couscous"
     )
-    result_base_dir = base_dir / "results"
+    result_base_dir = pathlib.Path(
+        "/hkfs/work/workspace/scratch/bk6983-special_couscous__2025_results"
+    )
     script_dir = base_dir / "scripts/examples/"
     base_job_script_path = pathlib.Path(__file__).parent / "redo_runtime_measurements"
     venv = base_dir / "venv311"
