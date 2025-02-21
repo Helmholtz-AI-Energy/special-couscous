@@ -182,12 +182,14 @@ class DistributedRandomForest:
         """
         # Set up and train local subforest using rank-specific random state.
         clf = RandomForestClassifier(
-            n_estimators=self.n_trees_local, random_state=self.random_state, n_jobs=self.node_local_jobs
+            n_estimators=self.n_trees_local,
+            random_state=self.random_state,
+            n_jobs=self.node_local_jobs,
         )
         expected_n_jobs = 1 if clf.n_jobs is None else clf.n_jobs
         if expected_n_jobs < 0:
             expected_n_jobs = joblib.cpu_count() + 1 + expected_n_jobs
-        log.info(f'Training local random forest with {expected_n_jobs} jobs.')
+        log.info(f"Training local random forest with {expected_n_jobs} jobs.")
         clf.fit(train_samples, train_targets)
         return clf
 
