@@ -71,7 +71,7 @@ def generate_job_script(
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
-#SBATCH --time=3600                   # Wall-clock time limit (60h)
+#SBATCH --time=360                    # Wall-clock time limit (60h)
 #SBATCH --mem=243200mb                # Main memory (full standard node)
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
@@ -89,7 +89,7 @@ RESDIR="${{BASE_DIR}}"/results/scale_data_and_model__eval/n{log_n_samples_local}
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 ml purge              # Unload all currently loaded modules.
-ml load compiler/gnu  # Load required modules.
+ml load compiler/llvm  # Load required modules.
 ml load mpi/openmpi/4.1
 source "${{VENV}}"/bin/activate  # Activate venv.
 
