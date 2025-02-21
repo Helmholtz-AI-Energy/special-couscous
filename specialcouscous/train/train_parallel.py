@@ -1350,16 +1350,6 @@ def train_parallel_on_growing_balanced_synthetic_data(
         random_state.randint(0, np.iinfo(np.int32).max) + mpi_comm.rank
     )
 
-    # -------------- Load the data --------------
-    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Load pre-generated dataset.")
-    with MPITimer(mpi_comm, name="data loading") as timer:
-        train_data, test_data, data_attrs = load_and_verify_dataset(
-            cli_args, mpi_comm.rank, True
-        )
-        train_data = cast(SyntheticDataset, train_data)
-        configuration = {**configuration, **data_attrs}
-    store_timing(timer, global_results, local_results)
-
     # -------------- Set up distributed random forest --------------
     log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Set up classifier.")
     with MPITimer(mpi_comm, name="forest creation") as timer:
@@ -1371,11 +1361,22 @@ def train_parallel_on_growing_balanced_synthetic_data(
         )
     store_timing(timer, global_results, local_results)
 
-    # -------------- Train or load distributed random forest --------------
+    # Load model checkpoint before loading the data due to high memory usage during unpickling
     if load_checkpoint:
-        # Load pickled model checkpoints.
         distributed_random_forest.load_checkpoints(checkpoint_path, checkpoint_uid)
-    else:
+
+    # -------------- Load the data --------------
+    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Load pre-generated dataset.")
+    with MPITimer(mpi_comm, name="data loading") as timer:
+        train_data, test_data, data_attrs = load_and_verify_dataset(
+            cli_args, mpi_comm.rank, True
+        )
+        train_data = cast(SyntheticDataset, train_data)
+        configuration = {**configuration, **data_attrs}
+    store_timing(timer, global_results, local_results)
+
+    # -------------- If not loaded from checkpoint, train distributed random forest --------------
+    if not load_checkpoint:
         log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Train local random forest.")
         with MPITimer(mpi_comm, name="training") as timer:
             distributed_random_forest.train(train_data.x, train_data.y)
