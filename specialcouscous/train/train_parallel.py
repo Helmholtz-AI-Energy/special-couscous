@@ -1,9 +1,10 @@
+import argparse
 import logging
 import os
 import pathlib
 import pickle
 import re
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas
@@ -13,6 +14,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
 from specialcouscous.rf_parallel import DistributedRandomForest
+from specialcouscous.scaling_dataset import load_and_verify_dataset
 from specialcouscous.synthetic_classification_data import (
     SyntheticDataset,
     generate_and_distribute_synthetic_dataset,
@@ -1148,11 +1150,10 @@ def save_model_parallel(
     base_filename : str
         The base file name, including UUID.
     """
-    with open(
-        path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle"),
-        "wb",
-    ) as f:
+    file_path = path / (base_filename + f"_classifier_rank_{mpi_comm.rank}.pickle")
+    with open(file_path, "wb") as f:
         pickle.dump(clf, f, protocol=5)
+    log.info(f"Model saved successfully to {file_path}")
 
 
 def store_timing(
@@ -1239,3 +1240,244 @@ def get_output_path(
         path, base_filename = pathlib.Path(""), ""
     # Broadcast to all ranks and return the same path and base file name on all ranks.
     return pathlib.Path(comm.bcast(path, root=0)), comm.bcast(base_filename, root=0)
+
+
+def train_parallel_on_growing_balanced_synthetic_data(
+    cli_args: argparse.Namespace,
+    random_state: int | np.random.RandomState = 0,
+    random_state_model: int | None = None,
+    mpi_comm: MPI.Comm = MPI.COMM_WORLD,
+    n_trees: int = 100,
+    shared_global_model: bool = True,
+    detailed_evaluation: bool = False,
+    output_dir: pathlib.Path | str = "",
+    output_label: str = "",
+    experiment_id: str = "",
+    save_model: bool = True,
+    load_checkpoint: bool = False,
+    checkpoint_path: str | pathlib.Path = pathlib.Path("../"),
+    checkpoint_uid: str = "",
+) -> None:
+    """
+    Train and evaluate a distributed random forest while scaling both model and data with the number of ranks.
+
+    Assumes the scaling dataset has been pre-generated with scaling_dataset.py
+    Steps:
+    1. Load the corresponding pre-generated dataset for the given CLI parameters (loading the local train set for the
+       current rank and the global test set).
+    2. Train the local RF model on the local train set
+    3. Checkpoint the local RF model and potentially build a shared global model
+    4. Evaluate the RF model on the global test set (and optionally the local train sets)
+
+    Parameters
+    ----------
+    cli_args : argparse.Namespace
+        The CLI namespace used to find and load the correct pre-generated dataset. Should use the same parameters as
+        used for the dataset generation (on mismatch, an error is raised).
+    random_state : int | np.random.RandomState
+        The random seed, used for dataset generation, partition, and distribution. Can be  an integer or a numpy random
+        state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
+        model-specific random state is provided, it is also used to instantiate the random forest classifiers.
+    random_state_model : int, optional
+        The random seed used for the model. Can only be an integer as it must be different on each rank to ensure that
+        each local model is different. In the ``DistributedRandomForest`` constructor, a ``RandomState`` instance seeded
+        with this value is used to create a sequence of ``comm.size`` random integers, which are then used to seed a
+        different ``RandomState`` instance on each rank passed to the rank-local classifier.
+    mpi_comm : MPI.Comm
+        The MPI communicator to distribute over.
+    n_trees : int
+        The number of trees in the global forest.
+    shared_global_model : bool
+        Whether the local models are all-gathered to one global model shared by all ranks after training.
+    detailed_evaluation : bool
+        Whether to perform a detailed evaluation on more than just the local test set.
+    output_dir : pathlib.Path | str, optional
+        Output base directory. If given, the results are written to
+        'output_dir / year / year-month / date / YYYY-mm-dd--HH-MM-SS-<output_name>-<uuid>'.
+    output_label : str
+        Optional label for the csv file, added to the name after the timestamp. Default is an empty string.
+    experiment_id : str
+        If given, the output file is placed in a further subdirectory <experiment_id> inside the <date> directory.
+        Can be used to group the result of multiple runs of an experiment. Default is an empty string.
+    save_model : bool
+        Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
+    load_checkpoint : bool
+        If set to true, a trained model is loaded from a checkpoint and evaluated instead of training the model from
+        scratch before evaluation.
+    checkpoint_path : pathlib.Path | str
+        The directory containing the pickled local model checkpoints to load.
+    checkpoint_uid : str
+        The considered run's unique identifier. Used to identify the correct checkpoints to load.
+    """
+    if detailed_evaluation and not shared_global_model:
+        if mpi_comm.rank == 0:
+            log.info(
+                "A detailed evaluation of the model on the training data can only be performed when the global model is"
+                " shared. Setting detailed evaluation flag to False..."
+            )
+        detailed_evaluation = False
+    # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
+    # to be called before defining any other local variables.
+    configuration = locals()
+    for key in ["mpi_comm", "output_dir", "detailed_evaluation", "cli_args"]:
+        del configuration[key]
+    configuration["comm_size"] = mpi_comm.size
+
+    global_results: dict[str, Any] = {
+        "comm_rank": "global",
+        "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
+    }
+    local_results: dict[str, Any] = {"comm_rank": mpi_comm.rank}
+
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    log.debug(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: Passed random state is {random_state}."
+    )
+    random_state = check_random_state(random_state)
+    log.debug(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: The generated random state is:\n{random_state.get_state(legacy=True)}"
+    )
+    # Generate model base seed if not provided by user.
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        if mpi_comm.rank == 0:
+            log.info(f"Generated model base seed is {random_state_model}.")
+
+    # Generate rank-specific random seed for generation of local train data.
+    # The global data random state can be used to generate the global test data.
+    random_state_train = check_random_state(
+        random_state.randint(0, np.iinfo(np.int32).max) + mpi_comm.rank
+    )
+
+    # -------------- Set up distributed random forest --------------
+    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Set up classifier.")
+    with MPITimer(mpi_comm, name="forest creation") as timer:
+        distributed_random_forest = DistributedRandomForest(
+            n_trees_global=n_trees,
+            comm=mpi_comm,
+            random_state=random_state_model,
+            shared_global_model=shared_global_model,
+        )
+    store_timing(timer, global_results, local_results)
+
+    # Load model checkpoint before loading the data due to high memory usage during unpickling
+    if load_checkpoint:
+        distributed_random_forest.load_checkpoints(checkpoint_path, checkpoint_uid)
+
+    # -------------- Load the data --------------
+    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Load pre-generated dataset.")
+    with MPITimer(mpi_comm, name="data loading") as timer:
+        train_data, test_data, data_attrs = load_and_verify_dataset(
+            cli_args, mpi_comm.rank, True
+        )
+        train_data = cast(SyntheticDataset, train_data)
+        configuration = {**configuration, **data_attrs}
+    store_timing(timer, global_results, local_results)
+
+    # -------------- If not loaded from checkpoint, train distributed random forest --------------
+    if not load_checkpoint:
+        log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Train local random forest.")
+        with MPITimer(mpi_comm, name="training") as timer:
+            distributed_random_forest.train(train_data.x, train_data.y)
+        store_timing(timer, global_results, local_results)
+
+    # -------------- Checkpoint trained rank-local subforests --------------
+    # Create output directory to save model checkpoints (and configuration + evaluation results later on).
+    output_path, base_filename = get_output_path(
+        mpi_comm, output_dir, output_label, experiment_id
+    )
+    # Save model to disk.
+    if save_model:
+        if load_checkpoint:
+            log.info(
+                f"[{mpi_comm.rank}/{mpi_comm.size}]: Model loaded from checkpoint, skipping model save."
+            )
+        else:
+            save_model_parallel(
+                mpi_comm, distributed_random_forest.clf, output_path, base_filename
+            )
+    # -------------- Gather local results, generate dataframe, output collective results --------------
+    # Convert local results to array, ensure the values are in the same order on all ranks by sorting the keys. At this
+    # point, only the training times are saved. Note that this dump will be overwritten in the end. However, it serves
+    # as a backup in case of errors during evaluation.
+    save_results_parallel(
+        mpi_comm=mpi_comm,
+        local_results=local_results,
+        global_results=global_results,
+        configuration=configuration,
+        output_path=output_path,
+        base_filename=base_filename,
+        test_data=test_data,
+        train_data=train_data,
+    )
+    # -------------- Build shared global model (if applicable) --------------
+    if shared_global_model:
+        with MPITimer(mpi_comm, name="all-gathering model") as timer:
+            distributed_random_forest.build_shared_global_model()
+        store_timing(timer, global_results, local_results)
+
+    # -------------- Evaluate random forest --------------
+    log.info(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest on test dataset."
+    )
+    with MPITimer(
+        mpi_comm, name="test"
+    ) as timer:  # Evaluate trained model on test data.
+        distributed_random_forest.evaluate(
+            test_data.x, test_data.y, test_data.n_classes, shared_global_model
+        )
+    store_timing(timer, global_results, local_results)
+    store_accuracy(distributed_random_forest, "test", global_results, local_results)
+    save_confusion_matrix_parallel(
+        mpi_comm=mpi_comm,
+        distributed_forest=distributed_random_forest,
+        label="test",
+        output_path=output_path,
+        base_filename=base_filename,
+    )
+
+    # -------------- Gather local results, generate dataframe, output collective results --------------
+    # Convert local results to array, ensure the values are in the same order on all ranks by sorting the keys.
+    # Note that in the case of detailed evaluation this dump will be overwritten in the end. However, it serves as a
+    # backup in case of errors in the detailed evaluation.
+    save_results_parallel(
+        mpi_comm=mpi_comm,
+        local_results=local_results,
+        global_results=global_results,
+        configuration=configuration,
+        output_path=output_path,
+        base_filename=base_filename,
+        test_data=test_data,
+        train_data=train_data,
+    )
+
+    # -------------- Evaluate trained model also on training data (if applicable) --------------
+    if detailed_evaluation:
+        log.info(
+            f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
+        )
+        distributed_random_forest.evaluate(
+            train_data.x, train_data.y, train_data.n_classes, shared_global_model
+        )
+        store_accuracy(
+            distributed_random_forest, "train", global_results, local_results
+        )
+        save_confusion_matrix_parallel(
+            mpi_comm=mpi_comm,
+            distributed_forest=distributed_random_forest,
+            label="train",
+            output_path=output_path,
+            base_filename=base_filename,
+        )
+        # Save results from detailed evaluation.
+        save_results_parallel(
+            mpi_comm=mpi_comm,
+            local_results=local_results,
+            global_results=global_results,
+            configuration=configuration,
+            output_path=output_path,
+            base_filename=base_filename,
+            test_data=test_data,
+            train_data=train_data,
+        )

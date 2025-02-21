@@ -271,6 +271,12 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--load_from_checkpoint",
+        action="store_true",
+        help="Whether to load the model from checkpoint (currently only used for scale data and model experiment).",
+    )
+
+    parser.add_argument(
         "--checkpoint_path",
         type=pathlib.Path,
         default=pathlib.Path("./"),
@@ -282,6 +288,37 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="",
         help="The considered run's unique identifier. Used to identify the correct checkpoints to load.",
+    )
+
+    parser.add_argument(
+        "--data_root_path",
+        type=pathlib.Path,
+        default=pathlib.Path("./data"),
+        help="Path to root data directory. Used only for the scaling law experiments when using pre-generated data.",
+    )
+
+    parser.add_argument(
+        "--n_train_splits",
+        type=int,
+        help="The number of local datasets to split the data into when pre-generating or using pre-generated data.",
+    )
+
+    parser.add_argument(
+        "--override_data",
+        action="store_true",
+        help="If true, old datasets at the same path will be overwritten.",
+    )
+
+    parser.add_argument(
+        "--low_mem_data_generation",
+        action="store_true",
+        help="If true, will use memory_efficient approach when pre-generating datasets.",
+    )
+
+    parser.add_argument(
+        "--continue_data_generation",
+        action="store_true",
+        help="If true, continue memory_efficient dataset generation from previous checkpoint.",
     )
 
     return parser.parse_args()
