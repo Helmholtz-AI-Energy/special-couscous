@@ -56,7 +56,7 @@ def generate_breaking_iid_job_scripts(
     mem = 243200  # Use standard nodes.
     n_nodes = 16
     # time = 4 * 3600 // n_nodes
-    time = 2880
+    time = 60
 
     print(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
@@ -119,12 +119,13 @@ if __name__ == "__main__":
     data_sets = [
         (6, 4, 800),
         (7, 3, 224),
+        (5, 3, 224),
     ]  # Baseline problem as (`log_n_samples`, `log_n_features`, `n_trees`)
     data_seeds = [0]  # , 1, 2]  # Data seed to use
     model_seeds = [0, 1, 2]  # Model seeds to use
     n_classes = 10  # Number of classes to use
-    mu_global = [0.5, 2.0, "inf"]  # Global imbalance factors considered
-    mu_local = [0.5, 2.0, "inf"]  # Local imbalance factors considered
+    mu_global = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Global imbalance factors considered
+    mu_local = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Local imbalance factors considered
     output_path = pathlib.Path(
         "./breaking_iid/"
     )  # Output path to save generated job scripts
