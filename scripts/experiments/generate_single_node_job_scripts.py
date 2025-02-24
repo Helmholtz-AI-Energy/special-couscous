@@ -53,7 +53,7 @@ export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 export PYDIR=${{BASE_DIR}}/special-couscous/specialcouscous
 
 ml purge              # Unload all currently loaded modules.
-ml load compiler/gnu  # Load required modules.
+ml load compiler/llvm  # Load required modules.
 ml load mpi/openmpi
 source "${{BASE_DIR}}"/special-couscous-venv/bin/activate  # Activate venv.
 

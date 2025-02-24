@@ -56,7 +56,7 @@ def generate_breaking_iid_job_scripts(
     mem = 243200  # Use standard nodes.
     n_nodes = 16
     # time = 4 * 3600 // n_nodes
-    time = 2880
+    time = 60
 
     print(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
@@ -76,17 +76,19 @@ def generate_breaking_iid_job_scripts(
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
+if [ -z "$RESULT_BASE_DIR" ]; then RESULT_BASE_DIR="${{BASE_DIR}}"/results; fi
+if [ -z "VENV" ]; then VENV="${{BASE_DIR}}"/special-couscous-venv-openmpi4; fi
 
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 ml purge              # Unload all currently loaded modules.
-ml load compiler/gnu  # Load required modules.
+ml load compiler/llvm  # Load required modules.
 ml load mpi/openmpi/4.1
-source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
+source "${{VENV}}"/bin/activate  # Activate venv.
 
 SCRIPT="special-couscous/scripts/examples/rf_training_breaking_iid.py"
 
-RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
+RESDIR="${{RESULT_BASE_DIR}}"/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
@@ -119,12 +121,13 @@ if __name__ == "__main__":
     data_sets = [
         (6, 4, 800),
         (7, 3, 224),
+        (5, 3, 224),
     ]  # Baseline problem as (`log_n_samples`, `log_n_features`, `n_trees`)
     data_seeds = [0]  # , 1, 2]  # Data seed to use
     model_seeds = [0, 1, 2]  # Model seeds to use
     n_classes = 10  # Number of classes to use
-    mu_global = [0.5, 2.0, "inf"]  # Global imbalance factors considered
-    mu_local = [0.5, 2.0, "inf"]  # Local imbalance factors considered
+    mu_global = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Global imbalance factors considered
+    mu_local = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Local imbalance factors considered
     output_path = pathlib.Path(
         "./breaking_iid/"
     )  # Output path to save generated job scripts
