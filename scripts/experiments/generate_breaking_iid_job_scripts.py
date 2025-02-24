@@ -76,17 +76,19 @@ def generate_breaking_iid_job_scripts(
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
+if [ -z "$RESULT_BASE_DIR" ]; then RESULT_BASE_DIR="${{BASE_DIR}}"/results; fi
+if [ -z "VENV" ]; then VENV="${{BASE_DIR}}"/special-couscous-venv-openmpi4; fi
 
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
 ml purge              # Unload all currently loaded modules.
 ml load compiler/llvm  # Load required modules.
 ml load mpi/openmpi/4.1
-source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
+source "${{VENV}}"/bin/activate  # Activate venv.
 
 SCRIPT="special-couscous/scripts/examples/rf_training_breaking_iid.py"
 
-RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
+RESDIR="${{RESULT_BASE_DIR}}"/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
