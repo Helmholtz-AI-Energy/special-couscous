@@ -49,12 +49,18 @@ def read_dataframe(path):
     return dataframe
 
 
-def extract_info_from_path(path):
+def extract_info_from_path(path, updated_path_names=False):
     log.debug(f'Extracting info from {path}')
     # Extract relevant information from the path.
     parts = str(path).split(os.sep)
-    number_of_tasks = int(parts[-2].split("_")[1])
-    model_seed = int(parts[-1].split("_")[2])  # Extract model seed from path.
+    log.debug(parts)
+    if updated_path_names:
+        print(f"{parts[-2]=}, {parts[-1]=}")
+        number_of_tasks = int(parts[-2].split("_")[2])
+        model_seed = int(parts[-1].split("_")[1])  # Extract model seed from path.
+    else:
+        number_of_tasks = int(parts[-2].split("_")[1])
+        model_seed = int(parts[-1].split("_")[2])  # Extract model seed from path.
     return number_of_tasks, model_seed
 
 
@@ -105,12 +111,15 @@ def parse_log_file(path):
             'memory_gb': memory_in_gb, 'avg_node_power_draw_watt': avg_node_power_draw}
 
 
-def process_run_dir(path, dataset_label):
+def process_run_dir(path, dataset_label, updated_path_names=False):
     log.debug(f'Parsing dir {path}')
-    number_of_tasks, model_seed = extract_info_from_path(path)
+    number_of_tasks, model_seed = extract_info_from_path(path, updated_path_names=updated_path_names)
     csv_files = list(path.glob('*_results.csv'))
     log_files = list(path.glob('slurm*.out'))
-    assert len(csv_files) == 1 and len(log_files) == 1
+    if not (len(csv_files) == 1 and len(log_files) == 1):
+        log.warning(f'Found {len(csv_files)} csv files and {len(log_files)} log files '
+                    f'in {path} instead of the expected one per type. Skipping directory.')
+        return
 
     dataframe = read_dataframe(csv_files[0])
     parsed_from_log_file = parse_log_file(log_files[0])
@@ -129,7 +138,7 @@ def process_run_dir(path, dataset_label):
     return dataframe
 
 
-def process_experiment_dir(root_dir, scaling_type='strong'):
+def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=False):
     root_dir = pathlib.Path(root_dir)
     dataset_label = root_dir.name
 
@@ -140,7 +149,7 @@ def process_experiment_dir(root_dir, scaling_type='strong'):
     for log_file in root_dir.glob("**/slurm*.out"):
         run_dir = log_file.parent
         log.debug(f"Currently parsing: {run_dir}")
-        dataframes.append(process_run_dir(run_dir, dataset_label))
+        dataframes.append(process_run_dir(run_dir, dataset_label, updated_path_names=updated_path_names))
     results_df = pd.concat(dataframes)
 
     # Add mean local accuracies to global rank
@@ -190,6 +199,9 @@ def aggregate_by_seeds(dataframe, compute_std_for=None):
     # key columns used as keys for aggregation
     key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'train_split', 'n_trees', 'comm_size',
                    'n_nodes', 'dataset', 'shared_global_model']
+    log.info('The following key columns are not in the dataframe, removing them from key columns: '
+             f'{list(set(key_columns) - set(dataframe.columns))}')
+    key_columns = [col for col in key_columns if col in dataframe.columns]
     # seed/run specific columns, ignored for aggregated dataframe
     seed_specific_columns = ['job_id', 'random_state', 'random_state_model', 'output_label', 'experiment_id',
                              'result_filename', 'model_seed', 'checkpoint_path', 'checkpoint_uid',
@@ -216,10 +228,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir')
     parser.add_argument('--scaling_type', type=str, choices=['strong', 'weak'])
+    parser.add_argument('--updated_path_names', action='store_true')
     args = parser.parse_args()
 
     root_dir = pathlib.Path(args.data_dir)
-    results_df = process_experiment_dir(root_dir, scaling_type=args.scaling_type)
+    results_df = process_experiment_dir(root_dir, scaling_type=args.scaling_type, updated_path_names=args.updated_path_names)
 
     results_df.to_csv(root_dir / 'results.csv', index=False)
     log.info(f'Results written to {(root_dir / "results.csv").absolute()}')
@@ -235,8 +248,7 @@ if __name__ == "__main__":
         print_columns += ['wall_clock_efficiency_mean', 'efficiency_training_mean']
     global_results = aggregated_results[aggregated_results.comm_rank == 'global']
     print(global_results[[col for col in print_columns if col in global_results.columns]])
-    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'train_split', 'n_trees', 'comm_size',
-                   'n_nodes', 'dataset']
+    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'n_trees', 'comm_size', 'n_nodes', 'dataset']
     print(global_results[key_columns])
     aggregated_results.to_csv(root_dir / 'aggregated_results.csv', index=False)
     log.info(f'Aggregated results written to {(root_dir / "aggregated_results.csv").absolute()}')
