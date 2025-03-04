@@ -56,7 +56,7 @@ def generate_breaking_iid_job_scripts(
     mem = 243200  # Use standard nodes.
     n_nodes = 16
     # time = 4 * 3600 // n_nodes
-    time = 60
+    time = 10 if log_n_samples <= 5 else 60
 
     print(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
