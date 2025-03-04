@@ -557,7 +557,6 @@ def add_useless_features(
     x: np.ndarray,
     n_useless: int,
     random_state: np.random.RandomState,
-    shuffle: bool,
     shift: float = 0.0,
     scale: float = 1.0,
 ) -> np.ndarray:
@@ -565,7 +564,7 @@ def add_useless_features(
     Add useless noise features to a given array of features.
 
     Generate n_useless additional features by sampling random noise from a standard normal distribution, shifting and
-    scaling by shift/scale. If shuffle is True, the features (but not the samples) are shuffled.
+    scaling by shift/scale.
 
     Parameters
     ----------
@@ -575,8 +574,6 @@ def add_useless_features(
         The number of useless features to add.
     random_state : np.random.RandomState
         The random state to use for sampling the features.
-    shuffle : bool
-        Whether to shuffle the features after appending the new features.
     shift : float
         The value by which to shift the random features (before scaling).
     scale : float
@@ -598,11 +595,6 @@ def add_useless_features(
     # append useless features to dataset (after existing features)
     x = np.concat([x, useless_features], axis=1)
 
-    if shuffle:  # Shuffle features only
-        feature_indices = np.arange(x.shape[1])
-        random_state.shuffle(feature_indices)
-        x[:, :] = x[:, feature_indices]
-
     return x
 
 
@@ -611,10 +603,12 @@ def add_useless_features_to_hdf5(
     group_name: str,
     random_state: np.random.RandomState,
     n_useless: int,
-    shuffle: bool,
+    feature_indices: np.ndarray | None,
 ) -> None:
     """
     Add useless noise features a group in the given HDF5 file by replacing the group's features x.
+
+    If feature_indices are given, the features are reordered  is True, the features (but not the samples) are shuffled.
 
     Parameters
     ----------
@@ -626,15 +620,18 @@ def add_useless_features_to_hdf5(
         The random state to use for sampling the features.
     n_useless : int
         The number of useless features to add.
-    shuffle : bool
-        Whether to shuffle the features after appending the new features.
+    feature_indices : np.ndarray | None
+        Optional index to reorder the features. Should contain a permutation of the feature indices 0..n_features-1.
     """
     log.debug(
-        f"Adding useless features to {group_name}."
+        f"Adding {n_useless} useless features to {group_name}. "
         f"Current random state pos: {random_state.get_state()[2]}"
     )
     group = file[group_name]
-    full_features = add_useless_features(group["x"], n_useless, random_state, shuffle)
+    full_features = add_useless_features(group["x"], n_useless, random_state)
+    if feature_indices is not None:
+        log.debug("Reordering features according to given indices.")
+        full_features[:, :] = full_features[:, feature_indices]
     log.debug(f"Done generating useless features for {group_name}. Updating HDF5.")
     del group["x"]  # need to delete old features since we are changing the shape
     group["x"] = full_features
@@ -810,10 +807,17 @@ def generate_and_save_dataset_memory_efficient(
     )
     log.info(f"Done writing global dataset to HDF5 {path}.")
 
+    if not n_useless:
+        log.info("No useless features to add, done.")
+        return
+
     # Step 3: Add useless features one-by-one to each dataset slice
-    log.info("Start adding useless features to each slice.")
+    log.info(f"Start adding {n_useless} useless features to each slice.")
     log.info("Preparing random state.")
     random_state_generation = check_random_state(args.random_state)
+    feature_indices = np.arange(n_features)
+    if shuffle:
+        random_state_generation.shuffle(feature_indices)
     if reproduce_random_state:
         if shuffle or args.n_train_splits > 1:
             log.warning(
@@ -837,7 +841,7 @@ def generate_and_save_dataset_memory_efficient(
         f"local_train_sets/{name}" for name in file["local_train_sets"]
     ] + ["test_set"]:
         add_useless_features_to_hdf5(
-            file, group_name, random_state_generation, n_useless, shuffle
+            file, group_name, random_state_generation, n_useless, feature_indices
         )
     log.info("Done adding useless features.")
 
