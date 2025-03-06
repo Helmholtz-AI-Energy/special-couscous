@@ -71,7 +71,7 @@ def generate_job_script(
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
-#SBATCH --time=360                    # Wall-clock time limit (60h)
+#SBATCH --time=60                     # Wall-clock time limit (1h)
 #SBATCH --mem=243200mb                # Main memory (full standard node)
 #SBATCH --cpus-per-task=76            # Number of CPUs required per (MPI) task
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         (6, 4, 1): model_checkpoint_base_path
         / "n6_m4/nodes_64/2917493_0_1/2025/2025-2/2025-02-13",
         (6, 4, 2): model_checkpoint_base_path
-        / "n6_m4/nodes_64/2906556_0_2/2025/2025-2/2025-02-05",
+        / "n6_m4/nodes_64/2968350_0_2/2025/2025-3/2025-03-06",
         (6, 4, 3): model_checkpoint_base_path
         / "n6_m4/nodes_64/2906556_0_3/2025/2025-2/2025-02-05",
         (7, 3, 1): model_checkpoint_base_path
