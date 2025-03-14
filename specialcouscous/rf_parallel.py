@@ -194,7 +194,10 @@ class DistributedRandomForest:
         return clf
 
     def load_checkpoints(
-        self, checkpoint_path: str | pathlib.Path, uid: str = ""
+        self,
+        checkpoint_path: str | pathlib.Path,
+        uid: str = "",
+        rank: int | None = None,
     ) -> None:
         """
         Initialize rank-local subforests from pickled model checkpoints.
@@ -206,19 +209,21 @@ class DistributedRandomForest:
             valid checkpoint file for each rank, i.e., one file with the suffix "_rank_{comm.rank}.pickle}".
         uid : str
             The considered run's unique identifier
+        rank : int | None
+            By default, the checkpoint for the current rank in the MPI comm is loaded. Alternatively, a specific rank
+            can be passed here. Note that this should only be necessary in some exceptional cases.
         """
+        rank = self.comm.rank if rank is None else rank
         checkpoints = glob.glob(
-            str(checkpoint_path) + f"/*{uid}_classifier_rank_{self.comm.rank}.pickle"
+            str(checkpoint_path) + f"/*{uid}_classifier_rank_{rank}.pickle"
         )
         if len(checkpoints) > 1:
-            raise ValueError(
-                f"More than one local checkpoints found for rank {self.comm.rank}!"
-            )
+            raise ValueError(f"More than one local checkpoints found for rank {rank}!")
         if len(checkpoints) == 0:
-            raise ValueError(f"No local checkpoints found for rank {self.comm.rank}!")
+            raise ValueError(f"No local checkpoints found for rank {rank}!")
         with open(checkpoints[0], "rb") as f:
             self.clf = pickle.load(f)
-            log.info(f"[{self.comm.rank}/{self.comm.size}]: Loaded {checkpoints[0]}.")
+            log.info(f"[{rank}/{self.comm.size}]: Loaded {checkpoints[0]}.")
 
     def _predict_tree_by_tree(self, samples: np.ndarray) -> np.ndarray:
         """
