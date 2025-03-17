@@ -465,8 +465,10 @@ def generate_scaling_model_and_data_job_scripts(
             math.ceil(SERIAL_BASELINE_TIMES[dataset] * (0.25 + 0.75 / comm_size))
         )
         log_n_samples, log_n_features, n_trees = dataset
-        label = "scaling_model_and_data__no_chunking/"
-        label += f"n{log_n_samples}_m{log_n_features}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
+        label = (
+            "scaling_model_and_data__no_chunking" if scale_data else "scaling_the_model"
+        )
+        label += f"/n{log_n_samples}_m{log_n_features}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
         run_specific_configs = {
             "job_name": label,
             "n_samples": (10**log_n_samples) // 64 * (comm_size if scale_data else 1),
@@ -551,7 +553,7 @@ if __name__ == "__main__":
         model_seeds,
         [1, 2, 4, 8, 16, 32],
         result_base_dir,
-        base_job_script_path,
+        base_job_script_path.parent,
         scale_data=True,
     )
     generate_scaling_model_and_data_job_scripts(
@@ -560,6 +562,6 @@ if __name__ == "__main__":
         model_seeds,
         [64],
         result_base_dir,
-        base_job_script_path,
+        base_job_script_path.parent,
         scale_data=False,
     )
