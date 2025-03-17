@@ -422,6 +422,68 @@ def generate_small_scale_model_job_scripts(
         generate_job_script(base_job_script_path / f"{label}.sh", config)
 
 
+def generate_scaling_model_and_data_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    comm_sizes: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+    scale_data: bool = True,
+) -> None:
+    """
+    Generate job scripts for downscaling of model and data (i.e. scaling model and data without chunking).
+
+    Train t0 * p trees on either n0 * p samples (scale_data == True) or n0 samples (scale_data == False) (no chunking in
+    either case) with t0 = t / 64 and n0 = n / 64 for an n, t baseline.
+    Note that for p=64, this is identical to strong scaling.
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        mem, partition. All other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    comm_sizes : list[int]
+        The list comm sizes (node counts).
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    scale_data : bool
+        Whether to scale both model and data (True) or just the model (False).
+    """
+    datasets = DATASETS["strong"]
+    for dataset, data_seed, model_seed, comm_size in itertools.product(
+        datasets, data_seeds, model_seeds, comm_sizes
+    ):
+        # same as strong scaling (ignores additional speedup from down-scaled data)
+        expected_time = int(
+            math.ceil(SERIAL_BASELINE_TIMES[dataset] * (0.25 + 0.75 / comm_size))
+        )
+        log_n_samples, log_n_features, n_trees = dataset
+        label = "scaling_model_and_data__no_chunking/"
+        label += f"n{log_n_samples}_m{log_n_features}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "n_samples": (10**log_n_samples) // 64 * (comm_size if scale_data else 1),
+            "n_features": 10**log_n_features,
+            "n_trees": n_trees // 64 * comm_size,
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": min(expected_time * OVERESTIMATION_FACTOR, MAX_TIME),
+            "n_nodes": comm_size,
+            "result_dir": result_base_dir / label,
+            "script": "rf_training_breaking_iid.py",
+            "additional_args": "--shared_test_set",
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
 if __name__ == "__main__":
     # setup paths
     base_dir = pathlib.Path(
@@ -482,4 +544,22 @@ if __name__ == "__main__":
         NODES,
         result_base_dir,
         base_job_script_path,
+    )
+    generate_scaling_model_and_data_job_scripts(
+        GLOBAL_CONFIG,
+        data_seeds,
+        model_seeds,
+        [1, 2, 4, 8, 16, 32],
+        result_base_dir,
+        base_job_script_path,
+        scale_data=True,
+    )
+    generate_scaling_model_and_data_job_scripts(
+        GLOBAL_CONFIG,
+        data_seeds,
+        model_seeds,
+        [64],
+        result_base_dir,
+        base_job_script_path,
+        scale_data=False,
     )
