@@ -178,15 +178,22 @@ if __name__ == "__main__":
         "n5m3": (int(1e5), int(1e3), 800),
         "n6m4": (int(1e6), int(1e4), 1600),
         "n7m3": (int(1e7), int(1e3), 448),
+        "n6m4_64th": (15625, int(1e4), 1600),
+        "n7m3_64th": (156250, int(1e3), 448),
     }
     available_datasets = list(dataset_configs.keys())
 
-    # (n_samples, n_features, n_trees, seed_data, seed_model, n_ranks) -> (checkpoint_path, checkpoint_uid)
-    checkpoint_base_path = pathlib.Path(
+    chunking_checkpoint_base_path = pathlib.Path(
         "/hkfs/work/workspace/scratch/ku4408-specialcouscous-eps/chunking/"
     )
-    checkpoint_path_n6m4 = checkpoint_base_path / "n6_m4/nodes_64"
-    checkpoint_path_n7m3 = checkpoint_base_path / "n7_m3/nodes_64"
+    chunking_checkpoint_path_n6m4 = chunking_checkpoint_base_path / "n6_m4/nodes_64"
+    chunking_checkpoint_path_n7m3 = chunking_checkpoint_base_path / "n7_m3/nodes_64"
+
+    no_chunking_checkpoint_base_path = pathlib.Path(
+        "/hkfs/work/workspace/scratch/bk6983-special_couscous__2025_results/scaling_the_model/"  # pragma: allowlist secret
+    )
+
+    # (n_samples, n_features, n_trees, seed_data, seed_model, n_ranks) -> (checkpoint_path, checkpoint_uid)
     checkpoints = {
         # n5m3 test run
         (100000, 1000, 800, 0, 1, 8): (
@@ -196,77 +203,87 @@ if __name__ == "__main__":
         ),
         # n6m4
         (1000000, 10000, 1600, 0, 1, 64): (
-            checkpoint_path_n6m4 / "2714948_0_1",
+            chunking_checkpoint_path_n6m4 / "2714948_0_1",
             "25c1dc56",
         ),
         (1000000, 10000, 1600, 0, 2, 64): (
-            checkpoint_path_n6m4 / "2714960_0_2",
+            chunking_checkpoint_path_n6m4 / "2714960_0_2",
             "e787869f",
         ),
         (1000000, 10000, 1600, 0, 3, 64): (
-            checkpoint_path_n6m4 / "2714972_0_3",
+            chunking_checkpoint_path_n6m4 / "2714972_0_3",
             "4c2bda80",
         ),
         (1000000, 10000, 1600, 1, 1, 64): (
-            checkpoint_path_n6m4 / "2714984_1_1",
+            chunking_checkpoint_path_n6m4 / "2714984_1_1",
             "6c95e50b",
         ),
         (1000000, 10000, 1600, 1, 2, 64): (
-            checkpoint_path_n6m4 / "2714996_1_2",
+            chunking_checkpoint_path_n6m4 / "2714996_1_2",
             "4dda6383",
         ),
         (1000000, 10000, 1600, 1, 3, 64): (
-            checkpoint_path_n6m4 / "2715008_1_3",
+            chunking_checkpoint_path_n6m4 / "2715008_1_3",
             "efee63da",
         ),
         (1000000, 10000, 1600, 2, 1, 64): (
-            checkpoint_path_n6m4 / "2715020_2_1",
+            chunking_checkpoint_path_n6m4 / "2715020_2_1",
             "b71f95a0",
         ),
         (1000000, 10000, 1600, 2, 2, 64): (
-            checkpoint_path_n6m4 / "2715032_2_2",
+            chunking_checkpoint_path_n6m4 / "2715032_2_2",
             "69ab4e98",
         ),
         (1000000, 10000, 1600, 2, 3, 64): (
-            checkpoint_path_n6m4 / "2715044_2_3",
+            chunking_checkpoint_path_n6m4 / "2715044_2_3",
             "4d9d6b4b",
         ),
         # n67m3
         (10000000, 1000, 448, 0, 1, 64): (
-            checkpoint_path_n7m3 / "2714954_0_1",
+            chunking_checkpoint_path_n7m3 / "2714954_0_1",
             "d28793fc",
         ),
         (10000000, 1000, 448, 0, 2, 64): (
-            checkpoint_path_n7m3 / "2714966_0_2",
+            chunking_checkpoint_path_n7m3 / "2714966_0_2",
             "c672c865",
         ),
         (10000000, 1000, 448, 0, 3, 64): (
-            checkpoint_path_n7m3 / "2714978_0_3",
+            chunking_checkpoint_path_n7m3 / "2714978_0_3",
             "36c83d13",
         ),
         (10000000, 1000, 448, 1, 1, 64): (
-            checkpoint_path_n7m3 / "2714990_1_1",
+            chunking_checkpoint_path_n7m3 / "2714990_1_1",
             "57b532d0",
         ),
         (10000000, 1000, 448, 1, 2, 64): (
-            checkpoint_path_n7m3 / "2715002_1_2",
+            chunking_checkpoint_path_n7m3 / "2715002_1_2",
             "9c975e89",
         ),
         (10000000, 1000, 448, 1, 3, 64): (
-            checkpoint_path_n7m3 / "2715014_1_3",
+            chunking_checkpoint_path_n7m3 / "2715014_1_3",
             "021295b2",
         ),
         (10000000, 1000, 448, 2, 1, 64): (
-            checkpoint_path_n7m3 / "2715026_2_1",
+            chunking_checkpoint_path_n7m3 / "2715026_2_1",
             "4f5bee85",
         ),
         (10000000, 1000, 448, 2, 2, 64): (
-            checkpoint_path_n7m3 / "2715038_2_2",
+            chunking_checkpoint_path_n7m3 / "2715038_2_2",
             "f694b9b1",
         ),
         (10000000, 1000, 448, 2, 3, 64): (
-            checkpoint_path_n7m3 / "2715050_2_3",
+            chunking_checkpoint_path_n7m3 / "2715050_2_3",
             "96481d50",
+        ),
+        # n6m4 64th
+        (15625, 10000, 1600, 0, 1, 64): (
+            no_chunking_checkpoint_base_path / "n6_m4/nodes_64" / "0_1_2992744",
+            "398c1cb1",
+        ),
+        # n67m3 64th
+        (156250, 1000, 448, 0, 1, 64): (
+            no_chunking_checkpoint_base_path / "n7_m3/nodes_64" / "0_1_2992745",
+            "9058eb20",
         ),
     }
 
