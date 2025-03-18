@@ -460,10 +460,7 @@ def generate_scaling_model_and_data_job_scripts(
     for dataset, data_seed, model_seed, comm_size in itertools.product(
         datasets, data_seeds, model_seeds, comm_sizes
     ):
-        # same as strong scaling (ignores additional speedup from down-scaled data)
-        expected_time = int(
-            math.ceil(SERIAL_BASELINE_TIMES[dataset] * (0.25 + 0.75 / comm_size))
-        )
+        expected_time = 15
         log_n_samples, log_n_features, n_trees = dataset
         label = (
             "scaling_model_and_data__no_chunking" if scale_data else "scaling_the_model"
@@ -479,8 +476,6 @@ def generate_scaling_model_and_data_job_scripts(
             "time": min(expected_time * OVERESTIMATION_FACTOR, MAX_TIME),
             "n_nodes": comm_size,
             "result_dir": result_base_dir / label,
-            "script": "rf_training_breaking_iid.py",
-            "additional_args": "--shared_test_set",
         }
         config = {**global_config, **run_specific_configs}
         generate_job_script(base_job_script_path / f"{label}.sh", config)
