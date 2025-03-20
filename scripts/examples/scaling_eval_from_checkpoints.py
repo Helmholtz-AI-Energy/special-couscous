@@ -298,6 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_samples", type=int)
     parser.add_argument("--n_features", type=int)
     parser.add_argument("--n_trees", type=int)
+    parser.add_argument("--scale_n_samples", float=int, default=1.0)
 
     args = parser.parse_args()
 
@@ -341,7 +342,7 @@ if __name__ == "__main__":
         checkpoint_uid,
         args.n_trees,
         output_dir,
-        args.n_samples,
+        int(args.n_samples * args.scale_n_samples),
         args.n_features,
         n_classes=10,
         make_classification_kwargs=make_classification_kwargs,
