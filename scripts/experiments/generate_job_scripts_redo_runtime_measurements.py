@@ -142,6 +142,55 @@ def generate_serial_job_scripts(
         generate_job_script(base_job_script_path / f"{label}.sh", config)
 
 
+def generate_serial_inference_job_scripts(
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+) -> None:
+    """
+    Generate serial job scripts for all scales of the inference models (t=76, 76*2, ..., 76*64).
+
+    Parameters
+    ----------
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        mem, additional_args, partition. Keys mem, partition, and all other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    datasets = [*DATASETS["inference"]]
+    scales = [1, 2, 4, 8, 16, 32, 64]
+    for dataset, scale, data_seed, model_seed in itertools.product(
+        datasets, scales, data_seeds, model_seeds
+    ):
+        expected_time = SERIAL_BASELINE_TIMES[dataset] * scale
+        log_n_samples, log_n_features, n_trees = dataset
+        n_trees *= scale
+        label = f"serial_inference_baselines/n{log_n_samples}_m{log_n_features}_t{n_trees}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "n_samples": 10**log_n_samples,
+            "n_features": 10**log_n_features,
+            "n_trees": n_trees,
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": min(expected_time * OVERESTIMATION_FACTOR, MAX_TIME),
+            "n_nodes": 1,
+            "result_dir": result_base_dir / label,
+            "script": "rf_serial_synthetic.py",
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(base_job_script_path / f"{label}.sh", config)
+
+
 def generate_strong_scaling_job_scripts(
     global_config: dict[str, Any],
     data_seeds: list[int],
@@ -508,6 +557,9 @@ if __name__ == "__main__":
     model_seeds = [1]
 
     generate_serial_job_scripts(
+        GLOBAL_CONFIG, data_seeds, model_seeds, result_base_dir, base_job_script_path
+    )
+    generate_serial_inference_job_scripts(
         GLOBAL_CONFIG, data_seeds, model_seeds, result_base_dir, base_job_script_path
     )
     generate_strong_scaling_job_scripts(
