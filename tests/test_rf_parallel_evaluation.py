@@ -70,7 +70,7 @@ def synthetic_dataset(
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("shared_global_model", [True, False])
-def test_parallel_synthetic(
+def test_accuracy_score_vs_evaluate(
     shared_global_model: bool,
     synthetic_dataset: tuple[SyntheticDataset, SyntheticDataset],
     n_trees: int = 100,
