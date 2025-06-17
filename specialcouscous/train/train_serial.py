@@ -13,7 +13,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.validation import check_random_state
 
-from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.synthetic_classification_data import (
     SyntheticDataset,
     make_classification_dataset,
