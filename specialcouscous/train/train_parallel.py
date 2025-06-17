@@ -604,6 +604,9 @@ def train_parallel_on_balanced_synthetic_data(
     log.info(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest on test dataset."
     )
+    with MPITimer(mpi_comm, name="inference") as timer:
+        distributed_random_forest.score(test_data.x, test_data.y, n_classes)
+    store_timing(timer, global_results, local_results)
     with MPITimer(
         mpi_comm, name="test"
     ) as timer:  # Evaluate trained model on test data.

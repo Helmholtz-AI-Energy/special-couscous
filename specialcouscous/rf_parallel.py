@@ -410,6 +410,54 @@ class DistributedRandomForest:
         self.trees = self._allgather_subforests_tree_by_tree()
         log.info(f"[{rank}/{size}]: {len(self.trees)} trees in global forest.")
 
+    def predict(self, samples: np.ndarray, n_classes: int) -> np.ndarray:
+        """
+        Predict the class of the given samples. Not that the samples must be shared among all ranks.
+
+        Parameters
+        ----------
+        samples : numpy.ndarray
+            The samples to predict the classes for.
+        n_classes : int
+            The number of classes in the dataset.
+
+        Returns
+        -------
+        numpy.ndarray
+            The predicted class for each input sample.
+        """
+        if self.shared_global_model:
+            tree_predictions = self._predict_tree_by_tree(samples)
+            predictions = self.calc_majority_vote(tree_predictions)
+        else:  # Note that the dataset to be tested must be shared among all ranks.
+            tree_predictions_local = self._predict_locally(samples)
+            global_predicted_class_hists = self._predicted_class_hist(
+                tree_predictions_local, n_classes
+            )
+            predictions = self._calc_majority_vote_hist(global_predicted_class_hists)
+        return predictions
+
+    def score(self, samples: np.ndarray, targets: np.ndarray, n_classes: int) -> float:
+        """
+        Compute the mean global accuracy using .predict(), akin to sklearn .score().
+
+        Parameters
+        ----------
+        samples : numpy.ndarray
+            The samples to predict the classes for.
+        targets : numpy.ndarray
+            The corresponding targets.
+        n_classes : int
+            The number of classes in the dataset.
+
+        Returns
+        -------
+        float
+            The mean accuracy over the given samples.
+        """
+        predictions = self.predict(samples, n_classes)
+        return sum(predictions == targets) / len(targets)
+
     def evaluate(
         self,
         samples: np.ndarray,
