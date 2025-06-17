@@ -207,7 +207,7 @@ def train_parallel_on_synthetic_data(
     # Save model to disk.
     if save_model:
         save_model_parallel(
-            comm, distributed_random_forest.clf, output_path, base_filename
+            comm, distributed_random_forest.local_clf, output_path, base_filename
         )
 
     # -------------- Gather local results, generate dataframe, output collective results --------------
@@ -236,7 +236,7 @@ def train_parallel_on_synthetic_data(
     )
     with MPITimer(comm, name="test") as timer:
         distributed_random_forest.evaluate(
-            local_test.x, local_test.y, n_classes, shared_global_model
+            local_test.x, local_test.y, shared_global_model
         )
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
@@ -267,7 +267,7 @@ def train_parallel_on_synthetic_data(
         )
         if shared_global_model:
             distributed_random_forest.evaluate(
-                local_train.x, local_train.y, n_classes, shared_global_model
+                local_train.x, local_train.y, shared_global_model
             )
         else:
             if comm.rank == 0:
@@ -276,8 +276,8 @@ def train_parallel_on_synthetic_data(
                     "be calculated without a shared evaluation dataset."
                 )
             distributed_random_forest.acc_global = np.nan
-            distributed_random_forest.acc_local = distributed_random_forest.clf.score(
-                local_train.x, local_train.y
+            distributed_random_forest.acc_local = (
+                distributed_random_forest.local_clf.score(local_train.x, local_train.y)
             )
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results
@@ -578,7 +578,7 @@ def train_parallel_on_balanced_synthetic_data(
     # Save model to disk.
     if save_model:
         save_model_parallel(
-            mpi_comm, distributed_random_forest.clf, output_path, base_filename
+            mpi_comm, distributed_random_forest.local_clf, output_path, base_filename
         )
     # -------------- Gather local results, generate dataframe, output collective results --------------
     # Convert local results to array, ensure the values are in the same order on all ranks by sorting the keys. At this
@@ -605,13 +605,13 @@ def train_parallel_on_balanced_synthetic_data(
         f"[{mpi_comm.rank}/{mpi_comm.size}]: Evaluate random forest on test dataset."
     )
     with MPITimer(mpi_comm, name="inference") as timer:
-        distributed_random_forest.score(test_data.x, test_data.y, n_classes)
+        distributed_random_forest.score(test_data.x, test_data.y)
     store_timing(timer, global_results, local_results)
     with MPITimer(
         mpi_comm, name="test"
     ) as timer:  # Evaluate trained model on test data.
         distributed_random_forest.evaluate(
-            test_data.x, test_data.y, n_classes, shared_global_model
+            test_data.x, test_data.y, shared_global_model
         )
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
@@ -644,7 +644,7 @@ def train_parallel_on_balanced_synthetic_data(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
         distributed_random_forest.evaluate(
-            train_data.x, train_data.y, n_classes, shared_global_model
+            train_data.x, train_data.y, shared_global_model
         )
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results
@@ -842,12 +842,7 @@ def evaluate_parallel_from_checkpoint_balanced_synthetic_data(
     with MPITimer(
         mpi_comm, name="test"
     ) as timer:  # Evaluate trained model on test data.
-        distributed_random_forest.evaluate(
-            samples=test_data.x,
-            targets=test_data.y,
-            n_classes=n_classes,
-            shared_global_model=False,
-        )
+        distributed_random_forest.evaluate(test_data.x, test_data.y, False)
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
     save_confusion_matrix_parallel(
@@ -877,12 +872,7 @@ def evaluate_parallel_from_checkpoint_balanced_synthetic_data(
         log.info(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
-        distributed_random_forest.evaluate(
-            samples=train_data.x,  # type:ignore
-            targets=train_data.y,  # type:ignore
-            n_classes=n_classes,
-            shared_global_model=False,
-        )
+        distributed_random_forest.evaluate(train_data.x, train_data.y, False)
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results
         )
@@ -1100,12 +1090,7 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     with MPITimer(
         mpi_comm, name="test"
     ) as timer:  # Evaluate trained model on test data.
-        distributed_random_forest.evaluate(
-            samples=local_test.x,
-            targets=local_test.y,
-            n_classes=n_classes,
-            shared_global_model=False,
-        )
+        distributed_random_forest.evaluate(local_test.x, local_test.y, False)
     store_timing(timer, global_results, local_results)
     store_accuracy(distributed_random_forest, "test", global_results, local_results)
     save_confusion_matrix_parallel(

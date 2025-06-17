@@ -57,23 +57,9 @@ def get_confusion_matrix_serial(
     np.ndarray
         The confusion matrix.
     """
-    if use_weighted_voting:
-        confusion_matrix_serial = confusion_matrix(
-            y_true=targets, y_pred=classifier.predict(samples), normalize=None
-        )
-    else:
-        tree_wise_predictions = np.array(
-            [
-                tree.predict(samples, check_input=False)
-                for tree in classifier.estimators_
-            ]
-        )
-        majority_votes = DistributedRandomForest.calc_majority_vote(
-            tree_wise_predictions=tree_wise_predictions
-        )
-        confusion_matrix_serial = confusion_matrix(
-            y_true=targets, y_pred=majority_votes, normalize=None
-        )
+    confusion_matrix_serial = confusion_matrix(
+        y_true=targets, y_pred=classifier.predict(samples), normalize=None
+    )
     np.savetxt(
         output_path / (base_filename + f"_confusion_matrix_{label}.csv"),
         confusion_matrix_serial,

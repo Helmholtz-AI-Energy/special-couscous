@@ -113,13 +113,11 @@ def test_accuracy_score_vs_evaluate(
 
     # compute accuracy with score method
     with timing.MPITimer(comm, name="score on test set") as t_score:
-        score_accuracy = distributed_random_forest.score(
-            test_data.x, test_data.y, test_data.n_classes
-        )
+        score_accuracy = distributed_random_forest.score(test_data.x, test_data.y)
     # do full evaluation with evaluate method
     with timing.MPITimer(comm, name="evaluate on test set") as t_evaluate:
         distributed_random_forest.evaluate(
-            test_data.x, test_data.y, test_data.n_classes, shared_global_model
+            test_data.x, test_data.y, shared_global_model
         )
 
     if comm.rank == 0:
@@ -137,13 +135,11 @@ def test_accuracy_score_vs_evaluate(
 
     # compute accuracy with score method
     with timing.MPITimer(comm, name="score on train set"):
-        score_accuracy = distributed_random_forest.score(
-            train_data.x, train_data.y, train_data.n_classes
-        )
+        score_accuracy = distributed_random_forest.score(train_data.x, train_data.y)
     # do full evaluation with evaluate method
     with timing.MPITimer(comm, name="evaluate on train set"):
         distributed_random_forest.evaluate(
-            train_data.x, train_data.y, train_data.n_classes, shared_global_model
+            train_data.x, train_data.y, shared_global_model
         )
 
     if comm.rank == 0:
@@ -198,7 +194,7 @@ def test_serial_vs_parallel_prediction(
     # Create corresponding node-local sklearn RF consisting of all trees
     if comm.rank == 0:
         log.info("Create serial random forest for comparison")
-    serial_rf = copy.deepcopy(parallel_rf.clf)
+    serial_rf = copy.deepcopy(parallel_rf.local_clf)
     if shared_global_model:
         serial_rf.estimators_ = parallel_rf.trees
     else:  # without global model -> need to gather trees from local subforests first
@@ -215,11 +211,9 @@ def test_serial_vs_parallel_prediction(
     if comm.rank == 0:
         log.info("Evaluate distributed forest on test set")
     with timing.MPITimer(comm, name="parallel_predict") as t_parallel_predict:
-        parallel_prediction = parallel_rf.predict(test_data.x, test_data.n_classes)
+        parallel_prediction = parallel_rf.predict(test_data.x)
     with timing.MPITimer(comm, name="parallel_score") as t_parallel_score:
-        parallel_accuracy = parallel_rf.score(
-            test_data.x, test_data.y, test_data.n_classes
-        )
+        parallel_accuracy = parallel_rf.score(test_data.x, test_data.y)
     timers = [t_serial_predict, t_serial_score, t_parallel_predict, t_parallel_score]
 
     if comm.rank == 0:
