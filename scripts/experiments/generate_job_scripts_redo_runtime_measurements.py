@@ -548,7 +548,7 @@ if __name__ == "__main__":
         "script_dir": script_dir,
         "venv": venv,
         "n_classes": 10,
-        "mem": "243200mb",
+        "mem": "239400mb",
         "script": "rf_parallel_synthetic.py",
         "additional_args": "",
     }
