@@ -872,7 +872,8 @@ def evaluate_parallel_from_checkpoint_balanced_synthetic_data(
         log.info(
             f"[{mpi_comm.rank}/{mpi_comm.size}]: Additionally evaluate random forest on train dataset."
         )
-        distributed_random_forest.evaluate(train_data.x, train_data.y, False)
+        distributed_random_forest.evaluate(train_data.x, train_data.y, False)  # type: ignore[union-attr]
+        # ignoring union-attr due to false positive: train_data is only None iff detailed_evaluation is False
         store_accuracy(
             distributed_random_forest, "train", global_results, local_results
         )
