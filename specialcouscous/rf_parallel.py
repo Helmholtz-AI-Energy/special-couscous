@@ -11,6 +11,8 @@ from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
+from specialcouscous.utils import get_pickled_size
+
 log = logging.getLogger(__name__)  # Get logger instance.
 """Logger."""
 
@@ -289,6 +291,11 @@ class DistributedRandomForest:
             local_histogram = self.predict_local_histogram(samples)
             global_histogram = np.zeros_like(local_histogram)
             self.comm.Allreduce(local_histogram, global_histogram)
+            message_size = get_pickled_size(local_histogram)
+            log.info(
+                f"All-reduce histogram: total message size send from rank {self.comm.rank} is {message_size} bytes"
+                f"({message_size / len(samples)} bytes per sample at {len(samples)} samples)."
+            )
             return global_histogram
 
     @staticmethod
@@ -355,17 +362,25 @@ class DistributedRandomForest:
         """
         rank = self.comm.rank
         trees = []
+        total_message_size = 0
 
         # All-gather first `n_trees_base` local trees.
         for t in range(self.n_trees_base):  # Loop over local trees.
+            total_message_size += get_pickled_size(self.local_clf.estimators_[t])
             trees.append(self.comm.allgather(self.local_clf.estimators_[t]))
 
         # Broadcast remainder trees.
         if self.n_trees_remainder > 0:
             for r in range(self.n_trees_remainder):
                 tree_temp = self.local_clf.estimators_[-1] if rank == r else None
+                total_message_size += (
+                    get_pickled_size(tree_temp) if tree_temp is not None else 0
+                )
                 trees.append([self.comm.bcast(tree_temp, root=r)])
 
+        log.info(
+            f"All-gather subforests: total message size send from {rank=} is {total_message_size} bytes."
+        )
         return [tree for sublist in trees for tree in sublist]
 
     def train(

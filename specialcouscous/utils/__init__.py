@@ -1,13 +1,39 @@
 import argparse
+import io
 import logging
 import pathlib
+import pickle
 import sys
+import typing
 
 import colorlog
 import numpy as np
 from mpi4py import MPI
 
 log = logging.getLogger(__name__)  # Get logger instance.
+
+
+def get_pickled_size(x: object, **kwargs: typing.Any) -> int:
+    """
+    Get the size in bytes of the given object x after pickling.
+
+    This can for example be used to determine the message size of objects send via MPI.
+
+    Parameters
+    ----------
+    x : object
+        The object whose size to get.
+    kwargs : Any
+        Additional keywords passed through to pickle.dump.
+
+    Returns
+    -------
+    int
+        The size of the object x (after pickling) in bytes.
+    """
+    binary_representation = io.BytesIO()
+    pickle.dump(x, binary_representation, **kwargs)
+    return sys.getsizeof(binary_representation)
 
 
 def get_problem_size(n: int, m: int, t: int) -> float:
