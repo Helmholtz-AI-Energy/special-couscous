@@ -67,9 +67,11 @@ srun python -u ${{SCRIPT}} \\
 """
 
 
-def generate_job_script(path: pathlib.Path, config: dict[str, Any]) -> None:
+def generate_job_script(
+    path: pathlib.Path, config: dict[str, Any], script_template: str = SCRIPT_TEMPLATE
+) -> None:
     """
-    Generate a job script by filling out the above template with the given configuration and writing it to the given path.
+    Generate a job script by filling out the template with the given configuration and writing it to the given path.
 
     Parameters
     ----------
@@ -79,10 +81,12 @@ def generate_job_script(path: pathlib.Path, config: dict[str, Any]) -> None:
         The job script configuration as dictionary. Needs to include the following keys: project, script_dir, venv,
         n_classes, script, job_name, additional_args, n_samples, n_features, random_state_data, random_state_model,
         time, mem, n_nodes, result_dir, n_trees, partition.
+    script_template : str
+        The template to fill out.
     """
     path.parent.mkdir(exist_ok=True, parents=True)
     with open(path, "w") as file:
-        file.write(SCRIPT_TEMPLATE.format(**config))
+        file.write(script_template.format(**config))
     print(f"Job script written to {path}")
 
 
