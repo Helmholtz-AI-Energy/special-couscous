@@ -98,6 +98,7 @@ class SUSYDataset:
         # download data from URL and extract to self.raw_data_path
         http_response = urllib.request.urlopen(self.URL)
         gz_file_path = self.raw_data_path.with_suffix(".csv.gz")
+        self.raw_data_path.parent.mkdir(exist_ok=True, parents=True)
         with open(gz_file_path, "wb") as gz_file:
             gz_file.write(http_response.read())
         log.debug("Download done, unpacking.")
