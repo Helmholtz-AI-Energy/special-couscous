@@ -155,6 +155,7 @@ class CoverTypeDataset:
         self._raw_data = pandas.read_csv(self.raw_data_path).values
         self.x = self._raw_data[:, :-1].astype(np.float32)
         self.y = self._raw_data[:, -1].astype(np.int32)
+        self.y -= 1  # shift classes from 1-7 to 0-6
 
         self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(
             self.x,
