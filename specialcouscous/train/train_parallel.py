@@ -18,7 +18,7 @@ from specialcouscous.synthetic_classification_data import (
     generate_and_distribute_synthetic_dataset,
     make_classification_dataset,
 )
-from specialcouscous.utils.datasets import SUSYDataset
+from specialcouscous.utils.datasets import get_dataset
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 from specialcouscous.utils.timing import MPITimer
 
@@ -670,13 +670,13 @@ def train_parallel_on_balanced_synthetic_data(
         )
 
 
-def train_parallel_on_susy(
+def train_parallel_on_dataset(
+    dataset: str,
     random_state: int | np.random.RandomState = 0,
     random_state_model: int | None = None,
     mpi_comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
     stratified_train_test: bool = False,
-    normalize_data: bool = False,
     data_dir: pathlib.Path | str = pathlib.Path(__file__).parents[2] / "data",
     n_trees: int = 100,
     shared_global_model: bool = True,
@@ -687,10 +687,12 @@ def train_parallel_on_susy(
     save_model: bool = True,
 ) -> None:
     """
-    Train and evaluate a distributed random forest on the SUSY dataset.
+    Train and evaluate a distributed random forest on the specified dataset.
 
     Parameters
     ----------
+    dataset : str
+        The dataset to train and evaluate on. Must be supported by specialcouscous.utils.datasets.
     random_state : int | np.random.RandomState
         The random seed, used for the train test split of the dataset. Can be an integer or a numpy random
         state as it must be the same on all ranks to ensure that each rank generates the very same global dataset. If no
@@ -706,8 +708,6 @@ def train_parallel_on_susy(
         Relative size of the train set.
     stratified_train_test : bool
         Whether to stratify the train-test split with the class labels.
-    normalize_data : bool
-        Whether to normalize the features with the train mean and std.
     data_dir : pathlib.Path | str
         Directory containing the SUSY.csv.
     n_trees : int
@@ -733,7 +733,6 @@ def train_parallel_on_susy(
     for key in ["mpi_comm", "output_dir", "detailed_evaluation"]:
         del configuration[key]
     configuration["comm_size"] = mpi_comm.size
-    configuration["dataset"] = "susy"
 
     global_results: dict[str, Any] = {
         "comm_rank": "global",
@@ -760,11 +759,11 @@ def train_parallel_on_susy(
     if mpi_comm.rank == 0:
         log.info("Preparing SUSY dataset.")
     with MPITimer(mpi_comm, name="data preparation") as timer:
-        susy_dataset = SUSYDataset(
-            data_dir, random_state, train_split, stratified_train_test, normalize_data
+        data = get_dataset(
+            dataset, data_dir, random_state, train_split, stratified_train_test
         )
-        train_data = SyntheticDataset(x=susy_dataset.x_train, y=susy_dataset.y_train)
-        test_data = SyntheticDataset(x=susy_dataset.x_test, y=susy_dataset.y_test)
+        train_data = SyntheticDataset(x=data.x_train, y=data.y_train)
+        test_data = SyntheticDataset(x=data.x_test, y=data.y_test)
     store_timing(timer, global_results, local_results)
 
     # -------------- Set up distributed random forest --------------

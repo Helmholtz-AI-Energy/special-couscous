@@ -10,14 +10,23 @@ from generate_job_scripts_redo_runtime_measurements import (
 )
 
 BASE_N_TREES = {
-    "strong": [1000],
-    "weak": [1000],
-    "inference": [100],
+    "susy": {
+        "strong": [1000],
+        "weak": [1000],
+        "inference": [100],
+    },
+    "cover_type": {
+        "strong": [100],
+        "weak": [100],
+        "inference": [100],
+    },
 }
 
-SERIAL_BASELINE_TIMES = {  # in minutes TODO: update with actual values
-    1000: 30,
-    100: 10,
+SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TODO: update with actual values
+    ("susy", 1000): 30,
+    ("susy", 100): 10,
+    ("cover_type", 1000): 30,
+    ("cover_type", 100): 10,
 }
 
 OVERESTIMATION_FACTOR = 2  # overestimate time limit by how much from expected time
@@ -52,6 +61,7 @@ mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
 srun python -u ${{SCRIPT}} \\
+    --dataset_name {dataset_name} \\
     --n_trees {n_trees} \\
     --random_state {random_state_data} \\
     --random_state_model {random_state_model} \\
@@ -64,6 +74,7 @@ srun python -u ${{SCRIPT}} \\
 
 
 def generate_strong_scaling_job_scripts(
+    dataset: str,
     global_config: dict[str, Any],
     data_seeds: list[int],
     model_seeds: list[int],
@@ -76,6 +87,8 @@ def generate_strong_scaling_job_scripts(
 
     Parameters
     ----------
+    dataset : str
+        The dataset to evaluate on.
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
         script, mem, additional_args, partition. All other keys may be overwritten.
@@ -91,17 +104,18 @@ def generate_strong_scaling_job_scripts(
         The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
     """
     for n_trees, data_seed, model_seed, comm_size in itertools.product(
-        BASE_N_TREES["strong"], data_seeds, model_seeds, comm_sizes
+        BASE_N_TREES[dataset]["strong"], data_seeds, model_seeds, comm_sizes
     ):
         # assumes 25% un-parallelizable workload (data generation, communication, saving results,...)
         expected_time = int(
-            math.ceil(SERIAL_BASELINE_TIMES[n_trees] * (0.25 + 0.75 / comm_size))
+            math.ceil(
+                SERIAL_BASELINE_TIMES[(dataset, n_trees)] * (0.25 + 0.75 / comm_size)
+            )
         )
-        label = (
-            f"strong_scaling/t_{n_trees}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
-        )
+        label = f"{dataset}/strong_scaling/t_{n_trees}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
         run_specific_configs = {
             "job_name": label,
+            "dataset_name": dataset,
             "n_trees": n_trees,
             "random_state_data": data_seed,
             "random_state_model": model_seed,
@@ -116,6 +130,7 @@ def generate_strong_scaling_job_scripts(
 
 
 def generate_weak_scaling_job_scripts(
+    dataset: str,
     global_config: dict[str, Any],
     data_seeds: list[int],
     model_seeds: list[int],
@@ -128,6 +143,8 @@ def generate_weak_scaling_job_scripts(
 
     Parameters
     ----------
+    dataset : str
+        The dataset to evaluate on.
     global_config : dict[str, Any]
         The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
         script, mem, additional_args, partition. All other keys may be overwritten.
@@ -143,12 +160,13 @@ def generate_weak_scaling_job_scripts(
         The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
     """
     for n_trees_local, data_seed, model_seed, comm_size in itertools.product(
-        BASE_N_TREES["weak"], data_seeds, model_seeds, comm_sizes
+        BASE_N_TREES[dataset]["weak"], data_seeds, model_seeds, comm_sizes
     ):
-        expected_time = SERIAL_BASELINE_TIMES[n_trees_local]
-        label = f"weak_scaling/t_{n_trees_local}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
+        expected_time = SERIAL_BASELINE_TIMES[(dataset, n_trees_local)]
+        label = f"{dataset}/weak_scaling/t_{n_trees_local}/n_nodes_{comm_size}/{data_seed}_{model_seed}"
         run_specific_configs = {
             "job_name": label,
+            "dataset_name": dataset,
             "n_trees": n_trees_local
             * comm_size,  # weak scaling = global model size scales with n_nodes
             "random_state_data": data_seed,
@@ -172,7 +190,7 @@ if __name__ == "__main__":
         "/hkfs/work/workspace/scratch/bk6983-special_couscous__2025_results"
     )
     script_dir = base_dir / "scripts/examples/"
-    base_job_script_path = pathlib.Path(__file__).parent / "susy"
+    base_job_script_path = pathlib.Path(__file__).parent
     venv = base_dir / "venv311"
 
     GLOBAL_CONFIG = {
@@ -181,7 +199,7 @@ if __name__ == "__main__":
         "script_dir": script_dir,
         "venv": venv,
         "mem": "239400mb",
-        "script": "rf_training_susy.py",
+        "script": "rf_training_on_dataset.py",
         "additional_args": "",
     }
 
@@ -197,5 +215,7 @@ if __name__ == "__main__":
         base_job_script_path,
     ]
 
-    generate_strong_scaling_job_scripts(*args)
-    generate_weak_scaling_job_scripts(*args)
+    generate_strong_scaling_job_scripts("susy", *args)
+    generate_weak_scaling_job_scripts("susy", *args)
+    generate_strong_scaling_job_scripts("cover_type", *args)
+    generate_weak_scaling_job_scripts("cover_type", *args)

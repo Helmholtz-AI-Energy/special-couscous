@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Distributed random forest classification of the SUSY dataset in `specialcouscous``."""
+"""Distributed random forest classification of a given dataset in `specialcouscous``."""
 
 import logging
 import pathlib
 
 from mpi4py import MPI
 
-from specialcouscous.train.train_parallel import train_parallel_on_susy
+from specialcouscous.train.train_parallel import train_parallel_on_dataset
 from specialcouscous.utils import parse_arguments, set_logger_config
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -28,13 +28,14 @@ if __name__ == "__main__":
     if comm.rank == 0:
         log.info(
             "***********************************************************************\n"
-            "* Distributed Random Forest Classification on SUSY Dataset *\n"
+            "* Distributed Random Forest Classification on A Given Dataset *\n"
             "***********************************************************************\n"
             f"Hyperparameters used are:\n{args}"
         )
 
     # Train distributed random forest on balanced synthetic classification data.
-    train_parallel_on_susy(
+    train_parallel_on_dataset(
+        dataset=args.dataset_name,
         random_state=args.random_state,
         random_state_model=args.random_state_model,
         mpi_comm=comm,
