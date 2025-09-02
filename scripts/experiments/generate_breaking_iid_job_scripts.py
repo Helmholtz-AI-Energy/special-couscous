@@ -65,7 +65,8 @@ def generate_breaking_iid_job_scripts(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
     )
 
-    job_name = f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.', '')}"
+    dataset_name = f"n{log_n_samples}_m{log_n_features}"
+    job_name = f"{dataset_name}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.', '')}"
     job_script_name = f"{job_name}.sh"
     enforce_constant_local_size = (
         "--enforce_constant_local_size" if enforce_constant_size else ""
@@ -116,7 +117,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --save_model
     {enforce_constant_local_size}
                                 """
-    output_path = output_path / f"nodes_{n_nodes}"
+    output_path = output_path / f"nodes_{n_nodes}" / dataset_name
     os.makedirs(output_path, exist_ok=True)
     with open(output_path / job_script_name, "wt") as f:
         f.write(script_content)
