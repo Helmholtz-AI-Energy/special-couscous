@@ -757,7 +757,7 @@ def train_parallel_on_dataset(
 
     # -------------- Generate the data --------------
     if mpi_comm.rank == 0:
-        log.info("Preparing SUSY dataset.")
+        log.info(f"Preparing {dataset} dataset.")
     with MPITimer(mpi_comm, name="data preparation") as timer:
         data = get_dataset(
             dataset, data_dir, random_state, train_split, stratified_train_test
