@@ -16,7 +16,7 @@ BASE_N_TREES = {
 }
 
 SERIAL_BASELINE_TIMES = {  # in minutes TODO: update with actual values
-    1000: 100,
+    1000: 30,
     100: 10,
 }
 
