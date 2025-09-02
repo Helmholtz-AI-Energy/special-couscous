@@ -3,6 +3,8 @@ import logging
 import pathlib
 import shutil
 import urllib.request
+import zipfile
+from typing import Any
 
 import numpy as np
 import pandas
@@ -28,6 +30,7 @@ class SUSYDataset:
         train_split: float = 0.75,
         stratified_train_test: bool = False,
         normalize: bool = False,
+        **_: Any,
     ):
         """
         Initialize the SUSY dataset.
@@ -107,3 +110,104 @@ class SUSYDataset:
             with open(self.raw_data_path, "wb") as out_file:
                 shutil.copyfileobj(gz_file, out_file)
         log.debug("Unpacking done.")
+
+
+class CoverTypeDataset:
+    """
+    The CoverType classification dataset from the UCI machine learning repository.
+
+    This class handles downloading the data, reading the data, splitting it into both features and targets and train and
+    test set.
+    """
+
+    URL = "https://archive.ics.uci.edu/static/public/31/covertype.zip"
+
+    def __init__(
+        self,
+        data_dir: pathlib.Path | str,
+        split_seed: int | np.random.RandomState = 0,
+        train_split: float = 0.75,
+        stratified_train_test: bool = False,
+        **_: Any,
+    ):
+        """
+        Initialize the CoverType dataset.
+
+        If necessary, download the raw data from the UCI machine learning repository. Load the raw data from csv and
+        split into features and target variables and train and test samples.
+
+        Parameters
+        ----------
+        data_dir : pathlib.Path | str
+            Base directory containing the SUSY.csv. When downloading, the results are written to this directory.
+        split_seed : int | np.random.RandomState
+            Random seed used for the train test split.
+        train_split : float
+            Relative size of the train set.
+        stratified_train_test : bool
+            Whether to stratify the train-test split with the class labels.
+        """
+        self.data_dir = pathlib.Path(data_dir)
+        self.raw_data_path = self.data_dir / "covtype.data"
+        if not self.raw_data_path.exists():
+            self.download()
+
+        self._raw_data = pandas.read_csv(self.raw_data_path).values
+        self.x = self._raw_data[:, :-1].astype(np.float32)
+        self.y = self._raw_data[:, -1].astype(np.int32)
+
+        self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(
+            self.x,
+            self.y,
+            test_size=1 - train_split,
+            stratify=self.y if stratified_train_test else None,
+            random_state=split_seed,
+        )
+
+    def download(self) -> None:
+        """Download the covertype.zip and unpack the covtype.data raw data into the data directory."""
+        log.info(f"Downloading CoverType dataset from {self.URL}.")
+        # download data from URL and extract to self.raw_data_path
+        http_response = urllib.request.urlopen(self.URL)
+
+        self.data_dir.mkdir(exist_ok=True, parents=True)
+        zip_file_path = self.data_dir / "covertype.zip"
+        gz_file_path = self.data_dir / "covtype.data.gz"
+
+        with open(zip_file_path, "wb") as zip_file:
+            zip_file.write(http_response.read())
+        log.debug("Download done, unpacking.")
+
+        with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+            zip_ref.extractall(self.data_dir)
+
+        with gzip.open(gz_file_path, "rb") as gz_file:
+            with open(self.raw_data_path, "wb") as out_file:
+                shutil.copyfileobj(gz_file, out_file)
+        log.debug("Unpacking done.")
+
+
+DATASETS = {"susy": SUSYDataset, "cover_type": CoverTypeDataset}
+
+
+def get_dataset(dataset_name: str, *args: Any, **kwargs: Any) -> Any:
+    """
+    Get and initialize a supported dataset by name.
+
+    Parameters
+    ----------
+    dataset_name : str
+        The name of the dataset to get. Must be in DATASETS.
+    args : Any
+        The args to pass to the dataset init function.
+    kwargs : Any
+        The kwargs to pass to the dataset init function.
+
+    Returns
+    -------
+    Any # TODO: introduce Dataset superclass for improved typing
+        The initialized dataset.
+    """
+    if dataset_name not in DATASETS:
+        raise ValueError(f"Invalid dataset {dataset_name}.")
+    return DATASETS[dataset_name](*args, **kwargs)
