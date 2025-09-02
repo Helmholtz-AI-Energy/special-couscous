@@ -13,6 +13,7 @@ def generate_breaking_iid_job_scripts(
     data_seed: int,
     model_seed: int,
     output_path: pathlib.Path,
+    enforce_constant_size: bool = False,
     submit: bool = False,
 ) -> None:
     """
@@ -48,6 +49,8 @@ def generate_breaking_iid_job_scripts(
         The (base) random state used for initializing the (distributed) model.
     output_path : pathlib.Path
         The path to save the generated job scripts.
+    enforce_constant_size : bool
+        If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
     submit : bool, optional
         Whether to submit jobs to the cluster. Default is False.
     """
@@ -64,6 +67,9 @@ def generate_breaking_iid_job_scripts(
 
     job_name = f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.', '')}"
     job_script_name = f"{job_name}.sh"
+    enforce_constant_local_size = (
+        "--enforce_constant_local_size" if enforce_constant_size else ""
+    )
     script_content = f"""#!/bin/bash
 #SBATCH --job-name={job_name}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
@@ -108,6 +114,7 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --output_label ${{SLURM_JOB_ID}} \\
     --detailed_evaluation \\
     --save_model
+    {enforce_constant_local_size}
                                 """
     output_path = output_path / f"nodes_{n_nodes}"
     os.makedirs(output_path, exist_ok=True)
@@ -139,22 +146,31 @@ if __name__ == "__main__":
             for data_set in data_sets:
                 for m_global in mu_global:
                     for m_local in mu_local:
-                        log_n_samples = data_set[0]
-                        log_n_features = data_set[1]
-                        n_trees = data_set[2]
-                        # Generate job scripts and possibly submit them to the cluster.
-                        assert (
-                            isinstance(m_global, str) or isinstance(m_global, float)
-                        ) and (isinstance(m_local, str) or isinstance(m_local, float))
-                        generate_breaking_iid_job_scripts(
-                            log_n_samples=log_n_samples,
-                            log_n_features=log_n_features,
-                            n_classes=n_classes,
-                            mu_global=m_global,
-                            mu_local=m_local,
-                            n_trees=n_trees,
-                            data_seed=random_state_data,
-                            model_seed=random_state_model,
-                            output_path=output_path,
-                            submit=False,
-                        )
+                        for enforce_constant_size in [True, False]:
+                            log_n_samples = data_set[0]
+                            log_n_features = data_set[1]
+                            n_trees = data_set[2]
+                            subdir = (
+                                "const_local_size"
+                                if enforce_constant_size
+                                else "original"
+                            )
+                            # Generate job scripts and possibly submit them to the cluster.
+                            assert (
+                                isinstance(m_global, str) or isinstance(m_global, float)
+                            ) and (
+                                isinstance(m_local, str) or isinstance(m_local, float)
+                            )
+                            generate_breaking_iid_job_scripts(
+                                log_n_samples=log_n_samples,
+                                log_n_features=log_n_features,
+                                n_classes=n_classes,
+                                mu_global=m_global,
+                                mu_local=m_local,
+                                n_trees=n_trees,
+                                data_seed=random_state_data,
+                                model_seed=random_state_model,
+                                output_path=output_path / subdir,
+                                enforce_constant_size=enforce_constant_size,
+                                submit=False,
+                            )
