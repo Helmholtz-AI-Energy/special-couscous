@@ -17,7 +17,7 @@ BASE_N_TREES = {
     },
     "cover_type": {
         "strong": [1000],
-        "weak": [500],
+        "weak": [100, 500],
         "inference": [100],
     },
 }
@@ -25,9 +25,9 @@ BASE_N_TREES = {
 SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TODO: update with actual values
     ("susy", 1000): 30,
     ("susy", 100): 10,
-    ("cover_type", 1000): 15,
-    ("cover_type", 500): 10,
-    ("cover_type", 100): 5,
+    ("cover_type", 1000): 10,
+    ("cover_type", 500): 5,
+    ("cover_type", 100): 2,
 }
 
 OVERESTIMATION_FACTOR = 2  # overestimate time limit by how much from expected time
