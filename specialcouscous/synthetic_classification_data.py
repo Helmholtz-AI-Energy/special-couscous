@@ -7,6 +7,7 @@ from typing import Any, Callable, Type
 import numpy as np
 import numpy.typing as npt
 import scipy
+from ipfn import ipfn
 from matplotlib import pyplot as plt
 from mpi4py import MPI
 from sklearn.datasets import make_classification
@@ -400,6 +401,7 @@ class DatasetPartition:
         mu: float | str,
         random_state: int | np.random.RandomState | None = None,
         sampling: bool = False,
+        enforce_constant_size: bool = False,
     ) -> npt.NDArray[np.int32]:
         """
         Partition this dataset among ``n_rank`` ranks using an imbalanced class distribution.
@@ -419,6 +421,10 @@ class DatasetPartition:
             rank and class independent of random seed, only which samples are assigned to which rank may change) or
             random sampling (number of elements per rank and class is expected to be the corresponding weight but may
             change slightly with each random seed).
+        enforce_constant_size : bool
+            If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
+            To do so, the local class distributions are adjusted via iterative proportional fitting (IPF) while
+            enforcing the global class balance and identical size of all local subsets.
 
         Returns
         -------
@@ -432,6 +438,29 @@ class DatasetPartition:
             rank: get_skellam_class_weights(mu, self.n_classes, peak)
             for rank, peak in enumerate(peaks)
         }
+
+        if enforce_constant_size:
+            class_weights_matrix = np.stack(
+                [class_weights_by_rank[rank] for rank in range(n_ranks)]
+            )
+
+            global_distribution = np.zeros(self.n_classes)
+            for target, count in zip(*np.unique(self.targets, return_counts=True)):
+                global_distribution[int(target)] = count
+            global_distribution /= len(global_distribution) * n_ranks
+
+            local_dataset_sizes = np.ones(n_ranks)
+            aggregates = [local_dataset_sizes, global_distribution]
+            dimensions = [[0], [1]]
+
+            ipf = ipfn.ipfn(
+                class_weights_matrix, aggregates, dimensions, convergence_rate=1e-6
+            )
+            corrected_class_weights_matrix = ipf.iteration()
+            class_weights_by_rank = {
+                rank: corrected_class_weights_matrix[rank] for rank in range(n_ranks)
+            }
+
         return self.partition(n_ranks, class_weights_by_rank, random_state, sampling)
 
 
@@ -741,6 +770,7 @@ class SyntheticDataset:
         balanced: bool,
         mu: float | str | None = None,
         sampling: bool = False,
+        enforce_constant_size: bool = False,
     ) -> "SyntheticDataset":
         """
         Partition the dataset among ``n_ranks`` ranks and select the samples assigned to this rank.
@@ -762,6 +792,8 @@ class SyntheticDataset:
             rank and class independent of random seed, only which samples are assigned to which rank may change) or
             random sampling (number of elements per rank and class is expected to be the corresponding weight but may
             change slightly with each random seed).
+        enforce_constant_size : bool
+            If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
 
         Returns
         -------
@@ -778,7 +810,7 @@ class SyntheticDataset:
         else:
             assert mu is not None
             assigned_ranks = partition.shifted_skellam_imbalanced_partition(
-                n_ranks, mu, random_state, sampling
+                n_ranks, mu, random_state, sampling, enforce_constant_size
             )
         assigned_indices = partition.assigned_indices_by_rank(assigned_ranks)[rank]
         return SyntheticDataset(
@@ -897,6 +929,7 @@ def generate_and_distribute_synthetic_dataset(
     rescale_to_sum_one: bool = True,
     make_classification_kwargs: dict[str, Any] | None = None,
     sampling: bool = False,
+    enforce_constant_local_size: bool = False,
     shared_test_set: bool = True,
     stratified_train_test: bool = False,
 ) -> tuple[SyntheticDataset, SyntheticDataset, SyntheticDataset]:
@@ -940,6 +973,8 @@ def generate_and_distribute_synthetic_dataset(
     sampling : bool
         Whether to partition the dataset using deterministic element counts and shuffling or random sampling.
         See ``SyntheticDataset.get_local_subset`` for more details.
+    enforce_constant_local_size : bool
+        If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
     shared_test_set : bool
         Whether the test set is shared among all ranks or each rank has its own test set that is not shared with the
         other ranks. In practice, this decides whether we first split the data into train-test and then distribute
@@ -1014,6 +1049,7 @@ def generate_and_distribute_synthetic_dataset(
             balanced=locally_balanced,
             mu=mu_partition,
             sampling=sampling,
+            enforce_constant_size=enforce_constant_local_size,
         )
         log.debug(f"Local train set shape: {local_train.x.shape}")
     else:  # Case 2: Private test set, each rank has its own test set that is not shared with the other ranks.
@@ -1026,6 +1062,7 @@ def generate_and_distribute_synthetic_dataset(
             balanced=locally_balanced,
             mu=mu_partition,
             sampling=sampling,
+            enforce_constant_size=enforce_constant_local_size,
         )
         # Then: Perform train-test splits locally on each rank.
         local_train, local_test = local_subset.train_test_split(

@@ -37,6 +37,7 @@ def train_parallel_on_synthetic_data(
     mu_partition: float | str | None = None,
     mu_data: float | str | None = None,
     peak: int | None = None,
+    enforce_constant_local_size: bool = False,
     make_classification_kwargs: dict[str, Any] | None = None,
     comm: MPI.Comm = MPI.COMM_WORLD,
     train_split: float = 0.75,
@@ -86,6 +87,8 @@ def train_parallel_on_synthetic_data(
     peak : int, optional
         The position (class index) of the class distribution peak in the dataset. Has no effect if `globally_balanced`
         is True.
+    enforce_constant_local_size : bool
+        If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
     make_classification_kwargs : dict[str, Any], optional
         Additional keyword arguments to ``sklearn.datasets.make_classification``.
     comm : MPI.Comm
@@ -166,6 +169,7 @@ def train_parallel_on_synthetic_data(
             mu_partition=mu_partition,
             mu_data=mu_data,
             peak=peak,
+            enforce_constant_local_size=enforce_constant_local_size,
             make_classification_kwargs=make_classification_kwargs,
             shared_test_set=shared_test_set,
             stratified_train_test=stratified_train_test,
@@ -1119,6 +1123,7 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     mu_partition: float | str | None = None,
     mu_data: float | str | None = None,
     peak: int | None = None,
+    enforce_constant_local_size: bool = False,
     make_classification_kwargs: dict[str, Any] | None = None,
     random_state: int | np.random.RandomState = 0,
     checkpoint_path: str | pathlib.Path = pathlib.Path("../"),
@@ -1161,6 +1166,8 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
     peak : int, optional
         The position (class index) of the class distribution peak in the dataset. Has no effect if `globally_balanced`
         is True.
+    enforce_constant_local_size : bool
+        If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
     make_classification_kwargs : dict[str, Any], optional
         Additional keyword arguments to ``sklearn.datasets.make_classification``.
     random_state : int | np.random.RandomState
@@ -1241,6 +1248,7 @@ def evaluate_parallel_from_checkpoint_synthetic_data(
             mu_partition=mu_partition,
             mu_data=mu_data,
             peak=peak,
+            enforce_constant_local_size=enforce_constant_local_size,
             make_classification_kwargs=make_classification_kwargs,
             shared_test_set=True,
             stratified_train_test=stratified_train_test,
