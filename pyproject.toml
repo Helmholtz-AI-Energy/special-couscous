@@ -155,6 +155,7 @@ convention = "numpy"
 testpaths = [
     "tests",
 ]
+log_cli = true
 
 [tool.coverage.run]
 parallel = true
