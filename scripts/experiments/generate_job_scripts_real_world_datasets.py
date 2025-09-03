@@ -74,6 +74,61 @@ srun python -u ${{SCRIPT}} \\
 """
 
 
+def generate_serial_job_scripts(
+    dataset: str,
+    global_config: dict[str, Any],
+    data_seeds: list[int],
+    model_seeds: list[int],
+    result_base_dir: pathlib.Path,
+    base_job_script_path: pathlib.Path,
+) -> None:
+    """
+    Generate all serial job scripts.
+
+    Parameters
+    ----------
+    dataset : str
+        The dataset to evaluate on.
+    global_config : dict[str, Any]
+        The global job script configuration. Should contain the following keys: project, script_dir, venv, n_classes,
+        mem, additional_args, partition. Keys mem, partition, and all other keys may be overwritten.
+    data_seeds : list[int]
+        The list of data seeds.
+    model_seeds : list[int]
+        The list of model seeds.
+    result_base_dir : pathlib.Path
+        The base directory to write the job results to (subdirectories for experiment and run config will be created).
+    base_job_script_path : pathlib.Path
+        The base directory to write the job scripts to (subdirectories for experiment and run config will be created).
+    """
+    forest_sizes = [
+        n_trees
+        for experiment in ["strong", "weak", "inference"]
+        for n_trees in BASE_N_TREES[dataset].get(experiment, [])
+    ]
+    comm_size = 1
+    for n_trees, data_seed, model_seed in itertools.product(
+        forest_sizes, data_seeds, model_seeds
+    ):
+        expected_time = SERIAL_BASELINE_TIMES[(dataset, n_trees)]
+        label = f"{dataset}/serial_baseline/t_{n_trees}/{data_seed}_{model_seed}"
+        run_specific_configs = {
+            "job_name": label,
+            "dataset_name": dataset,
+            "n_trees": n_trees,
+            "random_state_data": data_seed,
+            "random_state_model": model_seed,
+            "time": min(expected_time * OVERESTIMATION_FACTOR, MAX_TIME),
+            "n_nodes": comm_size,
+            "result_dir": result_base_dir / label,
+            "script": "rf_serial_on_dataset.py",
+        }
+        config = {**global_config, **run_specific_configs}
+        generate_job_script(
+            base_job_script_path / f"{label}.sh", config, SCRIPT_TEMPLATE
+        )
+
+
 def generate_strong_scaling_job_scripts(
     dataset: str,
     global_config: dict[str, Any],
@@ -216,7 +271,7 @@ if __name__ == "__main__":
         base_job_script_path,
     ]
 
-    generate_strong_scaling_job_scripts("susy", *args)
-    generate_weak_scaling_job_scripts("susy", *args)
-    generate_strong_scaling_job_scripts("cover_type", *args)
-    generate_weak_scaling_job_scripts("cover_type", *args)
+    for dataset in ["susy", "cover_type"]:
+        generate_serial_job_scripts(dataset, *args[:3], *args[4:])
+        generate_strong_scaling_job_scripts(dataset, *args)
+        generate_weak_scaling_job_scripts(dataset, *args)
