@@ -713,7 +713,7 @@ def train_parallel_on_dataset(
     stratified_train_test : bool
         Whether to stratify the train-test split with the class labels.
     data_dir : pathlib.Path | str
-        Directory containing the SUSY.csv.
+        Directory containing the dataset.
     n_trees : int
         The number of trees in the global forest.
     shared_global_model : bool
@@ -734,7 +734,7 @@ def train_parallel_on_dataset(
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
     configuration = locals()
-    for key in ["mpi_comm", "output_dir", "detailed_evaluation"]:
+    for key in ["mpi_comm", "output_dir", "detailed_evaluation", "data_dir"]:
         del configuration[key]
     configuration["comm_size"] = mpi_comm.size
 

@@ -17,6 +17,7 @@ from specialcouscous.synthetic_classification_data import (
     SyntheticDataset,
     make_classification_dataset,
 )
+from specialcouscous.utils.datasets import get_dataset
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 
 log = logging.getLogger(__name__)  # Get logger instance.
@@ -65,6 +66,166 @@ def get_confusion_matrix_serial(
         delimiter=",",
     )
     return confusion_matrix_serial
+
+
+def train_serial_on_dataset(
+    dataset: str,
+    random_state: int | np.random.RandomState = 0,
+    random_state_model: int | np.random.RandomState | None = None,
+    train_split: float = 0.75,
+    stratified_train_test: bool = False,
+    data_dir: pathlib.Path | str = pathlib.Path(__file__).parents[2] / "data",
+    n_trees: int = 100,
+    detailed_evaluation: bool = False,
+    output_dir: str | pathlib.Path | None = None,
+    output_label: str = "",
+    experiment_id: str = "",
+    save_model: bool = True,
+    use_weighted_voting: bool = False,
+) -> None:
+    """
+    Train and evaluate a serial random forest on the specified dataset.
+
+    Parameters
+    ----------
+    dataset : str
+        The dataset to train and evaluate on. Must be supported by specialcouscous.utils.datasets.
+    random_state : int | np.random.RandomState
+        The random state used for dataset generation and splitting. If no model-specific random state is provided, it is
+        also used to instantiate the random forest classifier.
+    random_state_model : int | np.random.RandomState, optional
+        An optional random state used for the model.
+    train_split : float
+        Relative size of the train set.
+    stratified_train_test : bool
+        Whether to stratify the train-test split with the class labels. Default is False.
+    data_dir : pathlib.Path | str
+        Directory containing the dataset.
+    n_trees : int
+        The number of trees in the global forest.
+    detailed_evaluation : bool
+        Whether to perform a detailed evaluation on more than just the local test set.
+    output_dir : pathlib.Path | str, optional
+        Output base directory. If given, the results are written to
+        output_dir / year / year-month / date / YYYY-mm-dd--HH-MM-SS-<output_name>-<uuid>.
+    output_label : str
+        Optional label for the csv file, added to the name after the timestamp. Default is an empty string.
+    experiment_id : str
+        If given, the output file is placed in a further subdirectory <experiment_id> inside the <date> directory.
+        Can be used to group the result of multiple runs of an experiment. Default is an empty string.
+    save_model : bool
+        Whether the trained classifier is saved to disk (True) or not (False). Default is True.
+    use_weighted_voting : bool
+        Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
+        Default is ``False``.
+    """
+    configuration = locals()
+    for key in ["output_dir", "detailed_evaluation", "data_dir"]:
+        del configuration[key]
+    configuration["comm_size"] = 1
+
+    global_results: dict[str, Any] = {
+        "comm_rank": "global",
+        "job_id": int(os.getenv("SLURM_JOB_ID", default=0)),
+    }
+    # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
+    random_state = check_random_state(random_state)
+
+    assert isinstance(random_state, np.random.RandomState)
+    if random_state_model is None:
+        random_state_model = random_state.randint(0, np.iinfo(np.int32).max)
+        log.info(f"Generated model base seed is {random_state_model}.")
+        random_state_model = check_random_state(random_state_model).randint(
+            low=0, high=2**32 - 1
+        )
+
+    assert output_dir is not None
+    output_path, base_filename = construct_output_path(
+        output_dir, output_label, experiment_id
+    )
+
+    # Generate data.
+    log.info("Generating data...")
+    data_generation_start = time.perf_counter()
+    data = get_dataset(
+        dataset, data_dir, random_state, train_split, stratified_train_test
+    )
+    train_data = SyntheticDataset(x=data.x_train, y=data.y_train)
+    test_data = SyntheticDataset(x=data.x_test, y=data.y_test)
+    global_results["time_sec_data_generation"] = (
+        time.perf_counter() - data_generation_start
+    )
+
+    log.info(
+        f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
+        f"First train sample is: \n{train_data.x[0]}\nLast train sample is:\n {train_data.x[-1]}\n"
+        f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}.\n"
+        f"First test sample is:\n {test_data.x[0]}\nLast test sample is:\n{test_data.x[-1]}\n"
+        f"Set up classifier."
+    )
+
+    # Set up, train, and test model.
+    forest_creation_start = time.perf_counter()
+    clf = RandomForestClassifier(
+        n_estimators=n_trees,
+        random_state=check_random_state(random_state_model),
+        n_jobs=-1,
+    )
+    global_results["time_sec_forest_creation"] = (
+        time.perf_counter() - forest_creation_start
+    )
+    expected_n_jobs = 1 if clf.n_jobs is None else clf.n_jobs
+    if expected_n_jobs < 0:
+        expected_n_jobs = joblib.cpu_count() + 1 + expected_n_jobs
+    log.info(f"Training local random forest with {expected_n_jobs} jobs.")
+
+    log.info("Train.")
+    train_start = time.perf_counter()
+    clf.fit(train_data.x, train_data.y)
+    global_results["time_sec_training"] = time.perf_counter() - train_start
+
+    # Calculate confusion matrix + accuracy.
+    global_results["accuracy_test"] = clf.score(test_data.x, test_data.y)
+    confusion_matrix_test = get_confusion_matrix_serial(
+        classifier=clf,
+        samples=test_data.x,
+        targets=test_data.y,
+        use_weighted_voting=use_weighted_voting,
+        output_path=output_path,
+        base_filename=base_filename,
+        label="test",
+    )
+
+    if detailed_evaluation:  # Additionally evaluate on training set.
+        global_results["accuracy_train"] = clf.score(train_data.x, train_data.y)
+        confusion_matrix_train = get_confusion_matrix_serial(
+            classifier=clf,
+            samples=train_data.x,
+            targets=train_data.y,
+            use_weighted_voting=use_weighted_voting,
+            output_path=output_path,
+            base_filename=base_filename,
+            label="train",
+        )
+    log.info(
+        f"Training time is {global_results['time_sec_training']} s.\n"
+        f"Test accuracy is {global_results['accuracy_test']}."
+    )
+    results_df = pandas.DataFrame([global_results])
+
+    for key, value in configuration.items():  # Add configuration as columns.
+        results_df[key] = value
+
+    if output_dir:  # Save results to output dir if provided.
+        save_results_serial(
+            results_df=results_df,
+            train_data=train_data,
+            test_data=test_data,
+            clf=clf,
+            output_path=output_path,
+            base_filename=base_filename,
+            save_model=save_model,
+        )
 
 
 def train_serial_on_synthetic_data(
