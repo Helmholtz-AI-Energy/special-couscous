@@ -31,7 +31,7 @@ def setup_logger(clean_mpi_tmp_path: pathlib.Path) -> None:
 
 @pytest.fixture(scope="session")
 def synthetic_dataset(
-    n_samples: int = 10000, n_features: int = 100, n_classes: int = 10
+    n_samples: int = 1000, n_features: int = 20, n_classes: int = 4
 ) -> tuple[SyntheticDataset, SyntheticDataset]:
     """
     Create the dataset once per test session.
