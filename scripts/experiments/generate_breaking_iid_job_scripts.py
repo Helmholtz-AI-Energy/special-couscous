@@ -1,4 +1,3 @@
-import os
 import pathlib
 import subprocess
 
@@ -12,7 +11,6 @@ def generate_breaking_iid_job_scripts(
     n_trees: int,
     data_seed: int,
     model_seed: int,
-    output_path: pathlib.Path,
     enforce_constant_size: bool = False,
     submit: bool = False,
 ) -> None:
@@ -56,7 +54,7 @@ def generate_breaking_iid_job_scripts(
     """
     # All weak-scaling style experiments should take approx. the same time (in min).
     # Note that the time is reduced compared to normal weak scaling as both model and data are distributed.
-    mem = 243200  # Use standard nodes.
+    mem = 239400  # Use standard nodes.
     n_nodes = 16
     # time = 4 * 3600 // n_nodes
     time = 10 if log_n_samples <= 5 else 60
@@ -67,13 +65,23 @@ def generate_breaking_iid_job_scripts(
     )
 
     dataset_name = f"n{log_n_samples}_m{log_n_features}"
-    job_name = f"{dataset_name}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.', '')}"
-    job_script_name = f"{job_name}.sh"
-    enforce_constant_local_size = (
-        "--enforce_constant_local_size" if enforce_constant_size else ""
+    enforce_constant_local_size = ""
+
+    if enforce_constant_size:
+        dataset_name += "_const_size"
+        enforce_constant_local_size = "--enforce_constant_local_size"
+
+    def format_mu(mu: float | str) -> str:
+        return str(mu).replace(".", "")
+
+    seeds_and_mus = (
+        f"{data_seed}_{model_seed}_{format_mu(mu_global)}_{format_mu(mu_local)}"
     )
+    label = f"breaking_iid/{dataset_name}/n_nodes_{n_nodes}/{seeds_and_mus}"
+    result_dir = RESULT_BASE_DIR / label
+
     script_content = f"""#!/bin/bash
-#SBATCH --job-name={job_name}         # Job name
+#SBATCH --job-name={label}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
 #SBATCH --time={time}                 # Wall-clock time limit
 #SBATCH --mem={mem}mb                 # Main memory
@@ -83,25 +91,24 @@ def generate_breaking_iid_job_scripts(
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
 #SBATCH --account={project}
 
-# Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
-if [ -z "$RESULT_BASE_DIR" ]; then RESULT_BASE_DIR="${{BASE_DIR}}"/results; fi
-if [ -z "VENV" ]; then VENV="${{BASE_DIR}}"/special-couscous-venv-openmpi4; fi
-
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
-ml purge              # Unload all currently loaded modules.
-ml load compiler/llvm  # Load required modules.
+# Unload all currently loaded modules and load required modules.
+ml purge
+ml load compiler/llvm
 ml load mpi/openmpi/4.1
-source "${{VENV}}"/bin/activate  # Activate venv.
 
-SCRIPT="special-couscous/scripts/examples/rf_training_breaking_iid.py"
+# Setup paths
+SCRIPT="{SCRIPT_DIR}/{SCRIPT}"
+RESDIR="{result_dir}_${{SLURM_JOB_ID}}"
 
-RESDIR="${{RESULT_BASE_DIR}}"/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
+# Activate venv
+source {VENV}/bin/activate
+
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
+srun python -u ${{SCRIPT}} \\
     --n_samples {10**log_n_samples} \\
     --n_features {10**log_n_features} \\
     --n_classes {n_classes} \\
@@ -115,16 +122,17 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --random_state_model {model_seed} \\
     --output_dir ${{RESDIR}} \\
     --output_label ${{SLURM_JOB_ID}} \\
+    --log_path ${{RESDIR}} \\
     --detailed_evaluation \\
     --save_model
     {enforce_constant_local_size}
                                 """
-    output_path = output_path / f"nodes_{n_nodes}" / dataset_name
-    os.makedirs(output_path, exist_ok=True)
-    with open(output_path / job_script_name, "wt") as f:
+    output_path = BASE_JOB_SCRIPT_PATH / f"{label}.sh"
+    output_path.parent.mkdir(exist_ok=True, parents=True)
+    with open(output_path, "wt") as f:
         f.write(script_content)
     if submit:
-        subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
+        subprocess.run(f"sbatch {output_path}", shell=True)
 
 
 if __name__ == "__main__":
@@ -138,10 +146,19 @@ if __name__ == "__main__":
     n_classes = 10  # Number of classes to use
     mu_global = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Global imbalance factors considered
     mu_local = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Local imbalance factors considered
-    output_path = pathlib.Path(
-        "./breaking_iid/"
-    )  # Output path to save generated job scripts
-    os.makedirs(output_path, exist_ok=True)
+
+    # setup paths
+    BASE_DIR = pathlib.Path(
+        "/hkfs/home/project/hk-project-test-haiga/bk6983/special-couscous"
+    )
+    RESULT_BASE_DIR = pathlib.Path(
+        "/hkfs/work/workspace/scratch/bk6983-special_couscous__2025_results"
+    )
+    BASE_JOB_SCRIPT_PATH = pathlib.Path(__file__).parent
+    BASE_JOB_SCRIPT_PATH.mkdir(exist_ok=True, parents=True)
+    SCRIPT_DIR = BASE_DIR / "scripts/examples/"
+    SCRIPT = "rf_training_on_dataset.py"
+    VENV = BASE_DIR / "venv311"
 
     # Loop over all considered configurations.
     for random_state_data in data_seeds:
@@ -173,7 +190,6 @@ if __name__ == "__main__":
                                 n_trees=n_trees,
                                 data_seed=random_state_data,
                                 model_seed=random_state_model,
-                                output_path=output_path / subdir,
                                 enforce_constant_size=enforce_constant_size,
                                 submit=False,
                             )
