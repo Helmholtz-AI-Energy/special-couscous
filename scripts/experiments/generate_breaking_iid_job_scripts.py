@@ -124,9 +124,9 @@ srun python -u ${{SCRIPT}} \\
     --output_label ${{SLURM_JOB_ID}} \\
     --log_path ${{RESDIR}} \\
     --detailed_evaluation \\
-    --save_model
+    --save_model \\
     {enforce_constant_local_size}
-                                """
+"""
     output_path = BASE_JOB_SCRIPT_PATH / f"{label}.sh"
     output_path.parent.mkdir(exist_ok=True, parents=True)
     with open(output_path, "wt") as f:
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     BASE_JOB_SCRIPT_PATH = pathlib.Path(__file__).parent
     BASE_JOB_SCRIPT_PATH.mkdir(exist_ok=True, parents=True)
     SCRIPT_DIR = BASE_DIR / "scripts/examples/"
-    SCRIPT = "rf_training_on_dataset.py"
+    SCRIPT = "rf_training_breaking_iid.py"
     VENV = BASE_DIR / "venv311"
 
     # Loop over all considered configurations.
