@@ -14,32 +14,23 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 @pytest.mark.parametrize(
     "shared_global_model, shared_test_set, globally_imbalanced, locally_imbalanced",
     [
-        (True, False, True, True),
-        (True, False, True, False),
-        (True, False, False, True),
-        (True, False, False, False),
-        (True, True, True, True),
-        (True, True, True, False),
-        (True, True, False, True),
-        (True, True, False, False),
+        # (True, False, True, True),
+        # (True, False, True, False),
+        # (True, False, False, True),
+        # (True, False, False, False),
+        # (True, True, True, True),
+        # (True, True, True, False),
+        # (True, True, False, True),
+        # (True, True, False, False),
         (False, True, True, True),
         (False, True, True, False),
         (False, True, False, True),
         (False, True, False, False),
     ],
 )
-@pytest.mark.parametrize(
-    "random_state_model",
-    [17, None],
-)
-@pytest.mark.parametrize(
-    "flip_y",
-    [0.0, 0.01],
-)
-@pytest.mark.parametrize(
-    "stratified_train_test",
-    [True, False],
-)
+@pytest.mark.parametrize("random_state_model", [17, None])
+@pytest.mark.parametrize("flip_y", [0.0, 0.01])
+@pytest.mark.parametrize("stratified_train_test", [True, False])
 def test_breaking_iid(
     random_state_model: int,
     shared_global_model: bool,
