@@ -227,7 +227,9 @@ class DistributedRandomForest:
 
     @staticmethod
     def predict_histogram(
-        classifier: RandomForestClassifier, samples: np.ndarray
+        classifier: RandomForestClassifier,
+        samples: np.ndarray,
+        n_classes: int | None = None,
     ) -> np.ndarray:
         """
         Perform tree-wise prediction with the given classifier and samples and aggregate the results as histogram.
@@ -240,17 +242,28 @@ class DistributedRandomForest:
             A local random forest.
         samples : numpy.ndarray
             The samples to perform prediction for.
+        n_classes : int | None
+            If given, correct the histogram to the given number of classes even when not all classes are present for the
+            given classifier.
 
         Returns
         -------
         np.ndarray
             The number of votes per class for each input sample.
         """
-        return np.round(
-            classifier.predict_proba(samples) * len(classifier.estimators_)
+        class_probabilities = classifier.predict_proba(samples)
+        prediction_counts = np.round(
+            class_probabilities * len(classifier.estimators_)
         ).astype(int)
+        if n_classes is None:
+            return prediction_counts
+        histogram = np.zeros((len(samples), n_classes), dtype=int)
+        histogram[:, np.round(classifier.classes_).astype(int)] = prediction_counts
+        return histogram
 
-    def predict_local_histogram(self, samples: np.ndarray) -> np.ndarray:
+    def predict_local_histogram(
+        self, samples: np.ndarray, n_classes: int | None = None
+    ) -> np.ndarray:
         """
         Perform local tree-wise prediction on the given samples and aggregate the results as histogram.
 
@@ -258,15 +271,19 @@ class DistributedRandomForest:
         ----------
         samples : numpy.ndarray
             The samples to perform prediction for.
+        n_classes : int | None
+            The number of classes in the global dataset.
 
         Returns
         -------
         np.ndarray
             The number of votes per class for each input sample.
         """
-        return self.predict_histogram(self.local_clf, samples)
+        return self.predict_histogram(self.local_clf, samples, n_classes)
 
-    def predict_global_histogram(self, samples: np.ndarray) -> np.ndarray:
+    def predict_global_histogram(
+        self, samples: np.ndarray, n_classes: int | None = None
+    ) -> np.ndarray:
         """
         Perform global tree-wise prediction on the given samples and aggregate the results as histogram.
 
@@ -278,6 +295,8 @@ class DistributedRandomForest:
         ----------
         samples : numpy.ndarray
             The samples to perform prediction for.
+        n_classes : int | None
+            The number of classes in the global dataset.
 
         Returns
         -------
@@ -286,11 +305,13 @@ class DistributedRandomForest:
         """
         if self.shared_global_model:
             # for a shared global model, predict directly on the global model
-            return self.predict_histogram(self.global_clf, samples)
+            return self.predict_histogram(self.global_clf, samples, n_classes)
         else:  # otherwise, aggregate the local predictions across ranks via all reduce
-            local_histogram = self.predict_local_histogram(samples)
+            local_histogram = self.predict_local_histogram(samples, n_classes)
             global_histogram = np.zeros_like(local_histogram)
-            log.info("All-gathering local histograms")
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}]: before all-reduce {local_histogram.shape=}"
+            )
             self.comm.Allreduce(local_histogram, global_histogram)
             message_size = get_pickled_size(local_histogram)
             log.info(
@@ -316,7 +337,9 @@ class DistributedRandomForest:
         """
         return np.argmax(prediction_histogram, axis=1)
 
-    def predict_local(self, samples: np.ndarray) -> np.ndarray:
+    def predict_local(
+        self, samples: np.ndarray, n_classes: int | None = None
+    ) -> np.ndarray:
         """
         Predict the class of the given samples using the local model.
 
@@ -324,16 +347,18 @@ class DistributedRandomForest:
         ----------
         samples : numpy.ndarray
             The samples to predict the classes for.
+        n_classes : int | None
+            The number of classes in the global dataset.
 
         Returns
         -------
         numpy.ndarray
             The predicted class for each input sample.
         """
-        local_histogram = self.predict_local_histogram(samples)
+        local_histogram = self.predict_local_histogram(samples, n_classes)
         return self.predict_from_histogram(local_histogram)
 
-    def predict(self, samples: np.ndarray) -> np.ndarray:
+    def predict(self, samples: np.ndarray, n_classes: int | None = None) -> np.ndarray:
         """
         Predict the class of the given samples using the global model.
 
@@ -341,13 +366,15 @@ class DistributedRandomForest:
         ----------
         samples : numpy.ndarray
             The samples to predict the classes for.
+        n_classes : int | None
+            The number of classes in the global dataset.
 
         Returns
         -------
         numpy.ndarray
             The predicted class for each input sample.
         """
-        global_histogram = self.predict_global_histogram(samples)
+        global_histogram = self.predict_global_histogram(samples, n_classes)
         return self.predict_from_histogram(global_histogram)
 
     def _allgather_subforests_tree_by_tree(
@@ -448,6 +475,7 @@ class DistributedRandomForest:
         samples: np.ndarray,
         targets: np.ndarray,
         shared_global_model: bool = False,
+        n_classes: int | None = None,
     ) -> None:
         """
         Evaluate the trained global random forest.
@@ -458,22 +486,18 @@ class DistributedRandomForest:
             The rank-local samples to evaluate on.
         targets : numpy.ndarray
             The corresponding targets.
-        n_classes : int
-            The number of classes in the dataset.
         shared_global_model : bool
             Whether the global model is shared among all ranks (True) or not (False). Default is False.
+        n_classes : int | None
+            The number of classes in the global dataset.
         """
         # compute predictions on local and global model
-        log.info("Get local predictions")
-        local_predictions = self.predict_local(samples)
-        log.info("Get global predictions")
-        global_predictions = self.predict(samples)
+        local_predictions = self.predict_local(samples, n_classes)
+        global_predictions = self.predict(samples, n_classes)
 
         # compute local and global accuracy and confusion matrices
-        log.info("Compute local accuracy")
         self.acc_local = (targets == local_predictions).mean()
 
-        log.info("Build confusion matrices")
         self.confusion_matrix_local = sklearn.metrics.confusion_matrix(
             targets, local_predictions
         )
@@ -481,7 +505,6 @@ class DistributedRandomForest:
             targets, global_predictions
         )
 
-        log.info("Compute global accuracy")
         if shared_global_model:
             # with a shared global model, we can additionally compute the accuracy over potentially differing local data
             # count the number of samples and correct predictions of the global (shared) model on the local data

@@ -52,6 +52,8 @@ class SUSYDataset:
         normalize : bool
             Whether to normalize the features with the train mean and std.
         """
+        self.n_classes = 2
+        self.classes = [0, 1]
         self.raw_data_path = pathlib.Path(data_dir) / "SUSY.csv"
         if not self.raw_data_path.exists():
             self.download()
@@ -147,6 +149,9 @@ class CoverTypeDataset:
         stratified_train_test : bool
             Whether to stratify the train-test split with the class labels.
         """
+        self.n_classes = 7
+        self.classes = list(range(7))
+
         self.data_dir = pathlib.Path(data_dir)
         self.raw_data_path = self.data_dir / "covtype.data"
         if not self.raw_data_path.exists():
