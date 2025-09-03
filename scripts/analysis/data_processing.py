@@ -133,7 +133,8 @@ def process_run_dir(path, dataset_label, updated_path_names=False):
 
     for key, value in parsed_from_log_file.items():
         dataframe.loc[dataframe.comm_rank == "global", key] = value
-    dataframe["dataset"] = dataset_label
+    if "dataset" not in dataframe.columns:
+        dataframe["dataset"] = dataset_label
 
     return dataframe
 
@@ -206,7 +207,7 @@ def aggregate_by_seeds(dataframe, compute_std_for=None):
     seed_specific_columns = ['job_id', 'random_state', 'random_state_model', 'output_label', 'experiment_id',
                              'result_filename', 'model_seed', 'checkpoint_path', 'checkpoint_uid',
                              'n_clusters_per_class', 'frac_informative', 'frac_redundant',
-                             'save_model', 'detailed_evaluation']
+                             'save_model', 'detailed_evaluation', 'data_dir', 'stratified_train_test']
 
     # all remaining columns are aggregated
     value_columns = [column for column in dataframe.columns if column not in key_columns + seed_specific_columns]
@@ -249,6 +250,7 @@ if __name__ == "__main__":
     global_results = aggregated_results[aggregated_results.comm_rank == 'global']
     print(global_results[[col for col in print_columns if col in global_results.columns]])
     key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'n_trees', 'comm_size', 'n_nodes', 'dataset']
+    key_columns = [col for col in key_columns if col in global_results.columns]
     print(global_results[key_columns])
     aggregated_results.to_csv(root_dir / 'aggregated_results.csv', index=False)
     log.info(f'Aggregated results written to {(root_dir / "aggregated_results.csv").absolute()}')
