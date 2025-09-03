@@ -60,6 +60,7 @@ def generate_breaking_iid_job_scripts(
     n_nodes = 16
     # time = 4 * 3600 // n_nodes
     time = 10 if log_n_samples <= 5 else 60
+    project = "hk-project-p0022229"
 
     print(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
@@ -80,6 +81,7 @@ def generate_breaking_iid_job_scripts(
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}             # Number of nodes
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
+#SBATCH --account={project}
 
 # Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
 BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
