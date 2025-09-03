@@ -246,9 +246,9 @@ class DistributedRandomForest:
         np.ndarray
             The number of votes per class for each input sample.
         """
-        return (classifier.predict_proba(samples) * len(classifier.estimators_)).astype(
-            int
-        )
+        return np.round(
+            classifier.predict_proba(samples) * len(classifier.estimators_)
+        ).astype(int)
 
     def predict_local_histogram(self, samples: np.ndarray) -> np.ndarray:
         """
