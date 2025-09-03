@@ -290,6 +290,7 @@ class DistributedRandomForest:
         else:  # otherwise, aggregate the local predictions across ranks via all reduce
             local_histogram = self.predict_local_histogram(samples)
             global_histogram = np.zeros_like(local_histogram)
+            log.info("All-gathering local histograms")
             self.comm.Allreduce(local_histogram, global_histogram)
             message_size = get_pickled_size(local_histogram)
             log.info(
@@ -463,12 +464,16 @@ class DistributedRandomForest:
             Whether the global model is shared among all ranks (True) or not (False). Default is False.
         """
         # compute predictions on local and global model
+        log.info("Get local predictions")
         local_predictions = self.predict_local(samples)
+        log.info("Get global predictions")
         global_predictions = self.predict(samples)
 
         # compute local and global accuracy and confusion matrices
+        log.info("Compute local accuracy")
         self.acc_local = (targets == local_predictions).mean()
 
+        log.info("Build confusion matrices")
         self.confusion_matrix_local = sklearn.metrics.confusion_matrix(
             targets, local_predictions
         )
@@ -476,6 +481,7 @@ class DistributedRandomForest:
             targets, global_predictions
         )
 
+        log.info("Compute global accuracy")
         if shared_global_model:
             # with a shared global model, we can additionally compute the accuracy over potentially differing local data
             # count the number of samples and correct predictions of the global (shared) model on the local data
