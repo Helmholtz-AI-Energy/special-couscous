@@ -156,7 +156,6 @@ def test_accuracy_score_vs_evaluate(
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("shared_global_model", [True, False])
-@pytest.mark.skip
 def test_serial_vs_parallel_prediction(
     shared_global_model: bool,
     synthetic_dataset: tuple[SyntheticDataset, SyntheticDataset],

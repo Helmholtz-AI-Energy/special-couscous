@@ -397,8 +397,16 @@ class DistributedRandomForest:
 
         # All-gather first `n_trees_base` local trees.
         for t in range(self.n_trees_base):  # Loop over local trees.
-            total_message_size += get_pickled_size(self.local_clf.estimators_[t])
-            trees.append(self.comm.allgather(self.local_clf.estimators_[t]))
+            pickled_size = get_pickled_size(self.local_clf.estimators_[t])
+            total_message_size += pickled_size
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}] sending tree {t}/{self.n_trees_base}. {pickled_size=}."
+            )
+            _trees = self.comm.allgather(self.local_clf.estimators_[t])
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}] done all-gathering step {t}/{self.n_trees_base}."
+            )
+            trees.append(_trees)
 
         log.info(
             f"[{self.comm.rank}/{self.comm.size}] Broadcasting remainder trees with {self.n_trees_remainder}"
