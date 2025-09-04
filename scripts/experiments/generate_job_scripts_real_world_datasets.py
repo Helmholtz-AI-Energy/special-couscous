@@ -21,9 +21,9 @@ BASE_N_TREES = {
         "inference": [100],
     },
     "higgs": {
-        "strong": [100, 1000],
-        "weak": [100, 500],
-        "inference": [100],
+        "strong": [640],
+        "weak": [10],
+        "inference": [10],
     },
 }
 
@@ -33,9 +33,8 @@ SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TOD
     ("cover_type", 1000): 10,
     ("cover_type", 500): 5,
     ("cover_type", 100): 2,
-    ("higgs", 1000): 15,
-    ("higgs", 500): 10,
-    ("higgs", 100): 5,
+    ("higgs", 640): 30,
+    ("higgs", 10): 5,
 }
 
 OVERESTIMATION_FACTOR = 2  # overestimate time limit by how much from expected time
