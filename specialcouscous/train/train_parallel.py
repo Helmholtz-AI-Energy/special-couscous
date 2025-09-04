@@ -1392,7 +1392,7 @@ def store_accuracy(
     local_results: dict[str, Any],
 ) -> None:
     """
-    Store global and local accuracy information.
+    Store global and local accuracy and AUC information.
 
     Parameters
     ----------
@@ -1408,6 +1408,8 @@ def store_accuracy(
     global_results[f"accuracy_global_{label}"] = model.acc_global
     local_results[f"accuracy_global_local_{label}"] = model.acc_global_local
     local_results[f"accuracy_local_{label}"] = model.acc_local
+    global_results[f"auc_global_{label}"] = model.auc_global
+    local_results[f"auc_local_{label}"] = model.auc_local
 
 
 def get_output_path(

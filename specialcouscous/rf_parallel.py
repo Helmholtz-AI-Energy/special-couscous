@@ -143,6 +143,9 @@ class DistributedRandomForest:
         )  # Accuracy of rank-local classifier on local evaluation dataset
         # Only relevant for private test set + global model: Accuracy of global classifier on local evaluation dataset
         self.acc_global_local: float = np.nan
+        # AUC score of global and local classifiers for binary classification tasks
+        self.auc_local = np.nan
+        self.auc_global = np.nan
 
     def _distribute_trees(self) -> tuple[int, int, int]:
         """
@@ -508,6 +511,23 @@ class DistributedRandomForest:
         # compute predictions on local and global model
         local_predictions = self.predict_local(samples, n_classes)
         global_predictions = self.predict(samples, n_classes)
+
+        def compute_auc(targets: np.ndarray, histogram: np.ndarray) -> float:
+            predicted_probabilities = histogram / histogram.sum(axis=1)[0]
+            return float(
+                sklearn.metrics.roc_auc_score(targets, predicted_probabilities[:, 1])
+            )
+
+        if n_classes == 2:
+            self.auc_local = compute_auc(
+                targets, self.predict_local_histogram(samples, n_classes)
+            )
+            self.auc_global = compute_auc(
+                targets, self.predict_global_histogram(samples, n_classes)
+            )
+            log.info(
+                f"[{self.comm.rank}/{self.comm.size}]: {self.auc_local=}, {self.auc_global=}"
+            )
 
         # compute local and global accuracy and confusion matrices
         self.acc_local = (targets == local_predictions).mean()
