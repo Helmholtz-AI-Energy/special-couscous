@@ -4,7 +4,9 @@ import os
 import pathlib
 import re
 
+import numpy as np
 import pandas as pd
+import scipy
 
 from specialcouscous.utils import set_logger_config
 from specialcouscous.utils.slurm import time_to_seconds
@@ -55,7 +57,7 @@ def extract_info_from_path(path, updated_path_names=False):
     parts = str(path).split(os.sep)
     log.debug(parts)
     if updated_path_names:
-        print(f"{parts[-2]=}, {parts[-1]=}")
+        log.debug(f"{parts[-2]=}, {parts[-1]=}")
         number_of_tasks = int(parts[-2].split("_")[2])
         model_seed = int(parts[-1].split("_")[1])  # Extract model seed from path.
     else:
@@ -161,6 +163,7 @@ def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=F
     mean_local_accuracies = results_df.groupby(key_columns, dropna=False).agg(aggregations).reset_index()
     mean_local_accuracies.rename(columns=lambda column: column.replace('local', 'mean_local'), inplace=True)
     results_df = pd.merge(results_df, mean_local_accuracies, on=key_columns)
+    results_df['trees_per_node'] = results_df.n_trees / results_df.n_nodes
 
     # Add serial runtimes and speedup/efficiency
     if scaling_type is not None:
@@ -178,7 +181,7 @@ def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=F
 def add_speedup_efficiency(results_df, scaling_type):
     # Add serial runtimes (by model seed)
     time_columns = [column for column in results_df.columns if "time" in column]
-    key_columns = ['dataset']
+    key_columns = ['dataset', 'trees_per_node' if scaling_type == 'weak' else 'n_trees']
     if len(results_df[results_df.n_nodes == 1].model_seed.unique()) > 1:
         key_columns += ['model_seed']
 
@@ -216,15 +219,19 @@ def aggregate_by_seeds(dataframe, compute_std_for=None):
     compute_std_for = value_columns if compute_std_for == "all" else compute_std_for
     compute_std_for = compute_std_for or []
 
+    def mean_confidence_interval(data, confidence=0.95):
+        return scipy.stats.sem(data) * scipy.stats.t.ppf((1 + confidence) / 2., len(data) - 1)
+
     mean_aggregations = {f"{column}_mean": (column, "mean") for column in value_columns}
     std_aggregations = {f"{column}_std": (column, "std") for column in compute_std_for}
-    aggregations = {**mean_aggregations, **std_aggregations}
+    ci_aggregations = {f"{column}_ci95": (column, mean_confidence_interval) for column in compute_std_for}
+    aggregations = {**mean_aggregations, **std_aggregations, **ci_aggregations}
 
     return dataframe.groupby(key_columns, dropna=False).agg(**aggregations).reset_index()
 
 
 if __name__ == "__main__":
-    set_logger_config(level=logging.DEBUG)
+    set_logger_config(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir')
