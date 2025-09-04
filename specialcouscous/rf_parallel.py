@@ -309,12 +309,12 @@ class DistributedRandomForest:
         else:  # otherwise, aggregate the local predictions across ranks via all reduce
             local_histogram = self.predict_local_histogram(samples, n_classes)
             global_histogram = np.zeros_like(local_histogram)
-            log.info(
+            log.debug(
                 f"[{self.comm.rank}/{self.comm.size}]: before all-reduce {local_histogram.shape=}"
             )
             self.comm.Allreduce(local_histogram, global_histogram)
             message_size = get_pickled_size(local_histogram)
-            log.info(
+            log.debug(
                 f"All-reduce histogram: total message size send from rank {self.comm.rank} is {message_size} bytes"
                 f"({message_size / len(samples)} bytes per sample at {len(samples)} samples)."
             )
@@ -391,7 +391,7 @@ class DistributedRandomForest:
         rank = self.comm.rank
         trees = []
         total_message_size = 0
-        log.info(
+        log.debug(
             f"[{self.comm.rank}/{self.comm.size}] All-gathering subforests with {self.n_trees_base=}"
         )
 
@@ -399,16 +399,16 @@ class DistributedRandomForest:
         for t in range(self.n_trees_base):  # Loop over local trees.
             pickled_size = get_pickled_size(self.local_clf.estimators_[t])
             total_message_size += pickled_size
-            log.info(
+            log.debug(
                 f"[{self.comm.rank}/{self.comm.size}] sending tree {t}/{self.n_trees_base}. {pickled_size=}."
             )
             _trees = self.comm.allgather(self.local_clf.estimators_[t])
-            log.info(
+            log.debug(
                 f"[{self.comm.rank}/{self.comm.size}] done all-gathering step {t}/{self.n_trees_base}."
             )
             trees.append(_trees)
 
-        log.info(
+        log.debug(
             f"[{self.comm.rank}/{self.comm.size}] Broadcasting remainder trees with {self.n_trees_remainder}"
         )
         # Broadcast remainder trees.
@@ -420,7 +420,7 @@ class DistributedRandomForest:
                 )
                 trees.append([self.comm.bcast(tree_temp, root=r)])
 
-        log.info(
+        log.debug(
             f"All-gather subforests: total message size send from {rank=} is {total_message_size} bytes."
         )
         return [tree for sublist in trees for tree in sublist]
