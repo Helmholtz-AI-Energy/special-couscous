@@ -8,6 +8,7 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas
+import sklearn
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
@@ -186,6 +187,12 @@ def train_serial_on_dataset(
 
     # Calculate confusion matrix + accuracy.
     global_results["accuracy_test"] = clf.score(test_data.x, test_data.y)
+
+    if data.n_classes == 2:
+        prediction_scores = clf.predict_proba(test_data.x)[1]
+        global_results["auc_test"] = float(
+            sklearn.metrics.roc_auc_score(test_data.y, prediction_scores)
+        )
     confusion_matrix_test = get_confusion_matrix_serial(
         classifier=clf,
         samples=test_data.x,
@@ -198,6 +205,11 @@ def train_serial_on_dataset(
 
     if detailed_evaluation:  # Additionally evaluate on training set.
         global_results["accuracy_train"] = clf.score(train_data.x, train_data.y)
+        if data.n_classes == 2:
+            prediction_scores = clf.predict_proba(train_data.x)[1]
+            global_results["auc_train"] = float(
+                sklearn.metrics.roc_auc_score(train_data.y, prediction_scores)
+            )
         confusion_matrix_train = get_confusion_matrix_serial(
             classifier=clf,
             samples=train_data.x,
@@ -362,6 +374,11 @@ def train_serial_on_synthetic_data(
 
     # Calculate confusion matrix + accuracy.
     global_results["accuracy_test"] = clf.score(test_data.x, test_data.y)
+    if n_classes == 2:
+        prediction_scores = clf.predict_proba(test_data.x)[1]
+        global_results["auc_test"] = float(
+            sklearn.metrics.roc_auc_score(test_data.y, prediction_scores)
+        )
     confusion_matrix_test = get_confusion_matrix_serial(
         classifier=clf,
         samples=test_data.x,
@@ -374,6 +391,11 @@ def train_serial_on_synthetic_data(
 
     if detailed_evaluation:  # Additionally evaluate on training set.
         global_results["accuracy_train"] = clf.score(train_data.x, train_data.y)
+        if n_classes == 2:
+            prediction_scores = clf.predict_proba(train_data.x)[1]
+            global_results["auc_train"] = float(
+                sklearn.metrics.roc_auc_score(train_data.y, prediction_scores)
+            )
         confusion_matrix_train = get_confusion_matrix_serial(
             classifier=clf,
             samples=train_data.x,
