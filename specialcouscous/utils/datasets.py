@@ -114,6 +114,98 @@ class SUSYDataset:
         log.debug("Unpacking done.")
 
 
+class HIGGSDataset:
+    """
+    The HIGGS binary classification dataset from the UCI machine learning repository.
+
+    This class handles downloading the data, reading the data, splitting it into both features and targets and train and
+    test set, and optional feature normalization.
+    """
+
+    URL = "https://archive.ics.uci.edu/static/public/280/higgs.zip"
+
+    def __init__(
+        self,
+        data_dir: pathlib.Path | str,
+        split_seed: int | np.random.RandomState = 0,
+        train_split: float = 0.75,
+        stratified_train_test: bool = False,
+        use_original_test_split: bool = False,
+        with_high_level_features: bool = False,
+        **_: Any,
+    ):
+        """
+        Initialize the HIGGS dataset.
+
+        If necessary, download the raw data from the UCI machine learning repository. Load the raw data from csv and
+        split into features and target variables and train and test samples.
+
+        Parameters
+        ----------
+        data_dir : pathlib.Path | str
+            Base directory containing the SUSY.csv. When downloading, the results are written to this directory.
+        split_seed : int | np.random.RandomState
+            Random seed used for the train test split.
+        train_split : float
+            Relative size of the train set.
+        stratified_train_test : bool
+            Whether to stratify the train-test split with the class labels.
+        use_original_test_split : bool
+            When set to true, use the original train-test-split (last 500K samples as test set) instead.
+        with_high_level_features : bool
+            When true, include the 7 handcrafted high-level features (m_jj, m_jjj, m_lv, m_jlv, m_bb, m_wbb, m_wwbb).
+        """
+        self.n_classes = 2
+        self.classes = [0, 1]
+        self.data_dir = pathlib.Path(data_dir)
+        self.raw_data_path = pathlib.Path(data_dir) / "HIGGS.csv"
+        if not self.raw_data_path.exists():
+            self.download()
+
+        self._raw_data = pandas.read_csv(self.raw_data_path).values
+        self.x = self._raw_data[:, 1 : None if with_high_level_features else -7].astype(
+            np.float32
+        )
+        self.y = self._raw_data[:, 0].astype(np.int32)
+
+        if use_original_test_split:
+            test_cut_off = -500000
+            self.x_train = self.x[:test_cut_off]
+            self.y_train = self.y[:test_cut_off]
+            self.x_test = self.x[test_cut_off:]
+            self.y_test = self.y[test_cut_off:]
+        else:
+            self.x_train, self.x_test, self.y_train, self.y_test = train_test_split(
+                self.x,
+                self.y,
+                test_size=1 - train_split,
+                stratify=self.y if stratified_train_test else None,
+                random_state=split_seed,
+            )
+
+    def download(self) -> None:
+        """Download the higgs.zip and unpack the HIGGS.csv raw data into the data directory."""
+        log.info(f"Downloading HIGGS dataset from {self.URL}.")
+        # download data from URL and extract to self.raw_data_path
+        http_response = urllib.request.urlopen(self.URL)
+
+        self.data_dir.mkdir(exist_ok=True, parents=True)
+        zip_file_path = self.data_dir / "higgs.zip"
+        gz_file_path = self.data_dir / "HIGGS.csv.gz"
+
+        with open(zip_file_path, "wb") as zip_file:
+            zip_file.write(http_response.read())
+        log.debug("Download done, unpacking.")
+
+        with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+            zip_ref.extractall(self.data_dir)
+
+        with gzip.open(gz_file_path, "rb") as gz_file:
+            with open(self.raw_data_path, "wb") as out_file:
+                shutil.copyfileobj(gz_file, out_file)
+        log.debug("Unpacking done.")
+
+
 class CoverTypeDataset:
     """
     The CoverType classification dataset from the UCI machine learning repository.
@@ -193,7 +285,7 @@ class CoverTypeDataset:
         log.debug("Unpacking done.")
 
 
-DATASETS = {"susy": SUSYDataset, "cover_type": CoverTypeDataset}
+DATASETS = {"susy": SUSYDataset, "cover_type": CoverTypeDataset, "higgs": HIGGSDataset}
 
 
 def get_dataset(dataset_name: str, *args: Any, **kwargs: Any) -> Any:

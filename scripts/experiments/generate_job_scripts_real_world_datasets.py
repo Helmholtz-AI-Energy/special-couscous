@@ -20,6 +20,11 @@ BASE_N_TREES = {
         "weak": [100, 500],
         "inference": [100],
     },
+    "higgs": {
+        "strong": [100, 1000],
+        "weak": [100, 500],
+        "inference": [100],
+    },
 }
 
 SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TODO: update with actual values
@@ -28,6 +33,9 @@ SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TOD
     ("cover_type", 1000): 10,
     ("cover_type", 500): 5,
     ("cover_type", 100): 2,
+    ("higgs", 1000): 15,
+    ("higgs", 500): 10,
+    ("higgs", 100): 5,
 }
 
 OVERESTIMATION_FACTOR = 2  # overestimate time limit by how much from expected time
@@ -271,7 +279,7 @@ if __name__ == "__main__":
         base_job_script_path,
     ]
 
-    for dataset in ["susy", "cover_type"]:
+    for dataset in ["susy", "cover_type", "higgs"]:
         generate_serial_job_scripts(dataset, *args[:3], *args[4:])
         generate_strong_scaling_job_scripts(dataset, *args)
         generate_weak_scaling_job_scripts(dataset, *args)
