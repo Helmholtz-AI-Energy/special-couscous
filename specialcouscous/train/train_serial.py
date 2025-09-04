@@ -189,7 +189,7 @@ def train_serial_on_dataset(
     global_results["accuracy_test"] = clf.score(test_data.x, test_data.y)
 
     if data.n_classes == 2:
-        prediction_scores = clf.predict_proba(test_data.x)[1]
+        prediction_scores = clf.predict_proba(test_data.x)[:, 1]
         global_results["auc_test"] = float(
             sklearn.metrics.roc_auc_score(test_data.y, prediction_scores)
         )
@@ -206,7 +206,7 @@ def train_serial_on_dataset(
     if detailed_evaluation:  # Additionally evaluate on training set.
         global_results["accuracy_train"] = clf.score(train_data.x, train_data.y)
         if data.n_classes == 2:
-            prediction_scores = clf.predict_proba(train_data.x)[1]
+            prediction_scores = clf.predict_proba(train_data.x)[:, 1]
             global_results["auc_train"] = float(
                 sklearn.metrics.roc_auc_score(train_data.y, prediction_scores)
             )
@@ -222,6 +222,9 @@ def train_serial_on_dataset(
     log.info(
         f"Training time is {global_results['time_sec_training']} s.\n"
         f"Test accuracy is {global_results['accuracy_test']}."
+        f"Test AUC is {global_results['auc_test']}"
+        if data.n_classes == 2
+        else ""
     )
     results_df = pandas.DataFrame([global_results])
 
@@ -375,7 +378,7 @@ def train_serial_on_synthetic_data(
     # Calculate confusion matrix + accuracy.
     global_results["accuracy_test"] = clf.score(test_data.x, test_data.y)
     if n_classes == 2:
-        prediction_scores = clf.predict_proba(test_data.x)[1]
+        prediction_scores = clf.predict_proba(test_data.x)[:, 1]
         global_results["auc_test"] = float(
             sklearn.metrics.roc_auc_score(test_data.y, prediction_scores)
         )
@@ -392,7 +395,7 @@ def train_serial_on_synthetic_data(
     if detailed_evaluation:  # Additionally evaluate on training set.
         global_results["accuracy_train"] = clf.score(train_data.x, train_data.y)
         if n_classes == 2:
-            prediction_scores = clf.predict_proba(train_data.x)[1]
+            prediction_scores = clf.predict_proba(train_data.x)[:, 1]
             global_results["auc_train"] = float(
                 sklearn.metrics.roc_auc_score(train_data.y, prediction_scores)
             )
@@ -408,6 +411,9 @@ def train_serial_on_synthetic_data(
     log.info(
         f"Training time is {global_results['time_sec_training']} s.\n"
         f"Test accuracy is {global_results['accuracy_test']}."
+        f"Test AUC is {global_results['auc_test']}"
+        if n_classes == 2
+        else ""
     )
     results_df = pandas.DataFrame([global_results])
 
