@@ -132,6 +132,7 @@ class HIGGSDataset:
         stratified_train_test: bool = False,
         use_original_test_split: bool = False,
         with_high_level_features: bool = False,
+        subset: int | None = None,
         **_: Any,
     ):
         """
@@ -154,6 +155,8 @@ class HIGGSDataset:
             When set to true, use the original train-test-split (last 500K samples as test set) instead.
         with_high_level_features : bool
             When true, include the 7 handcrafted high-level features (m_jj, m_jjj, m_lv, m_jlv, m_bb, m_wbb, m_wwbb).
+        subset : int | None
+            When given, use only the first subset samples of the dataset.
         """
         self.n_classes = 2
         self.classes = [0, 1]
@@ -162,11 +165,20 @@ class HIGGSDataset:
         if not self.raw_data_path.exists():
             self.download()
 
-        self._raw_data = pandas.read_csv(self.raw_data_path).values
-        self.x = self._raw_data[:, 1 : None if with_high_level_features else -7].astype(
-            np.float32
-        )
+        self._raw_data = pandas.read_csv(self.raw_data_path, nrows=subset).values[
+            :subset
+        ]
+        self.x = self._raw_data[
+            :, 1 : (None if with_high_level_features else -7)
+        ].astype(np.float32)
         self.y = self._raw_data[:, 0].astype(np.int32)
+
+        classes, frequency = np.unique(self.y, return_counts=True)
+        frequency = frequency / len(self.y)
+        log.info(
+            f"HIGGS dataset. Features {self.x.shape}, targets {self.y}, "
+            f"class balance {dict(zip(classes.tolist(), frequency.tolist()))}."
+        )
 
         if use_original_test_split:
             test_cut_off = -500000
