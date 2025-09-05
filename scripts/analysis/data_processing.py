@@ -47,6 +47,14 @@ def read_dataframe(path):
         dataframe["accuracy_global_train"] = dataframe["accuracy_train"]
         dataframe["accuracy_local_train"] = dataframe["accuracy_train"]
         del dataframe["accuracy_train"]
+        if "auc_test" in dataframe:
+            dataframe["auc_global_test"] = dataframe["auc_test"]
+            dataframe["auc_local_test"] = dataframe["auc_test"]
+            del dataframe["auc_test"]
+        if "auc_train" in dataframe:
+            dataframe["auc_global_train"] = dataframe["auc_train"]
+            dataframe["auc_local_train"] = dataframe["auc_train"]
+            del dataframe["auc_train"]
 
     return dataframe
 
@@ -156,7 +164,7 @@ def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=F
     results_df = pd.concat(dataframes)
 
     # Add mean local accuracies to global rank
-    local_accuracies = [column for column in results_df.columns if re.match(r'accuracy_.*local.*', column)]
+    local_accuracies = [column for column in results_df.columns if re.match(r'(accuracy|auc)_.*local.*', column)]
     aggregations = {column: "mean" for column in local_accuracies}
     key_columns = {'dataset', 'model_seed', 'n_nodes', 'mu_partition', 'mu_data'}
     key_columns = list(key_columns.intersection(set(results_df.columns)))
