@@ -21,7 +21,7 @@ BASE_N_TREES = {
         "inference": [100],
     },
     "higgs": {
-        "strong": [640],
+        "strong": [base * 64 for base in [10, 20, 40]],
         "weak": [10],
         "inference": [10],
     },
@@ -34,6 +34,8 @@ SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TOD
     ("cover_type", 500): 5,
     ("cover_type", 100): 2,
     ("higgs", 640): 30,
+    ("higgs", 1280): 60,
+    ("higgs", 2560): 120,
     ("higgs", 10): 5,
 }
 
