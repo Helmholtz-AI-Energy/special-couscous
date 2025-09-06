@@ -21,11 +21,37 @@ BASE_N_TREES = {
         "inference": [100],
     },
     "higgs": {
-        "strong": [base * 64 for base in [10, 20, 40]],
+        "strong": [base * 64 for base in [5, 10, 20, 40, 80]],
         "weak": [10],
         "inference": [10],
     },
 }
+
+
+def get_higgs_memory_config(trees_per_node: int) -> dict[str, str]:
+    """
+    Get config to increase requested memory for large HIGGS runs.
+
+    Requests 512 GB nodes for >1k trees and 4096 GB nodes for >3k trees. Cutoffs are rough estimates.
+
+    Parameters
+    ----------
+    trees_per_node : int
+        The number of trees per node.
+
+    Returns
+    -------
+    dict[str, str]
+        The slurm memory config as dict with (optional) keys and values to overwrite mem and partition.
+    """
+    config = {}
+    if trees_per_node > 1000:
+        config["partition"] = "large"
+        config["mem"] = "497500mb"
+    if trees_per_node > 3000:
+        config["mem"] = "497500mb"
+    return config
+
 
 SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TODO: update with actual values
     ("susy", 1000): 30,
@@ -33,9 +59,11 @@ SERIAL_BASELINE_TIMES = {  # (dataset, n_trees) -> serial runtime in minutes TOD
     ("cover_type", 1000): 10,
     ("cover_type", 500): 5,
     ("cover_type", 100): 2,
+    ("higgs", 320): 15,
     ("higgs", 640): 30,
     ("higgs", 1280): 60,
     ("higgs", 2560): 120,
+    ("higgs", 5120): 240,
     ("higgs", 10): 5,
 }
 
@@ -132,7 +160,9 @@ def generate_serial_job_scripts(
             "result_dir": result_base_dir / label,
             "script": "rf_serial_on_dataset.py",
         }
-        config = {**global_config, **run_specific_configs}
+        mem_config = get_higgs_memory_config(n_trees) if dataset == "higgs" else {}
+
+        config = {**global_config, **run_specific_configs, **mem_config}
         generate_job_script(
             base_job_script_path / f"{label}.sh", config, SCRIPT_TEMPLATE
         )
@@ -188,7 +218,8 @@ def generate_strong_scaling_job_scripts(
             "n_nodes": comm_size,
             "result_dir": result_base_dir / label,
         }
-        config = {**global_config, **run_specific_configs}
+        mem_config = get_higgs_memory_config(n_trees // comm_size) if "higgs" else {}
+        config = {**global_config, **run_specific_configs, **mem_config}
         generate_job_script(
             base_job_script_path / f"{label}.sh", config, SCRIPT_TEMPLATE
         )
@@ -240,7 +271,8 @@ def generate_weak_scaling_job_scripts(
             "n_nodes": comm_size,
             "result_dir": result_base_dir / label,
         }
-        config = {**global_config, **run_specific_configs}
+        mem_config = get_higgs_memory_config(n_trees_local) if "higgs" else {}
+        config = {**global_config, **run_specific_configs, **mem_config}
         generate_job_script(
             base_job_script_path / f"{label}.sh", config, SCRIPT_TEMPLATE
         )
