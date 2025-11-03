@@ -1,11 +1,11 @@
 repos:
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1 # Use the sha / tag you want to point at
+    rev: v1.18.2 # Use the sha / tag you want to point at
     hooks:
       - id: mypy
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.9.2
+    rev: v0.14.3
     hooks:
       # Run the linter.
       - id: ruff
@@ -13,7 +13,7 @@ repos:
       # Run the formatter.
       - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
