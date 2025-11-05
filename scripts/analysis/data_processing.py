@@ -4,7 +4,6 @@ import os
 import pathlib
 import re
 
-import numpy as np
 import pandas as pd
 import scipy
 
@@ -36,10 +35,12 @@ def convert_to_gb(memory_value: str, unit: str) -> float:
 
 
 def read_dataframe(path):
-    log.debug(f'Parsing result csv: {path}')
+    log.debug(f"Parsing result csv: {path}")
     dataframe = pd.read_csv(path)
 
-    if "accuracy_global_test" not in dataframe.columns:  # Serial run, slightly different data layout
+    if (
+        "accuracy_global_test" not in dataframe.columns
+    ):  # Serial run, slightly different data layout
         # global and local accuracies are the same, rename columns to match parallel results
         dataframe["accuracy_global_test"] = dataframe["accuracy_test"]
         dataframe["accuracy_local_test"] = dataframe["accuracy_test"]
@@ -60,7 +61,7 @@ def read_dataframe(path):
 
 
 def extract_info_from_path(path, updated_path_names=False):
-    log.debug(f'Extracting info from {path}')
+    log.debug(f"Extracting info from {path}")
     # Extract relevant information from the path.
     parts = str(path).split(os.sep)
     log.debug(parts)
@@ -95,7 +96,7 @@ def extract_accuracies_from_csv(path):
 
 
 def parse_log_file(path):
-    log.debug(f'Parsing log file: {path}')
+    log.debug(f"Parsing log file: {path}")
     with open(path, "r") as file:  # Load input text from the file.
         input_text = file.read()
 
@@ -117,25 +118,46 @@ def parse_log_file(path):
     unit = memory_match.group(2)  # type:ignore
     memory_in_gb = convert_to_gb(memory_utilized, unit)
 
-    return {'wall_clock_time_sec': wall_clock_time, 'energy_consumed_watthours': energy_consumed,
-            'memory_gb': memory_in_gb, 'avg_node_power_draw_watt': avg_node_power_draw}
+    return {
+        "wall_clock_time_sec": wall_clock_time,
+        "energy_consumed_watthours": energy_consumed,
+        "memory_gb": memory_in_gb,
+        "avg_node_power_draw_watt": avg_node_power_draw,
+    }
 
 
 def process_run_dir(path, dataset_label, updated_path_names=False):
-    log.debug(f'Parsing dir {path}')
-    number_of_tasks, model_seed = extract_info_from_path(path, updated_path_names=updated_path_names)
-    csv_files = list(path.glob('*_results.csv'))
-    log_files = list(path.glob('slurm*.out'))
+    log.debug(f"Parsing dir {path}")
+    number_of_tasks, model_seed = extract_info_from_path(
+        path, updated_path_names=updated_path_names
+    )
+    csv_files = list(path.glob("*_results.csv"))
+    log_files = list(path.glob("slurm*.out"))
     if not (len(csv_files) == 1 and len(log_files) == 1):
-        log.warning(f'Found {len(csv_files)} csv files and {len(log_files)} log files '
-                    f'in {path} instead of the expected one per type. Skipping directory.')
+        log.warning(
+            f"Found {len(csv_files)} csv files and {len(log_files)} log files "
+            f"in {path} instead of the expected one per type. Skipping directory."
+        )
         return
 
     dataframe = read_dataframe(csv_files[0])
     parsed_from_log_file = parse_log_file(log_files[0])
-    parsed_from_log_file['exp_node_power_draw'] = parsed_from_log_file['energy_consumed_watthours'] / (parsed_from_log_file['wall_clock_time_sec'] / 3600) / number_of_tasks
-    run_key = ' '.join([path.parents[1].name, f"{number_of_tasks:2d}", str(model_seed), log_files[0].stem])
-    parsed_values = ', '.join([f'{key}: {value:>10.2f}' for key, value in parsed_from_log_file.items()])
+    parsed_from_log_file["exp_node_power_draw"] = (
+        parsed_from_log_file["energy_consumed_watthours"]
+        / (parsed_from_log_file["wall_clock_time_sec"] / 3600)
+        / number_of_tasks
+    )
+    run_key = " ".join(
+        [
+            path.parents[1].name,
+            f"{number_of_tasks:2d}",
+            str(model_seed),
+            log_files[0].stem,
+        ]
+    )
+    parsed_values = ", ".join(
+        [f"{key}: {value:>10.2f}" for key, value in parsed_from_log_file.items()]
+    )
     log.info(f"Run {run_key}: {parsed_values}")
 
     dataframe["n_nodes"] = number_of_tasks
@@ -149,7 +171,7 @@ def process_run_dir(path, dataset_label, updated_path_names=False):
     return dataframe
 
 
-def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=False):
+def process_experiment_dir(root_dir, scaling_type="strong", updated_path_names=False):
     root_dir = pathlib.Path(root_dir)
     dataset_label = root_dir.name
 
@@ -160,18 +182,30 @@ def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=F
     for log_file in root_dir.glob("**/slurm*.out"):
         run_dir = log_file.parent
         log.debug(f"Currently parsing: {run_dir}")
-        dataframes.append(process_run_dir(run_dir, dataset_label, updated_path_names=updated_path_names))
+        dataframes.append(
+            process_run_dir(
+                run_dir, dataset_label, updated_path_names=updated_path_names
+            )
+        )
     results_df = pd.concat(dataframes)
 
     # Add mean local accuracies to global rank
-    local_accuracies = [column for column in results_df.columns if re.match(r'(accuracy|auc)_.*local.*', column)]
+    local_accuracies = [
+        column
+        for column in results_df.columns
+        if re.match(r"(accuracy|auc)_.*local.*", column)
+    ]
     aggregations = {column: "mean" for column in local_accuracies}
-    key_columns = {'dataset', 'model_seed', 'n_nodes', 'mu_partition', 'mu_data'}
+    key_columns = {"dataset", "model_seed", "n_nodes", "mu_partition", "mu_data"}
     key_columns = list(key_columns.intersection(set(results_df.columns)))
-    mean_local_accuracies = results_df.groupby(key_columns, dropna=False).agg(aggregations).reset_index()
-    mean_local_accuracies.rename(columns=lambda column: column.replace('local', 'mean_local'), inplace=True)
+    mean_local_accuracies = (
+        results_df.groupby(key_columns, dropna=False).agg(aggregations).reset_index()
+    )
+    mean_local_accuracies.rename(
+        columns=lambda column: column.replace("local", "mean_local"), inplace=True
+    )
     results_df = pd.merge(results_df, mean_local_accuracies, on=key_columns)
-    results_df['trees_per_node'] = results_df.n_trees / results_df.n_nodes
+    results_df["trees_per_node"] = results_df.n_trees / results_df.n_nodes
 
     # Add serial runtimes and speedup/efficiency
     if scaling_type is not None:
@@ -181,7 +215,9 @@ def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=F
 
     results_df.comm_size = results_df.comm_size.astype(int)
 
-    results_df = results_df.sort_values(by=["dataset", "comm_size", "model_seed", "comm_rank"])
+    results_df = results_df.sort_values(
+        by=["dataset", "comm_size", "model_seed", "comm_rank"]
+    )
 
     return results_df
 
@@ -189,91 +225,169 @@ def process_experiment_dir(root_dir, scaling_type='strong', updated_path_names=F
 def add_speedup_efficiency(results_df, scaling_type):
     # Add serial runtimes (by model seed)
     time_columns = [column for column in results_df.columns if "time" in column]
-    key_columns = ['dataset', 'trees_per_node' if scaling_type == 'weak' else 'n_trees']
+    key_columns = ["dataset", "trees_per_node" if scaling_type == "weak" else "n_trees"]
     if len(results_df[results_df.n_nodes == 1].model_seed.unique()) > 1:
-        key_columns += ['model_seed']
+        key_columns += ["model_seed"]
 
     serial_times = results_df[results_df.n_nodes == 1][key_columns + time_columns]
-    results_df = pd.merge(results_df, serial_times, on=key_columns, suffixes=('', '_serial'))
+    results_df = pd.merge(
+        results_df, serial_times, on=key_columns, suffixes=("", "_serial")
+    )
 
     # Add speedup/efficiency (by model seed)
     for parallel_column in time_columns:
-        serial_column = parallel_column + '_serial'
-        label = 'efficiency' if scaling_type == 'weak' else 'speedup'
-        new_col_name = parallel_column.replace('time_sec', label).replace('time', label)
-        log.debug(f'Adding column {new_col_name}')
+        serial_column = parallel_column + "_serial"
+        label = "efficiency" if scaling_type == "weak" else "speedup"
+        new_col_name = parallel_column.replace("time_sec", label).replace("time", label)
+        log.debug(f"Adding column {new_col_name}")
         assert new_col_name not in results_df.columns
-        results_df[new_col_name] = results_df[serial_column] / results_df[parallel_column]
+        results_df[new_col_name] = (
+            results_df[serial_column] / results_df[parallel_column]
+        )
     return results_df
 
 
 def aggregate_by_seeds(dataframe, compute_std_for=None):
     # key columns used as keys for aggregation
-    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'train_split', 'n_trees', 'comm_size',
-                   'n_nodes', 'dataset', 'shared_global_model']
-    log.info('The following key columns are not in the dataframe, removing them from key columns: '
-             f'{list(set(key_columns) - set(dataframe.columns))}')
+    key_columns = [
+        "comm_rank",
+        "n_samples",
+        "n_features",
+        "n_classes",
+        "train_split",
+        "n_trees",
+        "comm_size",
+        "n_nodes",
+        "dataset",
+        "shared_global_model",
+    ]
+    log.info(
+        "The following key columns are not in the dataframe, removing them from key columns: "
+        f"{list(set(key_columns) - set(dataframe.columns))}"
+    )
     key_columns = [col for col in key_columns if col in dataframe.columns]
     # seed/run specific columns, ignored for aggregated dataframe
-    seed_specific_columns = ['job_id', 'random_state', 'random_state_model', 'output_label', 'experiment_id',
-                             'result_filename', 'model_seed', 'checkpoint_path', 'checkpoint_uid',
-                             'n_clusters_per_class', 'frac_informative', 'frac_redundant',
-                             'save_model', 'detailed_evaluation', 'data_dir', 'stratified_train_test']
+    seed_specific_columns = [
+        "job_id",
+        "random_state",
+        "random_state_model",
+        "output_label",
+        "experiment_id",
+        "result_filename",
+        "model_seed",
+        "checkpoint_path",
+        "checkpoint_uid",
+        "n_clusters_per_class",
+        "frac_informative",
+        "frac_redundant",
+        "save_model",
+        "detailed_evaluation",
+        "data_dir",
+        "stratified_train_test",
+    ]
 
     # all remaining columns are aggregated
-    value_columns = [column for column in dataframe.columns if column not in key_columns + seed_specific_columns]
-    log.debug(f'Value columns for aggregation are: {value_columns}')
+    value_columns = [
+        column
+        for column in dataframe.columns
+        if column not in key_columns + seed_specific_columns
+    ]
+    log.debug(f"Value columns for aggregation are: {value_columns}")
 
     compute_std_for = value_columns if compute_std_for == "all" else compute_std_for
     compute_std_for = compute_std_for or []
 
     def mean_confidence_interval(data, confidence=0.95):
-        return scipy.stats.sem(data) * scipy.stats.t.ppf((1 + confidence) / 2., len(data) - 1)
+        return scipy.stats.sem(data) * scipy.stats.t.ppf(
+            (1 + confidence) / 2.0, len(data) - 1
+        )
 
     mean_aggregations = {f"{column}_mean": (column, "mean") for column in value_columns}
     std_aggregations = {f"{column}_std": (column, "std") for column in compute_std_for}
-    ci_aggregations = {f"{column}_ci95": (column, mean_confidence_interval) for column in compute_std_for}
+    ci_aggregations = {
+        f"{column}_ci95": (column, mean_confidence_interval)
+        for column in compute_std_for
+    }
     aggregations = {**mean_aggregations, **std_aggregations, **ci_aggregations}
 
-    return dataframe.groupby(key_columns, dropna=False).agg(**aggregations).reset_index()
+    return (
+        dataframe.groupby(key_columns, dropna=False).agg(**aggregations).reset_index()
+    )
 
 
 if __name__ == "__main__":
     set_logger_config(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir')
-    parser.add_argument('--scaling_type', type=str, choices=['strong', 'weak'])
-    parser.add_argument('--updated_path_names', action='store_true')
+    parser.add_argument("--data_dir")
+    parser.add_argument("--scaling_type", type=str, choices=["strong", "weak"])
+    parser.add_argument("--updated_path_names", action="store_true")
     args = parser.parse_args()
 
     root_dir = pathlib.Path(args.data_dir)
-    results_df = process_experiment_dir(root_dir, scaling_type=args.scaling_type, updated_path_names=args.updated_path_names)
+    results_df = process_experiment_dir(
+        root_dir,
+        scaling_type=args.scaling_type,
+        updated_path_names=args.updated_path_names,
+    )
 
-    results_df.to_csv(root_dir / 'results.csv', index=False)
-    log.info(f'Results written to {(root_dir / "results.csv").absolute()}')
+    results_df.to_csv(root_dir / "results.csv", index=False)
+    log.info(f"Results written to {(root_dir / 'results.csv').absolute()}")
 
-    aggregated_results = aggregate_by_seeds(results_df, 'all')
-    aggregated_results = aggregated_results.sort_values(by=["dataset", "comm_size", "comm_rank"])
-    print_columns = ['dataset', 'comm_size', 'comm_rank',
-                     'accuracy_global_test_mean', 'accuracy_mean_local_test_mean',
-                     'wall_clock_time_sec_mean', 'time_sec_training_mean']
-    if args.scaling_type == 'strong':
-        print_columns += ['wall_clock_speedup_mean', 'speedup_training_mean']
-    elif args.scaling_type == 'weak':
-        print_columns += ['wall_clock_efficiency_mean', 'efficiency_training_mean']
-    global_results = aggregated_results[aggregated_results.comm_rank == 'global']
-    print(global_results[[col for col in print_columns if col in global_results.columns]])
-    key_columns = ['comm_rank', 'n_samples', 'n_features', 'n_classes', 'n_trees', 'comm_size', 'n_nodes', 'dataset']
+    aggregated_results = aggregate_by_seeds(results_df, "all")
+    aggregated_results = aggregated_results.sort_values(
+        by=["dataset", "comm_size", "comm_rank"]
+    )
+    print_columns = [
+        "dataset",
+        "comm_size",
+        "comm_rank",
+        "accuracy_global_test_mean",
+        "accuracy_mean_local_test_mean",
+        "wall_clock_time_sec_mean",
+        "time_sec_training_mean",
+    ]
+    if args.scaling_type == "strong":
+        print_columns += ["wall_clock_speedup_mean", "speedup_training_mean"]
+    elif args.scaling_type == "weak":
+        print_columns += ["wall_clock_efficiency_mean", "efficiency_training_mean"]
+    global_results = aggregated_results[aggregated_results.comm_rank == "global"]
+    print(
+        global_results[[col for col in print_columns if col in global_results.columns]]
+    )
+    key_columns = [
+        "comm_rank",
+        "n_samples",
+        "n_features",
+        "n_classes",
+        "n_trees",
+        "comm_size",
+        "n_nodes",
+        "dataset",
+    ]
     key_columns = [col for col in key_columns if col in global_results.columns]
     print(global_results[key_columns])
-    aggregated_results.to_csv(root_dir / 'aggregated_results.csv', index=False)
-    log.info(f'Aggregated results written to {(root_dir / "aggregated_results.csv").absolute()}')
+    aggregated_results.to_csv(root_dir / "aggregated_results.csv", index=False)
+    log.info(
+        f"Aggregated results written to {(root_dir / 'aggregated_results.csv').absolute()}"
+    )
 
-    with pd.option_context('display.float_format', '{:0.2f}'.format):
-        print_columns = ['comm_size', 'model_seed', 'output_label', 'time_sec_training', 'wall_clock_time_sec', 'energy_consumed_watthours', 'avg_node_power_draw_watt', 'exp_node_power_draw']
-        print(results_df[results_df.comm_rank == 'global'][[col for col in print_columns if col in results_df.columns]])
+    with pd.option_context("display.float_format", "{:0.2f}".format):
+        print_columns = [
+            "comm_size",
+            "model_seed",
+            "output_label",
+            "time_sec_training",
+            "wall_clock_time_sec",
+            "energy_consumed_watthours",
+            "avg_node_power_draw_watt",
+            "exp_node_power_draw",
+        ]
+        print(
+            results_df[results_df.comm_rank == "global"][
+                [col for col in print_columns if col in results_df.columns]
+            ]
+        )
 
     overall_energy = results_df["energy_consumed_watthours"].sum()
-    print(f'Overall energy consumed: {overall_energy.item()} watthours')
-
+    print(f"Overall energy consumed: {overall_energy.item()} watthours")

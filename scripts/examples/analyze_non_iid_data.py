@@ -33,7 +33,12 @@ def compute_and_store_class_frequencies(
         The class frequencies.
     """
     class_frequencies_dict = dataset.get_class_frequency()
-    class_frequencies = np.array([class_frequencies_dict.get(class_id, 0) for class_id in range(dataset.n_classes)])
+    class_frequencies = np.array(
+        [
+            class_frequencies_dict.get(class_id, 0)
+            for class_id in range(dataset.n_classes)
+        ]
+    )
     np.savetxt(path, class_frequencies, delimiter=",")
     return class_frequencies
 
@@ -159,12 +164,14 @@ def store_class_frequencies_train(
     n_classes : int
         The number of classes, default 10.
     """
-    dataset = f'n{int(math.log10(n_samples))}_m{int(math.log10(n_features))}'
+    dataset = f"n{int(math.log10(n_samples))}_m{int(math.log10(n_features))}"
     dir_name = f"{random_state_data}_{str(mu_data).replace('.', '')}_{str(mu_partition).replace('.', '')}"
     out_dir = base_path / dataset / dir_name
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    log.info(f'Analyzing {dataset=}, {random_state_data=}, {mu_data=}, {mu_partition=}.')
+    log.info(
+        f"Analyzing {dataset=}, {random_state_data=}, {mu_data=}, {mu_partition=}."
+    )
     make_classification_kwargs = {
         "n_clusters_per_class": 1,
         "n_informative": int(0.1 * n_features),
@@ -173,7 +180,7 @@ def store_class_frequencies_train(
     }
     global_train_class_frequencies = np.zeros(n_classes)
 
-    log.info('Generating and partitioning datasets.')
+    log.info("Generating and partitioning datasets.")
     global_trainset, local_trainsets = generate_non_iid_training_sets(
         n_samples=n_samples,
         n_features=n_features,
@@ -186,25 +193,27 @@ def store_class_frequencies_train(
         peak=0,
         make_classification_kwargs=make_classification_kwargs,
     )
-    log.debug('Done generating dataset.')
+    log.debug("Done generating dataset.")
 
     local_freqs = []
     for rank in range(n_nodes):
         path = out_dir / f"class_frequencies_train_rank_{rank}.csv"
         local_freq = compute_and_store_class_frequencies(path, local_trainsets[rank])
         local_freqs.append(local_freq)
-        log.debug(f'Local class frequencies written to {path}.')
+        log.debug(f"Local class frequencies written to {path}.")
 
     path = out_dir / "class_frequencies_train_global.csv"
     compute_and_store_class_frequencies(path, global_trainset)
-    log.debug(f'Global class frequencies written to {path}.')
+    log.debug(f"Global class frequencies written to {path}.")
 
     fig, ax = SyntheticDataset.plot_local_class_distributions(np.array(local_freqs))
     fig.savefig(out_dir / "class_frequencies_train.pdf")
 
-    log.info(f'Done analyzing {dataset=}, {random_state_data=}, {mu_data=}, {mu_partition=}.')
-    log.info(f'Results written to {out_dir}.')
-    log.info('-' * 80)
+    log.info(
+        f"Done analyzing {dataset=}, {random_state_data=}, {mu_data=}, {mu_partition=}."
+    )
+    log.info(f"Results written to {out_dir}.")
+    log.info("-" * 80)
 
 
 if __name__ == "__main__":
@@ -212,7 +221,7 @@ if __name__ == "__main__":
 
     base_path = pathlib.Path(sys.argv[1])
     log.info(f"Writing class frequencies to {base_path}.")
-    mus: list[str | float] = ["inf", 2., 0.5]
+    mus: list[str | float] = ["inf", 2.0, 0.5]
     datasets = [(1e6, 1e4), (1e7, 1e3)]
     for (n_samples, n_features), mu_data, mu_partition in itertools.product(
         datasets, mus, mus
