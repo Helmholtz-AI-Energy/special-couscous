@@ -3,7 +3,10 @@ import logging
 import os
 import pathlib
 import re
+from typing import Any
 
+import numpy as np
+import pandas
 import pandas as pd
 import scipy
 
@@ -34,7 +37,20 @@ def convert_to_gb(memory_value: str, unit: str) -> float:
     return value  # GB remains the same
 
 
-def read_dataframe(path):
+def read_dataframe(path: str | os.PathLike) -> pandas.DataFrame:
+    """
+    Read result data from csv and add global/local accuracy/auc columns for serial runs.
+
+    Parameters
+    ----------
+    path : str | os.PathLike
+        The path to the result csv to read.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The result data read from the csv with global/local columns.
+    """
     log.debug(f"Parsing result csv: {path}")
     dataframe = pd.read_csv(path)
 
@@ -60,7 +76,31 @@ def read_dataframe(path):
     return dataframe
 
 
-def extract_info_from_path(path, updated_path_names=False):
+def extract_info_from_path(
+    path: str | os.PathLike, updated_path_names: bool = False
+) -> tuple[int, int]:
+    """
+    Parse the given path to a result directory, extracting the number of tasks (compute nodes) and the model seed.
+
+    Original path structure:
+    .../nodes_<number of tasks>/<job id>_<data seed>_<model seed>
+    Updated path structure:
+    .../n_nodes_<number of tasks>/<data seed>_<model seed>_<job id>
+
+    Parameters
+    ----------
+    path : str | os.PathLike
+        The path to parse.
+    updated_path_names : bool
+        Compatibility option to switch between the original and updated path names (see above).
+
+    Returns
+    -------
+    int
+        The number of tasks (= number of compute nodes).
+    int
+        The model seed.
+    """
     log.debug(f"Extracting info from {path}")
     # Extract relevant information from the path.
     parts = str(path).split(os.sep)
@@ -75,48 +115,51 @@ def extract_info_from_path(path, updated_path_names=False):
     return number_of_tasks, model_seed
 
 
-def extract_accuracies_from_csv(path):
-    # Read the CSV file into a pandas dataframe.
-    df = pd.read_csv(path)
+def parse_log_file(path: str | os.PathLike) -> dict[str, float]:
+    """
+    Parse a slurm log file to extract wall-clock time and memory and energy consumption.
 
-    # Extract the value from the target column and store it
-    if "accuracy_global_test" in df.columns:  # Parallel runs
-        global_test_accuracy = df.loc[
-            df["comm_rank"] == "global", "accuracy_global_test"
-        ].values[0]
-        local_test_accuracy_mean = df["accuracy_local_test"].dropna().mean()
-        local_test_accuracy_std = df["accuracy_local_test"].dropna().std()
-    elif "accuracy_test" in df.columns:  # Serial runs
-        global_test_accuracy = df["accuracy_test"].values[0]
-        local_test_accuracy_mean = global_test_accuracy
-        local_test_accuracy_std = 0
-    else:
-        raise ValueError("No valid test accuracy column in dataframe!")
-    return local_test_accuracy_mean, local_test_accuracy_std, global_test_accuracy
+    Parameters
+    ----------
+    path : str | os.PathLike
+        Path to a slurm log file.
 
-
-def parse_log_file(path):
+    Returns
+    -------
+    dict[str, float]
+        A dict with the following string keys and float values:
+        - wall_clock_time_sec: the wall-clock time in seconds
+        - energy_consumed_watthours: the consumed energy in watthours
+        - memory_gb: the maximum memory in GB
+        - avg_node_power_draw_watt: the average node power draw in watt
+    """
     log.debug(f"Parsing log file: {path}")
     with open(path, "r") as file:  # Load input text from the file.
         input_text = file.read()
 
     # Extract wall-clock time.
     pattern_wall_clock_time = r"Job Wall-clock time: (\d+:\d+:\d+|\d+-\d+:\d+:\d+)"
-    time_match = re.search(pattern_wall_clock_time, input_text).group(1)
-    wall_clock_time = time_to_seconds(time_match)  # type:ignore
+    time_match = re.search(pattern_wall_clock_time, input_text)
+    wall_clock_time = time_to_seconds(time_match.group(1)) if time_match else np.nan
 
     # Extract energy consumed.
     pattern_energy = r"(?<=\/ )\d+(\.\d+)?(?= Watthours)"
     energy_match = re.search(pattern_energy, input_text)
-    energy_consumed = float(energy_match.group(0))  # type:ignore
+    energy_consumed = float(energy_match.group(0)) if energy_match else np.nan
     pattern_node_power_draw = r"Average node power draw: (\d+(\.\d+)?) Watt"
-    avg_node_power_draw = float(re.search(pattern_node_power_draw, input_text).group(1))
+    power_draw_match = re.search(pattern_node_power_draw, input_text)
+    avg_node_power_draw = (
+        float(power_draw_match.group(1)) if power_draw_match else np.nan
+    )
 
     pattern_memory = r"Memory Utilized:\s*([0-9]+\.?[0-9]*)\s*(MB|GB|TB)"
     memory_match = re.search(pattern_memory, input_text)
-    memory_utilized = memory_match.group(1)  # type:ignore
-    unit = memory_match.group(2)  # type:ignore
-    memory_in_gb = convert_to_gb(memory_utilized, unit)
+    if memory_match:
+        memory_utilized = memory_match.group(1)  # type:ignore
+        unit = memory_match.group(2)  # type:ignore
+        memory_in_gb = convert_to_gb(memory_utilized, unit)
+    else:
+        memory_in_gb = np.nan
 
     return {
         "wall_clock_time_sec": wall_clock_time,
@@ -126,7 +169,26 @@ def parse_log_file(path):
     }
 
 
-def process_run_dir(path, dataset_label, updated_path_names=False):
+def process_run_dir(
+    path: pathlib.Path, dataset_label: Any, updated_path_names: bool = False
+) -> pandas.DataFrame | None:
+    """
+    Process the results of one experiment run, combining the information from the path name, csv, and log file.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to the directory containing the csv and log file for this run.
+    dataset_label : Any
+        If the csv contains no column "dataset", a new column with this value is added.
+    updated_path_names : bool
+        Compatibility option to switch between original and updated path names, see extract_info_from_path.
+
+    Returns
+    -------
+    pandas.DataFrame | None
+        The parse dataframe or None if parsing failed.
+    """
     log.debug(f"Parsing dir {path}")
     number_of_tasks, model_seed = extract_info_from_path(
         path, updated_path_names=updated_path_names
@@ -138,7 +200,7 @@ def process_run_dir(path, dataset_label, updated_path_names=False):
             f"Found {len(csv_files)} csv files and {len(log_files)} log files "
             f"in {path} instead of the expected one per type. Skipping directory."
         )
-        return
+        return None
 
     dataframe = read_dataframe(csv_files[0])
     parsed_from_log_file = parse_log_file(log_files[0])
@@ -171,7 +233,34 @@ def process_run_dir(path, dataset_label, updated_path_names=False):
     return dataframe
 
 
-def process_experiment_dir(root_dir, scaling_type="strong", updated_path_names=False):
+def process_experiment_dir(
+    root_dir: str | os.PathLike,
+    scaling_type: None | str = "strong",
+    updated_path_names: bool = False,
+) -> pandas.DataFrame:
+    """
+    Process a directory hierarchy for an experiment consisting of multiple runs.
+
+    Try to parse all subdirectories of the root path containing a slurm log file (slurm*.out) with process_run_dir,
+    skipping those than fail to parse (e.g. no or too many result csvs).
+    Combine all resulting dataframes and aggregate rank-local accuracy/AUC scores.
+    Optionally add efficiency or speedup depending on the given scaling_type.
+
+    Parameters
+    ----------
+    root_dir : str | os.PathLike
+        The root of the directory hierarchy to parse.
+    scaling_type : None | str
+        If not None, compute speedup or efficiency see add_speedup_efficiency. In that case, serial results
+        (n_nodes == 1) are required.
+    updated_path_names : bool
+        Compatibility option to switch between original and updated path names, see extract_info_from_path.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The dataframe containing the results for all runs in this experiment.
+    """
     root_dir = pathlib.Path(root_dir)
     dataset_label = root_dir.name
 
@@ -196,8 +285,8 @@ def process_experiment_dir(root_dir, scaling_type="strong", updated_path_names=F
         if re.match(r"(accuracy|auc)_.*local.*", column)
     ]
     aggregations = {column: "mean" for column in local_accuracies}
-    key_columns = {"dataset", "model_seed", "n_nodes", "mu_partition", "mu_data"}
-    key_columns = list(key_columns.intersection(set(results_df.columns)))
+    key_columns = ["dataset", "model_seed", "n_nodes", "mu_partition", "mu_data"]
+    key_columns = list(set(key_columns).intersection(set(results_df.columns)))
     mean_local_accuracies = (
         results_df.groupby(key_columns, dropna=False).agg(aggregations).reset_index()
     )
@@ -222,7 +311,31 @@ def process_experiment_dir(root_dir, scaling_type="strong", updated_path_names=F
     return results_df
 
 
-def add_speedup_efficiency(results_df, scaling_type):
+def add_speedup_efficiency(
+    results_df: pandas.DataFrame, scaling_type: str
+) -> pandas.DataFrame:
+    """
+    Add speedup or efficiency columns for all time measurements.
+
+    All columns in the given dataframe containing "time" are considered time measurements.
+    First matches all parallel runs with the corresponding serial runs (by matching the dataset, model_seed (if
+    multiple), and trees_per_node (weak scaling) / n_trees (strong scaling). Then computes efficiency/speedup by
+    dividing the serial runtimes by their parallel counterparts.
+
+    Parameters
+    ----------
+    results_df : pandas.DataFrame
+        The results for all runs in the current experiment.
+        Needs to contain the columns n_nodes, dataset, model_seed, n_trees, trees_per_node and matching serial run
+        (n_nodes == 1) for all parallel runs.
+    scaling_type : str
+        Switch between weak scaling ("weak", compute efficiency) or strong scaling ("strong", compute speedup).
+
+    Returns
+    -------
+    pandas.DataFrame
+        The input dataframe with added speedup/efficiency columns for all time measurements.
+    """
     # Add serial runtimes (by model seed)
     time_columns = [column for column in results_df.columns if "time" in column]
     key_columns = ["dataset", "trees_per_node" if scaling_type == "weak" else "n_trees"]
@@ -247,7 +360,25 @@ def add_speedup_efficiency(results_df, scaling_type):
     return results_df
 
 
-def aggregate_by_seeds(dataframe, compute_std_for=None):
+def aggregate_by_seeds(
+    dataframe: pandas.DataFrame, compute_std_for: None | str | list[str] = None
+) -> pandas.DataFrame:
+    """
+    Aggregate the results over multiple seeds, computing mean, standard deviation, and 95% confidence interval.
+
+    Parameters
+    ----------
+    dataframe : pandas.DataFrame
+        Experimental results for potentially multiple model and data seeds.
+    compute_std_for : None | str | list[str]
+        The columns to compute standard deviation and 95% CI for. Can be either a list of column names, "all" to
+        indicate all value columns, or None to indicate no columns.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The input dataset aggregated over all seeds.
+    """
     # key columns used as keys for aggregation
     key_columns = [
         "comm_rank",
@@ -297,7 +428,9 @@ def aggregate_by_seeds(dataframe, compute_std_for=None):
     compute_std_for = value_columns if compute_std_for == "all" else compute_std_for
     compute_std_for = compute_std_for or []
 
-    def mean_confidence_interval(data, confidence=0.95):
+    def mean_confidence_interval(
+        data: pandas.Series, confidence: float = 0.95
+    ) -> pandas.Series:
         return scipy.stats.sem(data) * scipy.stats.t.ppf(
             (1 + confidence) / 2.0, len(data) - 1
         )

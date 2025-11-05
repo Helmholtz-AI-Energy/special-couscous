@@ -178,7 +178,6 @@ def store_class_frequencies_train(
         "n_redundant": int(0.1 * n_features),
         "flip_y": 0.01,
     }
-    global_train_class_frequencies = np.zeros(n_classes)
 
     log.info("Generating and partitioning datasets.")
     global_trainset, local_trainsets = generate_non_iid_training_sets(
