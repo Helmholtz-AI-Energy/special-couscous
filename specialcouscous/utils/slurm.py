@@ -1,3 +1,4 @@
+import math
 import os
 import pathlib
 import re
@@ -117,7 +118,7 @@ def dataframe_from_slurm_output(path: pathlib.Path | str) -> pandas.DataFrame:
     return df
 
 
-def time_to_seconds(time_str: str) -> float | None:
+def time_to_seconds(time_str: str) -> float:
     """
     Convert wall-clock time string "d-hh:mm:ss" or "hh:mm:ss" into corresponding time in seconds.
 
@@ -128,8 +129,8 @@ def time_to_seconds(time_str: str) -> float | None:
 
     Returns
     -------
-    float | None
-        The wall-clock time in seconds (None if provided string was invalid).
+    float
+        The wall-clock time in seconds (NaN if provided string was invalid).
     """
     time_pattern = r"(\d+)-(\d+):(\d+):(\d+)|(\d+):(\d+):(\d+)"  # Define regular expression to match time strings.
     match = re.match(time_pattern, time_str)  # Match the time string using the pattern.
@@ -147,7 +148,7 @@ def time_to_seconds(time_str: str) -> float | None:
         )  # Calculate total time in seconds.
         return float(total_seconds)
     else:
-        return None  # Return None for invalid time strings.
+        return math.nan
 
 
 def expand_node_range(s: str) -> list[str]:
