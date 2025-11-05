@@ -618,7 +618,8 @@ class SyntheticDataset:
         random_state = check_random_state(random_state)
         log.debug(f"Classification kwargs: {make_classification_kwargs}")
         log.debug(
-            f"The random state is before generating the dataset is:\n{random_state.get_state(legacy=True)}"
+            f"The random state is before generating the dataset is:\n"
+            f"{random_state.get_state(legacy=True)}"  # type:ignore
         )
         x, y = make_classification(
             n_samples=n_samples,
@@ -1190,7 +1191,7 @@ def make_classification_dataset(
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
     log.debug(
-        f"Random state before generating the dataset is:\n{random_state.get_state(legacy=True)}\n"
+        f"Random state before generating the dataset is:\n{random_state.get_state(legacy=True)}\n"  # type:ignore
         f"`make_classification_kwargs`:\n{make_classification_kwargs}"
     )
 
