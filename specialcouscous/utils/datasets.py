@@ -131,7 +131,7 @@ class HIGGSDataset:
         train_split: float = 0.75,
         stratified_train_test: bool = False,
         use_original_test_split: bool = False,
-        with_high_level_features: bool = False,
+        with_high_level_features: bool = True,
         subset: int | None = None,
         **_: Any,
     ):

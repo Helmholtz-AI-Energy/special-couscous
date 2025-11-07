@@ -301,7 +301,7 @@ if __name__ == "__main__":
     }
 
     data_seeds = [0]
-    model_seeds = [1]
+    model_seeds = [1, 2, 3]
 
     args = [
         GLOBAL_CONFIG,
