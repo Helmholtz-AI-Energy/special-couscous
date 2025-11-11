@@ -29,7 +29,7 @@ if __name__ == "__main__":
         f"Hyperparameters used are:\n{args}"
     )
 
-    # Train serial random forest on synthetic classification data.
+    # Train serial random forest on the given dataset.
     train_serial_on_dataset(
         dataset=args.dataset_name,
         random_state=args.random_state,

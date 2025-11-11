@@ -33,7 +33,7 @@ if __name__ == "__main__":
             f"Hyperparameters used are:\n{args}"
         )
 
-    # Train distributed random forest on balanced synthetic classification data.
+    # Train distributed random forest on the given dataset.
     train_parallel_on_dataset(
         dataset=args.dataset_name,
         random_state=args.random_state,
