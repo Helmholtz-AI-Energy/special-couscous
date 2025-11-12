@@ -204,6 +204,7 @@ def recall_score(
     The result is either returned as class-wise values (if ``average == None``) or averaged.
     Based on ``sklearn.metrics.recall_score`` but computed from the confusion matrix instead of using the
     sample-wise labels and predictions.
+    Note that recall with average='weighted' should be identical to the accuracy.
 
     Parameters
     ----------
