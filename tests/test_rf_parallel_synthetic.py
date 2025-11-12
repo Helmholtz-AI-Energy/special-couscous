@@ -13,22 +13,10 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
 @pytest.mark.mpi
-@pytest.mark.parametrize(
-    "random_state_model",
-    [17, None],
-)
-@pytest.mark.parametrize(
-    "flip_y",
-    [0.0, 0.01],
-)
-@pytest.mark.parametrize(
-    "stratified_train_test",
-    [True, False],
-)
-@pytest.mark.parametrize(
-    "shared_global_model",
-    [True, False],
-)
+@pytest.mark.parametrize("random_state_model", [17, None])
+@pytest.mark.parametrize("flip_y", [0.0, 0.01])
+@pytest.mark.parametrize("stratified_train_test", [True, False])
+@pytest.mark.parametrize("shared_global_model", [True, False])
 def test_parallel_synthetic(
     random_state_model: int,
     flip_y: float,

@@ -1,13 +1,41 @@
 import argparse
+import io
 import logging
 import pathlib
+import pickle
 import sys
+import typing
 
 import colorlog
 import numpy as np
 from mpi4py import MPI
 
+import specialcouscous.utils.datasets
+
 log = logging.getLogger(__name__)  # Get logger instance.
+
+
+def get_pickled_size(x: object, **kwargs: typing.Any) -> int:
+    """
+    Get the size in bytes of the given object x after pickling.
+
+    This can for example be used to determine the message size of objects send via MPI.
+
+    Parameters
+    ----------
+    x : object
+        The object whose size to get.
+    kwargs : Any
+        Additional keywords passed through to pickle.dump.
+
+    Returns
+    -------
+    int
+        The size of the object x (after pickling) in bytes.
+    """
+    binary_representation = io.BytesIO()
+    pickle.dump(x, binary_representation, **kwargs)
+    return sys.getsizeof(binary_representation)
 
 
 def get_problem_size(n: int, m: int, t: int) -> float:
@@ -106,6 +134,14 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="Random Forest",
         description="Generate synthetic classification data and classify with (distributed) random forest.",
+    )
+    available_datasets = list(specialcouscous.utils.datasets.DATASETS.keys())
+    parser.add_argument(
+        "--dataset_name",
+        type=str,
+        default=available_datasets[0],
+        choices=available_datasets,
+        help="The dataset to train on when not using a synthetic dataset.",
     )
     parser.add_argument(
         "--n_samples",
@@ -212,7 +248,11 @@ def parse_arguments() -> argparse.Namespace:
         default=0,
         help="The position (class index) of the distribution's peak (i.e., the most frequent class).",
     )
-
+    parser.add_argument(
+        "--enforce_constant_local_size",
+        action="store_true",
+        help="Whether to relax the local class distribution to instead force all local subsets to have the same size.",
+    )
     parser.add_argument(
         "--locally_imbalanced",
         action="store_true",

@@ -1,4 +1,3 @@
-import os
 import pathlib
 import subprocess
 
@@ -12,7 +11,7 @@ def generate_breaking_iid_job_scripts(
     n_trees: int,
     data_seed: int,
     model_seed: int,
-    output_path: pathlib.Path,
+    enforce_constant_size: bool = False,
     submit: bool = False,
 ) -> None:
     """
@@ -48,24 +47,41 @@ def generate_breaking_iid_job_scripts(
         The (base) random state used for initializing the (distributed) model.
     output_path : pathlib.Path
         The path to save the generated job scripts.
+    enforce_constant_size : bool
+        If true, the local class distribution is relaxed to instead force all local subsets to have the same size.
     submit : bool, optional
         Whether to submit jobs to the cluster. Default is False.
     """
     # All weak-scaling style experiments should take approx. the same time (in min).
     # Note that the time is reduced compared to normal weak scaling as both model and data are distributed.
-    mem = 243200  # Use standard nodes.
+    mem = 239400  # Use standard nodes.
     n_nodes = 16
     # time = 4 * 3600 // n_nodes
-    time = 2880
+    time = 10 if log_n_samples <= 5 else 60
+    project = "hk-project-p0022229"
 
     print(
         f"Current config uses {n_nodes} nodes and {n_nodes * n_trees} trees. Wall-clock time is {time / 60}h."
     )
 
-    job_name = f"n{log_n_samples}_m{log_n_features}_nodes_{n_nodes}_{data_seed}_{model_seed}_{str(mu_global).replace('.', '')}_{str(mu_local).replace('.', '')}"
-    job_script_name = f"{job_name}.sh"
+    dataset_name = f"n{log_n_samples}_m{log_n_features}"
+    enforce_constant_local_size = ""
+
+    if enforce_constant_size:
+        dataset_name += "_const_size"
+        enforce_constant_local_size = "--enforce_constant_local_size"
+
+    def format_mu(mu: float | str) -> str:
+        return str(mu).replace(".", "")
+
+    seeds_and_mus = (
+        f"{data_seed}_{model_seed}_{format_mu(mu_global)}_{format_mu(mu_local)}"
+    )
+    label = f"breaking_iid/{dataset_name}/n_nodes_{n_nodes}/{seeds_and_mus}"
+    result_dir = RESULT_BASE_DIR / label
+
     script_content = f"""#!/bin/bash
-#SBATCH --job-name={job_name}         # Job name
+#SBATCH --job-name={label}         # Job name
 #SBATCH --partition=cpuonly           # Queue for resource allocation
 #SBATCH --time={time}                 # Wall-clock time limit
 #SBATCH --mem={mem}mb                 # Main memory
@@ -73,24 +89,26 @@ def generate_breaking_iid_job_scripts(
 #SBATCH --mail-type=ALL               # Notify user by email when certain event types occur.
 #SBATCH --nodes={n_nodes}             # Number of nodes
 #SBATCH --ntasks-per-node=1           # One MPI rank per node
-
-# Overwrite base directory by running export BASE_DIR="/some/alternative/path/here" before submitting the job.
-BASE_DIR=${{BASE_DIR:-/hkfs/work/workspace/scratch/ku4408-SpecialCouscous}}
+#SBATCH --account={project}
 
 export OMP_NUM_THREADS=${{SLURM_CPUS_PER_TASK}}
 
-ml purge              # Unload all currently loaded modules.
-ml load compiler/gnu  # Load required modules.
+# Unload all currently loaded modules and load required modules.
+ml purge
+ml load compiler/llvm
 ml load mpi/openmpi/4.1
-source "${{BASE_DIR}}"/special-couscous-venv-openmpi4/bin/activate  # Activate venv.
 
-SCRIPT="special-couscous/scripts/examples/rf_training_breaking_iid.py"
+# Setup paths
+SCRIPT="{SCRIPT_DIR}/{SCRIPT}"
+RESDIR="{result_dir}_${{SLURM_JOB_ID}}"
 
-RESDIR="${{BASE_DIR}}"/results/breaking_iid/n{log_n_samples}_m{log_n_features}/nodes_{n_nodes}/${{SLURM_JOB_ID}}_{data_seed}_{model_seed}_{str(mu_global).replace(".", "")}_{str(mu_local).replace(".", "")}/
+# Activate venv
+source {VENV}/bin/activate
+
 mkdir -p "${{RESDIR}}"
 cd "${{RESDIR}}" || exit
 
-srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
+srun python -u ${{SCRIPT}} \\
     --n_samples {10**log_n_samples} \\
     --n_features {10**log_n_features} \\
     --n_classes {n_classes} \\
@@ -104,31 +122,43 @@ srun python -u ${{BASE_DIR}}/${{SCRIPT}} \\
     --random_state_model {model_seed} \\
     --output_dir ${{RESDIR}} \\
     --output_label ${{SLURM_JOB_ID}} \\
+    --log_path ${{RESDIR}} \\
     --detailed_evaluation \\
-    --save_model
-                                """
-    output_path = output_path / f"nodes_{n_nodes}"
-    os.makedirs(output_path, exist_ok=True)
-    with open(output_path / job_script_name, "wt") as f:
+    --save_model \\
+    {enforce_constant_local_size}
+"""
+    output_path = BASE_JOB_SCRIPT_PATH / f"{label}.sh"
+    output_path.parent.mkdir(exist_ok=True, parents=True)
+    with open(output_path, "wt") as f:
         f.write(script_content)
     if submit:
-        subprocess.run(f"sbatch {output_path}/{job_script_name}", shell=True)
+        subprocess.run(f"sbatch {output_path}", shell=True)
 
 
 if __name__ == "__main__":
     data_sets = [
         (6, 4, 800),
         (7, 3, 224),
+        (5, 3, 224),
     ]  # Baseline problem as (`log_n_samples`, `log_n_features`, `n_trees`)
     data_seeds = [0]  # , 1, 2]  # Data seed to use
     model_seeds = [0, 1, 2]  # Model seeds to use
     n_classes = 10  # Number of classes to use
-    mu_global = [0.5, 2.0, "inf"]  # Global imbalance factors considered
-    mu_local = [0.5, 2.0, "inf"]  # Local imbalance factors considered
-    output_path = pathlib.Path(
-        "./breaking_iid/"
-    )  # Output path to save generated job scripts
-    os.makedirs(output_path, exist_ok=True)
+    mu_global = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Global imbalance factors considered
+    mu_local = [0.5, 1.0, 2.0, 5.0, 10.0, "inf"]  # Local imbalance factors considered
+
+    # setup paths
+    BASE_DIR = pathlib.Path(
+        "/hkfs/home/project/hk-project-test-haiga/bk6983/special-couscous"
+    )
+    RESULT_BASE_DIR = pathlib.Path(
+        "/hkfs/work/workspace/scratch/bk6983-special_couscous__2025_results"
+    )
+    BASE_JOB_SCRIPT_PATH = pathlib.Path(__file__).parent
+    BASE_JOB_SCRIPT_PATH.mkdir(exist_ok=True, parents=True)
+    SCRIPT_DIR = BASE_DIR / "scripts/examples/"
+    SCRIPT = "rf_training_breaking_iid.py"
+    VENV = BASE_DIR / "venv311"
 
     # Loop over all considered configurations.
     for random_state_data in data_seeds:
@@ -136,22 +166,30 @@ if __name__ == "__main__":
             for data_set in data_sets:
                 for m_global in mu_global:
                     for m_local in mu_local:
-                        log_n_samples = data_set[0]
-                        log_n_features = data_set[1]
-                        n_trees = data_set[2]
-                        # Generate job scripts and possibly submit them to the cluster.
-                        assert (
-                            isinstance(m_global, str) or isinstance(m_global, float)
-                        ) and (isinstance(m_local, str) or isinstance(m_local, float))
-                        generate_breaking_iid_job_scripts(
-                            log_n_samples=log_n_samples,
-                            log_n_features=log_n_features,
-                            n_classes=n_classes,
-                            mu_global=m_global,
-                            mu_local=m_local,
-                            n_trees=n_trees,
-                            data_seed=random_state_data,
-                            model_seed=random_state_model,
-                            output_path=output_path,
-                            submit=False,
-                        )
+                        for enforce_constant_size in [True, False]:
+                            log_n_samples = data_set[0]
+                            log_n_features = data_set[1]
+                            n_trees = data_set[2]
+                            subdir = (
+                                "const_local_size"
+                                if enforce_constant_size
+                                else "original"
+                            )
+                            # Generate job scripts and possibly submit them to the cluster.
+                            assert (
+                                isinstance(m_global, str) or isinstance(m_global, float)
+                            ) and (
+                                isinstance(m_local, str) or isinstance(m_local, float)
+                            )
+                            generate_breaking_iid_job_scripts(
+                                log_n_samples=log_n_samples,
+                                log_n_features=log_n_features,
+                                n_classes=n_classes,
+                                mu_global=m_global,
+                                mu_local=m_local,
+                                n_trees=n_trees,
+                                data_seed=random_state_data,
+                                model_seed=random_state_model,
+                                enforce_constant_size=enforce_constant_size,
+                                submit=False,
+                            )

@@ -28,18 +28,9 @@ log = logging.getLogger("specialcouscous")  # Get logger instance.
         (False, True, False, False),
     ],
 )
-@pytest.mark.parametrize(
-    "random_state_model",
-    [17, None],
-)
-@pytest.mark.parametrize(
-    "flip_y",
-    [0.0, 0.01],
-)
-@pytest.mark.parametrize(
-    "stratified_train_test",
-    [True, False],
-)
+@pytest.mark.parametrize("random_state_model", [17, None])
+@pytest.mark.parametrize("flip_y", [0.0, 0.01])
+@pytest.mark.parametrize("stratified_train_test", [True, False])
 def test_breaking_iid(
     random_state_model: int,
     shared_global_model: bool,

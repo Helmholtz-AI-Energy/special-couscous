@@ -44,6 +44,7 @@ if __name__ == "__main__":
         mu_partition=args.mu_partition,
         mu_data=args.mu_data,
         peak=args.peak,
+        enforce_constant_local_size=args.enforce_constant_local_size,
         make_classification_kwargs={
             "n_clusters_per_class": args.n_clusters_per_class,
             "n_informative": int(args.frac_informative * args.n_features),
