@@ -6,6 +6,7 @@ from specialcouscous import evaluation_metrics
 
 
 @pytest.mark.parametrize("n_classes", [2, 10, 100])
+@pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
 class TestEvaluationMetrics:
     """Test class to test all multi-class evaluation metrics for different numbers of classes (at least two)."""
 
