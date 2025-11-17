@@ -3,6 +3,7 @@ import logging
 import math
 import pathlib
 import re
+from typing import Any, Tuple
 
 from specialcouscous.utils import set_logger_config
 
@@ -50,20 +51,298 @@ srun python -u ${{SCRIPT}} \\
 """
 
 
+class BatchScriptConfigInference:
+    """
+    Horeka specific batch script configuration.
+
+    Determines system specific time limits, partition, and memory settings.
+    """
+
+    SERIAL_BASELINE_TIMES: dict[Tuple[str, int], int] = {  # in minutes
+        ("n6_m4", 1600): 138,
+        ("n7_m3", 448): 227,
+        ("n6_m4", 800): 73,
+        ("n7_m3", 224): 103,
+        ("n5_m3", 76): 1,
+        ("n6_m2", 76): 2,
+        ("susy", 1000): 30,
+        ("susy", 100): 10,
+        ("cover_type", 1000): 10,
+        ("cover_type", 500): 5,
+        ("cover_type", 100): 2,
+        ("higgs", 320): 15,
+        ("higgs", 640): 30,
+        ("higgs", 1280): 60,
+        ("higgs", 2560): 120,
+        ("higgs", 5120): 240,
+        ("higgs", 10): 5,
+    }
+
+    MEM_CONFIGS: dict[str, dict[str, str]] = {
+        "standard": {"partition": "cpuonly", "mem": "239400mb"},  # standard nodes
+        "high-memory": {
+            "partition": "cpuonly",
+            "mem": "497500mb",
+        },  # high-memory nodes (32 nodes available)
+        "large": {
+            "partition": "large",
+            "mem": "4120112mb",
+        },  # extra-large nodes (8 nodes available)
+    }
+
+    # time limit by partition in minutes: 3 days for cpuonly, 2 days for large
+    MAX_TIME_LIMITS = {"cpuonly": 60 * 24 * 3, "large": 60 * 24 * 3}
+
+    def __init__(
+        self,
+        overestimation_factor: int | float = 2,
+        strong_scaling_overhead: float = 0.25,
+        weak_scaling_overhead: float = 0.01,
+    ):
+        """
+        Initialize BatchScriptConfigInference, setting the defaults for the time estimation.
+
+        Parameters
+        ----------
+        overestimation_factor : int | float
+            How much to overestimate the time limit, i.e. time limit = estimated time * overestimation factor.
+        strong_scaling_overhead : float
+            Expected strong scaling overhead, i.e. expected T(p) = T(1) * ((1-overhead) / p + overhead)
+        weak_scaling_overhead : float
+            Expected weak scaling overhead, i.e. expected T(p) = T(1) * (1 + overhead * p)
+        """
+        self.overestimation_factor = overestimation_factor
+        self.strong_scaling_overhead = strong_scaling_overhead
+        self.weak_scaling_overhead = weak_scaling_overhead
+
+    def get_serial_runtime(self, dataset: str, n_trees: int) -> int:
+        """
+        Get the serial runtime for a given dataset and forest size.
+
+        Raises a ValueError if no baseline runtimes are recorded for the requested dataset.
+        Approximates the runtime from the closest match if no exact match of forest size is available.
+
+        Parameters
+        ----------
+        dataset : str
+            The dataset to train and evaluate on.
+        n_trees : str
+            The size of the (serial) forest in number of trees.
+
+        Returns
+        -------
+        The recorded or approximated serial runtime for this combination.
+
+        Raises
+        ------
+        ValueError
+            If no baseline runtime is available for this dataset.
+        """
+        if (dataset, n_trees) not in self.SERIAL_BASELINE_TIMES:
+            log.debug(
+                f"No baseline runtime available for {dataset=}, {n_trees=}. Trying to find alternative."
+            )
+            available_n_trees = [
+                key[1] for key in self.SERIAL_BASELINE_TIMES if dataset == key[0]
+            ]
+            if not available_n_trees:
+                raise ValueError(f"No baseline runtime available for {dataset=}.")
+            closest_n_trees = min(
+                available_n_trees, key=lambda x: abs(n_trees / x - 1.0)
+            )
+            log.info(
+                f"No baseline runtime available for {dataset=}, {n_trees=}. "
+                f"Interpolating from n_trees={closest_n_trees}"
+            )
+            return int(
+                self.SERIAL_BASELINE_TIMES[(dataset, closest_n_trees)]
+                * n_trees
+                / closest_n_trees
+            )
+        return self.SERIAL_BASELINE_TIMES[(dataset, n_trees)]
+
+    def estimate_runtime(
+        self,
+        dataset: str,
+        n_trees_serial: int,
+        n_nodes: int,
+        scaling: str | None,
+        parallel_overhead: float | None = None,
+    ) -> int:
+        """
+        Roughly estimate the runtime T(p) with p nodes by scaling the serial runtime T(1).
+
+        The scaling depends on the scaling type, the number of nodes, and the overestimation factor.
+        - For strong scaling: T(p) = T(1) * ((1-overhead) / p + overhead)
+        - For weak scaling:   T(p) = T(1) * (1 + overhead * p)
+
+        Parameters
+        ----------
+        dataset : str
+            The dataset to train and evaluate on.
+        n_trees_serial : str
+            The size of the serial forest in number of trees.
+        n_nodes : int
+            The number of parallel nodes.
+        scaling : str | None
+            The type of parallel scaling: "strong" or "weak" for strong and weak scaling or None (with n_nodes = 1) for
+            serial runs.
+        parallel_overhead : float | None
+            Used to overwrite the default parallel overhead. Note that strong and weak scaling typically have different overhead.
+
+        Returns
+        -------
+        int
+            A rough estimation of the runtime with p nodes.
+
+        Raises
+        ------
+        ValueError
+            If no baseline runtime is available for this dataset.
+        """
+        serial_runtime = self.get_serial_runtime(dataset, n_trees_serial)
+        if scaling == "strong":
+            parallel_overhead = (
+                self.strong_scaling_overhead
+                if parallel_overhead is None
+                else parallel_overhead
+            )
+            parallel_multiplier = (
+                parallel_overhead + max(1 - parallel_overhead, 0) / n_nodes
+            )
+        elif scaling == "weak":
+            parallel_overhead = (
+                self.weak_scaling_overhead
+                if parallel_overhead is None
+                else parallel_overhead
+            )
+            parallel_multiplier = 1 + parallel_overhead * n_nodes
+        elif scaling is None:
+            if n_nodes > 1:
+                raise UserWarning(
+                    f"{scaling=} interpreted as serial run but {n_nodes=} > 1."
+                )
+            parallel_multiplier = 1
+        else:
+            raise ValueError(f"Unexpected {scaling=}.")
+        return int(math.ceil(serial_runtime * parallel_multiplier))
+
+    def infer_time_limit(
+        self,
+        dataset: str,
+        n_trees_serial: int,
+        n_nodes: int,
+        scaling: str | None,
+        partition: str | None = None,
+        parallel_overhead: float | None = None,
+    ) -> int:
+        """
+        Determine the time limit for the given run by estimating the runtime.
+
+        When given a partition, additionally ensures that the time limit is within the maximum of this partition.
+
+        Parameters
+        ----------
+        dataset : str
+            The dataset to train and evaluate on.
+        n_trees_serial : str
+            The size of the serial forest in number of trees.
+        n_nodes : int
+            The number of parallel nodes.
+        scaling : str | None
+            The type of parallel scaling: "strong" or "weak" for strong and weak scaling or None (with n_nodes = 1) for
+            serial runs.
+        partition : str | None
+            If given, the time limit is limited to the maximum on the given partition.
+        parallel_overhead : float | None
+            Used to overwrite the default parallel overhead. Note that strong and weak scaling typically have different overhead.
+
+        Returns
+        -------
+        int
+            The time limit to use for the given run.
+
+        Raises
+        ------
+        ValueError
+            If no baseline runtime is available for this dataset.
+        """
+        estimated_runtime = self.estimate_runtime(
+            dataset, n_trees_serial, n_nodes, scaling, parallel_overhead
+        )
+        time_limit = int(estimated_runtime * self.overestimation_factor)
+        if partition is not None and partition in self.MAX_TIME_LIMITS:
+            time_limit = min(time_limit, self.MAX_TIME_LIMITS[partition])
+        return time_limit
+
+    def infer_memory_limit_and_partition(
+        self, dataset: str, n_trees_local: int
+    ) -> dict[str, str]:
+        """
+        Infer the required memory and partition based on the dataset and tree size.
+
+        Parameters
+        ----------
+        dataset : str
+            The dataset to train and evaluate on.
+        n_trees_local : int
+            The forest size in number of trees.
+
+        Returns
+        -------
+        dict[str, str]
+            The memory and partition configuration.
+        """
+        node_type = "standard"
+        if dataset == "n6_m4" and n_trees_local > 1000:
+            node_type = "high-memory"
+        if dataset == "n7_m3" and n_trees_local > 400:
+            node_type = "high-memory"
+        if dataset == "higgs" and n_trees_local > 1000:
+            node_type = "high-memory"
+        if dataset == "higgs" and n_trees_local > 3000:
+            node_type = "large"
+        return self.MEM_CONFIGS[node_type]
+
+
 class BatchScriptGenerator:
+    """Class to generate slurm batch scripts."""
+
     SYNTHETIC_DATASET_PATTERN = r"n(\d+)_m(\d+)"
 
     def __init__(
         self,
-        script_template,
-        default_values,
-        job_script_root_dir,
-        config_inference,
-        data_seeds,
-        model_seeds,
-        nodes,
-        result_base_dir,
+        script_template: str,
+        default_values: dict[str, Any],
+        job_script_root_dir: str | pathlib.Path,
+        config_inference: BatchScriptConfigInference,
+        data_seeds: list[int],
+        model_seeds: list[int],
+        nodes: list[int],
+        result_base_dir: str | pathlib.Path,
     ):
+        """
+        Initialize a BatchScriptGenerator, setting the default parameters.
+
+        Parameters
+        ----------
+        script_template : str
+            The template string for the batch script.
+        default_values : dict[str, Any]
+            The default values shared by all/most batch scripts.
+        job_script_root_dir : str | pathlib.Path
+            The root directory to write the batch scripts to.
+        config_inference : BatchScriptConfigInference
+            A BatchScriptConfigInference object to infer system specific runtime, memory, and partition information.
+        data_seeds : list[int]
+            List of default data seeds.
+        model_seeds : list[int]
+            List of default model seeds.
+        nodes : list[int]
+            List of default parallel node counts.
+        result_base_dir : str | pathlib.Path
+            On-system path to the root result directory.
+        """
         self.script_template = script_template
         self.default_values = default_values
         self.config_inference = config_inference
@@ -87,14 +366,52 @@ class BatchScriptGenerator:
         }
 
     @classmethod
-    def dataset_config_from_name(cls, dataset_name, n_classes_synth=10):
+    def dataset_config_from_name(
+        cls, dataset_name: str, n_classes_synth: int = 10
+    ) -> str:
+        """
+        Get a dataset configuration from a dataset name.
+
+        Parameters
+        ----------
+        dataset_name : str
+            The name of the dataset.
+        n_classes_synth : int
+            The number of classes for synthetic datasets.
+
+        Returns
+        -------
+        str
+            The CLI parameters for the dataset configuration.
+        """
         if match := re.match(cls.SYNTHETIC_DATASET_PATTERN, dataset_name):
             log_n_samples, log_n_features = [int(x) for x in match.groups()]
             return f"--n_samples {10**log_n_samples} --n_features {10**log_n_features} --n_classes {n_classes_synth}"
         return f"--dataset_name {dataset_name}"
 
     @staticmethod
-    def get_local_global_n_trees(n_trees_serial, n_nodes, scaling_type):
+    def get_local_global_n_trees(
+        n_trees_serial: int, n_nodes: int, scaling_type: str | None
+    ) -> Tuple[int, int]:
+        """
+        Get the local and global tree counts for different parallel scaling types.
+
+        Parameters
+        ----------
+        n_trees_serial : int
+            The serial tree count.
+        n_nodes : int
+            The number of nodes.
+        scaling_type : str | None
+            The scaling type: strong, weak, or None.
+
+        Returns
+        -------
+        int
+            The global tree count (total #trees over all nodes).
+        int
+            The local tree count (local #trees on each node nodes).
+        """
         if scaling_type == "strong":
             n_trees_local = n_trees_serial // n_nodes
             n_trees_global = n_trees_local * n_nodes
@@ -108,16 +425,43 @@ class BatchScriptGenerator:
 
     def generate_job_scripts(
         self,
-        dataset_n_trees,
-        scaling_type,
-        label,
-        script_type="parallel",
-        data_seeds=None,
-        model_seeds=None,
-        nodes=None,
-        shared_global_model=None,
-        **kwargs,
-    ):
+        dataset_n_trees: list[Tuple[str, int]],
+        scaling_type: str | None,
+        label: str,
+        script_type: str = "parallel",
+        data_seeds: list[int] | None = None,
+        model_seeds: list[int] | None = None,
+        nodes: list[int] | None = None,
+        shared_global_model: bool | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Generate all job scripts for one experiment.
+
+        Generates a batch script for each combination of seeds (model and data), nodes, and dataset + forest size.
+
+        Parameters
+        ----------
+        dataset_n_trees : list[Tuple[str, int]]
+            TODO
+        scaling_type : str | None
+            TODO
+        label : str
+            TODO
+        script_type : str = "parallel"
+            TODO
+        data_seeds : list[int] | None = None
+            Optional list of data seeds to overwrite the default in self.data_seeds
+        model_seeds : list[int] | None = None
+            Optional list of model seeds to overwrite the default in self.model_seeds
+        nodes : list[int] | None = None
+            Optional list of nodes to overwrite the default in self.nodes
+        shared_global_model : bool | None = None
+            Whether to use a shared model or not. When not None, "/(no_)shared_model" is added to the label.
+            When None, no shared model is used and no such tag is added to the label.
+        kwargs : Any
+            Optional additional arguments to be passed to the script template.
+        """
         data_seeds = self.data_seeds if data_seeds is None else data_seeds
         model_seeds = self.model_seeds if model_seeds is None else model_seeds
         nodes = self.nodes if nodes is None else nodes
@@ -164,7 +508,7 @@ class BatchScriptGenerator:
             inference_flavor_label = {
                 True: "/shared_model",
                 False: "/no_shared_model",
-            }.get(shared_global_model, "")
+            }.get(shared_global_model, "")  # type: ignore
             experiment_label = (
                 f"{label}/{dataset}_t{n_trees_serial}{inference_flavor_label}"
             )
@@ -186,14 +530,55 @@ class BatchScriptGenerator:
             script_content = self.create_script_content(**run_specific_configs)
             self.write_script_to_file(f"{run_label}.sh", script_content)
 
-    def generate_serial_job_scripts(self, dataset_n_trees, label="serial_baseline"):
+    def generate_serial_job_scripts(
+        self, dataset_n_trees: list[Tuple[str, int]], label: str = "serial_baseline"
+    ) -> None:
+        """
+        Generate all serial scripts for a given list of dataset + #trees combinations.
+
+        Parameters
+        ----------
+        dataset_n_trees : list[Tuple[str, int]]
+            The list of dataset + #trees combinations to generate jobs scripts for.
+        label : str
+            Base label, default is "serial_baseline".
+        """
         self.generate_job_scripts(dataset_n_trees, None, label, "serial", nodes=[1])
 
-    def generate_scaling_job_scripts(self, dataset_n_trees, scaling_type, label=None):
+    def generate_scaling_job_scripts(
+        self,
+        dataset_n_trees: list[Tuple[str, int]],
+        scaling_type: str,
+        label: str | None = None,
+    ) -> None:
+        """
+        Generate all strong or weak scripts for a given list of dataset + #trees combinations.
+
+        Parameters
+        ----------
+        dataset_n_trees : list[Tuple[str, int]]
+            The list of dataset + #trees combinations to generate jobs scripts for.
+        scaling_type : str
+            Switch between strong and weak scaling by passing either "strong" or "weak".
+        label : str
+            Base label, default is "<scaling_type>_scaling".
+        """
         label = f"{scaling_type}_scaling" if label is None else label
         self.generate_job_scripts(dataset_n_trees, scaling_type, label)
 
-    def generate_chunking_job_scripts(self, dataset_n_trees, label="chunking"):
+    def generate_chunking_job_scripts(
+        self, dataset_n_trees: list[Tuple[str, int]], label: str = "chunking"
+    ) -> None:
+        """
+        Generate all chunking scripts for a given list of dataset + #trees combinations.
+
+        Parameters
+        ----------
+        dataset_n_trees : list[Tuple[str, int]]
+            The list of dataset + #trees combinations to generate jobs scripts for.
+        label : str
+            Base label, default is "chunking".
+        """
         self.generate_job_scripts(
             dataset_n_trees,
             "strong",
@@ -202,7 +587,21 @@ class BatchScriptGenerator:
             additional_args="--shared_test_set",
         )
 
-    def generate_inference_job_scripts(self, dataset_n_trees, label="inference_flavor"):
+    def generate_inference_job_scripts(
+        self, dataset_n_trees: list[Tuple[str, int]], label: str = "inference_flavor"
+    ) -> None:
+        """
+        Generate all inference scripts for a given list of dataset + #trees combinations.
+
+        Generates scripts for both inference flavors: with and without a shared model.
+
+        Parameters
+        ----------
+        dataset_n_trees : list[Tuple[str, int]]
+            The list of dataset + #trees combinations to generate jobs scripts for.
+        label : str
+            Base label, default is "inference_flavor".
+        """
         self.generate_job_scripts(
             dataset_n_trees, "weak", label, shared_global_model=True
         )
@@ -210,147 +609,40 @@ class BatchScriptGenerator:
             dataset_n_trees, "weak", label, shared_global_model=False
         )
 
-    def create_script_content(self, **values):
+    def create_script_content(self, **values: Any) -> str:
+        """
+        Prepare a batch script by filling out the template with the given values.
+
+        Parameters
+        ----------
+        values : Any
+            kwargs to format the script template.
+
+        Returns
+        -------
+        The script template filled with the given values.
+        """
         values = {**self.default_values, **values}
         log.debug(f"Creating batch script using the following values: {values}.")
         return self.script_template.format(**values)
 
-    def write_script_to_file(self, file_path, script_content):
+    def write_script_to_file(self, file_path: str, script_content: str) -> None:
+        """
+        Write a given string to a batch script at job_script_root_dir / file_path.
+
+        Parameters
+        ----------
+        file_path : str
+            (Sub-directory and) file name of the batch script to create.
+        script_content : str
+            Content to write to the batch script, e.g. generated with create_script_content.
+
+        """
         path = self.job_script_root_dir / file_path
         path.parent.mkdir(exist_ok=True, parents=True)
         log.info(f"Writing batch script to {path}")
         with open(path, "w") as file:
             file.write(script_content)
-
-
-class BatchScriptConfigInference:
-    SERIAL_BASELINE_TIMES = {  # in minutes
-        ("n6_m4", 1600): 138,
-        ("n7_m3", 448): 227,
-        ("n6_m4", 800): 73,
-        ("n7_m3", 224): 103,
-        ("n5_m3", 76): 1,
-        ("n6_m2", 76): 2,
-        ("susy", 1000): 30,
-        ("susy", 100): 10,
-        ("cover_type", 1000): 10,
-        ("cover_type", 500): 5,
-        ("cover_type", 100): 2,
-        ("higgs", 320): 15,
-        ("higgs", 640): 30,
-        ("higgs", 1280): 60,
-        ("higgs", 2560): 120,
-        ("higgs", 5120): 240,
-        ("higgs", 10): 5,
-    }
-
-    MEM_CONFIGS = {
-        "standard": {"partition": "cpuonly", "mem": "239400mb"},  # standard nodes
-        "high-memory": {
-            "partition": "cpuonly",
-            "mem": "497500mb",
-        },  # high-memory nodes (32 nodes available)
-        "large": {
-            "partition": "large",
-            "mem": "4120112mb",
-        },  # extra-large nodes (8 nodes available)
-    }
-
-    # time limit by partition in minutes: 3 days for cpuonly, 2 days for large
-    MAX_TIME_LIMITS = {"cpuonly": 60 * 24 * 3, "large": 60 * 24 * 3}
-
-    def __init__(
-        self,
-        overestimation_factor=2,
-        strong_scaling_overhead=0.25,
-        weak_scaling_overhead=0.01,
-    ):
-        self.overestimation_factor = overestimation_factor
-        self.strong_scaling_overhead = strong_scaling_overhead
-        self.weak_scaling_overhead = weak_scaling_overhead
-
-    def get_serial_runtime(self, dataset, n_trees):
-        if (dataset, n_trees) not in self.SERIAL_BASELINE_TIMES:
-            log.debug(
-                f"No baseline runtime available for {dataset=}, {n_trees=}. Trying to find alternative."
-            )
-            available_n_trees = [
-                key[1] for key in self.SERIAL_BASELINE_TIMES if dataset == key[0]
-            ]
-            if not available_n_trees:
-                raise ValueError(f"No baseline runtime available for {dataset=}.")
-            closest_n_trees = min(
-                available_n_trees, key=lambda x: abs(n_trees / x - 1.0)
-            )
-            log.info(
-                f"No baseline runtime available for {dataset=}, {n_trees=}. "
-                f"Interpolating from n_trees={closest_n_trees}"
-            )
-            return int(
-                self.SERIAL_BASELINE_TIMES[(dataset, closest_n_trees)]
-                * n_trees
-                / closest_n_trees
-            )
-        return self.SERIAL_BASELINE_TIMES[(dataset, n_trees)]
-
-    def estimate_runtime(
-        self, dataset, n_trees_serial, n_nodes, scaling, parallel_overhead=None
-    ):
-        serial_runtime = self.get_serial_runtime(dataset, n_trees_serial)
-        if scaling == "strong":
-            parallel_overhead = (
-                self.strong_scaling_overhead
-                if parallel_overhead is None
-                else parallel_overhead
-            )
-            parallel_multiplier = (
-                parallel_overhead + max(1 - parallel_overhead, 0) / n_nodes
-            )
-        elif scaling == "weak":
-            parallel_overhead = (
-                self.weak_scaling_overhead
-                if parallel_overhead is None
-                else parallel_overhead
-            )
-            parallel_multiplier = 1 + parallel_overhead * n_nodes
-        elif scaling is None:
-            if n_nodes > 1:
-                raise UserWarning(
-                    f"{scaling=} interpreted as serial run but {n_nodes=} > 1."
-                )
-            parallel_multiplier = 1
-        else:
-            raise ValueError(f"Unexpected {scaling=}.")
-        return int(math.ceil(serial_runtime * parallel_multiplier))
-
-    def infer_time_limit(
-        self,
-        dataset,
-        n_trees_serial,
-        n_nodes,
-        scaling,
-        partition=None,
-        parallel_overhead=None,
-    ):
-        estimated_runtime = self.estimate_runtime(
-            dataset, n_trees_serial, n_nodes, scaling, parallel_overhead
-        )
-        time_limit = int(estimated_runtime * self.overestimation_factor)
-        if partition is not None and partition in self.MAX_TIME_LIMITS:
-            time_limit = min(time_limit, self.MAX_TIME_LIMITS[partition])
-        return time_limit
-
-    def infer_memory_limit_and_partition(self, dataset, n_trees_local):
-        node_type = "standard"
-        if dataset == "n6_m4" and n_trees_local > 1000:
-            node_type = "high-memory"
-        if dataset == "n7_m3" and n_trees_local > 400:
-            node_type = "high-memory"
-        if dataset == "higgs" and n_trees_local > 1000:
-            node_type = "high-memory"
-        if dataset == "higgs" and n_trees_local > 3000:
-            node_type = "large"
-        return self.MEM_CONFIGS[node_type]
 
 
 if __name__ == "__main__":

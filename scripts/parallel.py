@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import logging
 import pathlib
 
@@ -10,7 +11,17 @@ from specialcouscous.utils import parse_cli_args, set_logger_config
 log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
-def run_parallel(config, comm):
+def run_parallel(config: argparse.Namespace, comm: MPI.Comm) -> None:
+    """
+    Start a parallel run with the given CLI configuration.
+
+    Parameters
+    ----------
+    config : argparse.Namespace
+        The configuration parsed from CLI.
+    comm : MPI.Comm
+        The MPI communicator to distribute over.
+    """
     synthetic_data_config = parse_cli_args.get_synthetic_data_kwargs(config)
     shared_config = parse_cli_args.get_general_run_kwargs(config)
 

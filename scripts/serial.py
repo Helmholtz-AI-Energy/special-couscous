@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import logging
 import pathlib
 
@@ -10,7 +11,15 @@ from specialcouscous.utils import parse_cli_args, set_logger_config
 log = logging.getLogger("specialcouscous")  # Get logger instance.
 
 
-def run_serial(config):
+def run_serial(config: argparse.Namespace) -> None:
+    """
+    Start a serial run with the given CLI configuration.
+
+    Parameters
+    ----------
+    config : argparse.Namespace
+        The configuration parsed from CLI.
+    """
     synthetic_data_config = parse_cli_args.get_synthetic_data_kwargs(config)
     shared_config = parse_cli_args.get_general_run_kwargs(config)
 
