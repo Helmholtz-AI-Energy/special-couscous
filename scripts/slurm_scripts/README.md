@@ -1,4 +1,4 @@
-![Logo](../../docs/special_couscous.pdf)
+![Logo](../../docs/special_couscous.png)
 # Example Slurm Batch Scripts
 This directory contains [slurm](https://slurm.schedmd.com/) batch scripts to submit random forest jobs to the [HoreKa](https://www.scc.kit.edu/en/services/horeka.php) computing system.
 They are unlikely to transfer directly to other systems but are provided here as an example to adjust to your system.
