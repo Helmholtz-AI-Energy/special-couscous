@@ -13,12 +13,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
 from specialcouscous.rf_parallel import DistributedRandomForest
-from specialcouscous.synthetic_classification_data import (
+from specialcouscous.datasets import (
     SyntheticDataset,
     generate_and_distribute_synthetic_dataset,
     make_classification_dataset,
+    get_dataset,
 )
-from specialcouscous.utils.datasets import get_dataset
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 from specialcouscous.utils.timing import MPITimer
 

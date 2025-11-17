@@ -14,11 +14,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.validation import check_random_state
 
-from specialcouscous.synthetic_classification_data import (
+from specialcouscous.datasets import (
     SyntheticDataset,
     make_classification_dataset,
+    get_dataset
 )
-from specialcouscous.utils.datasets import get_dataset
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 
 log = logging.getLogger(__name__)  # Get logger instance.

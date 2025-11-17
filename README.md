@@ -40,8 +40,8 @@ Alternatively, you can also use `specialcouscous` in your own Python code, for e
 from mpi4py import MPI
 
 from specialcouscous.rf_parallel import DistributedRandomForest
-from specialcouscous.synthetic_classification_data import SyntheticDataset
-from specialcouscous.utils import datasets, set_logger_config
+from specialcouscous.datasets import SyntheticDataset, get_dataset
+from specialcouscous.utils import set_logger_config
 
 set_logger_config()
 
@@ -50,7 +50,7 @@ seed = 0
 shared_global_model = False
 
 # Prepare the data
-data = datasets.get_dataset("higgs", "data/")
+data = get_dataset("higgs", "data/")
 train_data = SyntheticDataset(x=data.x_train, y=data.y_train)
 test_data = SyntheticDataset(x=data.x_test, y=data.y_test)
 

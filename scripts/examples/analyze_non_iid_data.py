@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from sklearn.utils import check_random_state
 
-from specialcouscous.synthetic_classification_data import SyntheticDataset
+from specialcouscous.datasets import SyntheticDataset
 from specialcouscous.utils import set_logger_config
 
 log = logging.getLogger("specialcouscous")

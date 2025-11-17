@@ -10,7 +10,7 @@ import colorlog
 import numpy as np
 from mpi4py import MPI
 
-import specialcouscous.utils.datasets
+from specialcouscous.datasets import DATASETS
 
 log = logging.getLogger(__name__)  # Get logger instance.
 
@@ -135,7 +135,7 @@ def parse_arguments() -> argparse.Namespace:
         prog="Random Forest",
         description="Generate synthetic classification data and classify with (distributed) random forest.",
     )
-    available_datasets = list(specialcouscous.utils.datasets.DATASETS.keys())
+    available_datasets = list(DATASETS.keys())
     parser.add_argument(
         "--dataset_name",
         type=str,
