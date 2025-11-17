@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import sklearn.metrics
 
-from specialcouscous import evaluation_metrics
+from specialcouscous.utils import evaluation_metrics
 
 
 @pytest.mark.parametrize("n_classes", [2, 10, 100])

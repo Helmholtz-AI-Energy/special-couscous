@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from mpi4py import MPI
 
-from specialcouscous.evaluation_metrics import accuracy_score
+from specialcouscous.utils.evaluation_metrics import accuracy_score
 from specialcouscous.train.train_parallel import (
     evaluate_parallel_from_checkpoint_balanced_synthetic_data,
     evaluate_parallel_from_checkpoint_synthetic_data,
