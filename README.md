@@ -1,4 +1,4 @@
-![Logo](./LOGO.jpeg)
+![Logo](./docs/special_couscous.png)
 # Distributed Random Forests in Python with MPI
 
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-blue)](https://opensource.org/licenses/BSD-3-Clause)
