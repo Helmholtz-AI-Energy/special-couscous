@@ -51,7 +51,7 @@ if __name__ == "__main__":
             "n_redundant": int(args.frac_redundant * args.n_features),
             "flip_y": args.flip_y,
         },
-        comm=MPI.COMM_WORLD,
+        mpi_comm=MPI.COMM_WORLD,
         train_split=args.train_split,
         stratified_train_test=args.stratified_train_test,
         n_trees=args.n_trees,
