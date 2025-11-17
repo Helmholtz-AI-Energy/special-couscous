@@ -234,7 +234,7 @@ def get_synthetic_data_kwargs(cli_args: argparse.Namespace) -> dict[str, Any]:
             "n_informative": int(cli_args.frac_informative * cli_args.n_features),
             "n_redundant": int(cli_args.frac_redundant * cli_args.n_features),
             "flip_y": cli_args.flip_y,
-        }
+        },
     }
 
 

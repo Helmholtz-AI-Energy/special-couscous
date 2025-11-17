@@ -16,8 +16,8 @@ from sklearn.utils.validation import check_random_state
 
 from specialcouscous.datasets import (
     SyntheticDataset,
+    get_dataset,
     make_classification_dataset,
-    get_dataset
 )
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 

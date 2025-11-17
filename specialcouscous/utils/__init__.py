@@ -118,5 +118,3 @@ def set_logger_config(
         file_handler.setFormatter(simple_formatter)
         base_logger.addHandler(file_handler)
     base_logger.setLevel(level)
-
-

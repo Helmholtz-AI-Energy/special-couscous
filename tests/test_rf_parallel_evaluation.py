@@ -5,11 +5,11 @@ import pathlib
 import pytest
 from mpi4py import MPI
 
-from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.datasets import (
     SyntheticDataset,
     make_classification_dataset,
 )
+from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.utils import set_logger_config, timing
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.

@@ -23,22 +23,38 @@ def run_parallel(config, comm):
         "peak": config.peak,
         "enforce_constant_local_size": config.enforce_constant_local_size,
     }
-    shared_config = {**shared_config, "mpi_comm": comm, "shared_global_model": config.shared_global_model}
+    shared_config = {
+        **shared_config,
+        "mpi_comm": comm,
+        "shared_global_model": config.shared_global_model,
+    }
 
     if config.dataset_name is None:  # synthetic data
-        if config.globally_imbalanced or config.locally_imbalanced:  # allow data imbalance
+        if (
+            config.globally_imbalanced or config.locally_imbalanced
+        ):  # allow data imbalance
             train_parallel.train_parallel_on_synthetic_data(
-                **synthetic_data_config, **imbalanced_synthetic_data_config, **shared_config)
+                **synthetic_data_config,
+                **imbalanced_synthetic_data_config,
+                **shared_config,
+            )
         else:  # balanced dataset
-            train_parallel.train_parallel_on_balanced_synthetic_data(**synthetic_data_config, **shared_config)
+            train_parallel.train_parallel_on_balanced_synthetic_data(
+                **synthetic_data_config, **shared_config
+            )
     else:  # named dataset
-        train_parallel.train_parallel_on_dataset(dataset=config.dataset_name, **shared_config)
+        train_parallel.train_parallel_on_dataset(
+            dataset=config.dataset_name, **shared_config
+        )
 
 
 if __name__ == "__main__":
     # Parse command-line arguments.
     args = parse_cli_args.parse_arguments()
-    set_logger_config(level=args.logging_level, log_file=f"{args.log_path}/{pathlib.Path(__file__).stem}.log")
+    set_logger_config(
+        level=args.logging_level,
+        log_file=f"{args.log_path}/{pathlib.Path(__file__).stem}.log",
+    )
     comm = MPI.COMM_WORLD
 
     if comm.rank == 0:

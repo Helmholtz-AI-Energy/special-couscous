@@ -76,7 +76,7 @@ distributed_random_forest.score(test_data.x, test_data.y)
 
 `specialcouscous` offers two different modes of inference, either aggregating the global model (sequential inference, no data sharing) on all nodes or using distributed inference via global voting (lower memory consumption, no overhead for model aggregation, faster inference).
 - **Global Model:** computational and memory overhead for sequential inference without data sharing
-- **Global Voting:** lower memory consumption and faster inference thanks to parallel inference 
+- **Global Voting:** lower memory consumption and faster inference thanks to parallel inference
 ![Inference](docs/inference_serial.svg)
 
 ## Citing `specialcouscous`

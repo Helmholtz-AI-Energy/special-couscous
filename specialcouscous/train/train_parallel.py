@@ -12,13 +12,13 @@ from mpi4py import MPI
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.validation import check_random_state
 
-from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.datasets import (
     SyntheticDataset,
     generate_and_distribute_synthetic_dataset,
-    make_classification_dataset,
     get_dataset,
+    make_classification_dataset,
 )
+from specialcouscous.rf_parallel import DistributedRandomForest
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 from specialcouscous.utils.timing import MPITimer
 
@@ -135,7 +135,9 @@ def train_parallel_on_synthetic_data(
     }
     local_results: dict[str, Any] = {"comm_rank": mpi_comm.rank}
 
-    log.debug(f"[{mpi_comm.rank}/{mpi_comm.size}]: Passed random state is {random_state}.")
+    log.debug(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: Passed random state is {random_state}."
+    )
     # Check passed random state and convert if necessary, i.e., turn into a ``np.random.RandomState`` instance.
     random_state = check_random_state(random_state)
     log.debug(
@@ -185,11 +187,15 @@ def train_parallel_on_synthetic_data(
         f"Local train samples and targets have shapes {local_train.x.shape} and {local_train.y.shape}.\n"
         f"Local test samples and targets have shapes {local_test.x.shape} and {local_test.y.shape}."
     )
-    log.debug(f"[{mpi_comm.rank}/{mpi_comm.size}]: Local test samples are {local_test.x}.")
+    log.debug(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: Local test samples are {local_test.x}."
+    )
     log.info("Set up classifier.")
 
     # -------------- Set up distributed random forest --------------
-    log.info(f"[{mpi_comm.rank}/{mpi_comm.size}]: Set up and train local random forest.")
+    log.info(
+        f"[{mpi_comm.rank}/{mpi_comm.size}]: Set up and train local random forest."
+    )
     with MPITimer(mpi_comm, name="forest creation") as timer:
         distributed_random_forest = DistributedRandomForest(
             n_trees_global=n_trees,
