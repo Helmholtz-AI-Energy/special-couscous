@@ -104,6 +104,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Whether the local classifiers are all-gathered so that each rank can access the shared global model",
     )
     parser.add_argument(
+        "--n_jobs",
+        type=int,
+        default=-1,
+        help="The number of parallel jobs per rank. Default is -1 to use all available cores. "
+        "Adjust when running multiple ranks on one node.",
+    )
+    parser.add_argument(
         "--shared_test_set",
         action="store_true",
         help="Whether the test set is shared across all subforests",

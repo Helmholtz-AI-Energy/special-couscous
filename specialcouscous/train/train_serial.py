@@ -83,6 +83,7 @@ def train_serial_on_dataset(
     experiment_id: str = "",
     save_model: bool = True,
     use_weighted_voting: bool = False,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a serial random forest on the specified dataset.
@@ -119,6 +120,8 @@ def train_serial_on_dataset(
     use_weighted_voting : bool
         Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
         Default is ``False``.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     configuration = locals()
     for key in ["output_dir", "detailed_evaluation", "data_dir"]:
@@ -170,7 +173,7 @@ def train_serial_on_dataset(
     clf = RandomForestClassifier(
         n_estimators=n_trees,
         random_state=check_random_state(random_state_model),
-        n_jobs=-1,
+        n_jobs=n_jobs,
     )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
@@ -259,6 +262,7 @@ def train_serial_on_synthetic_data(
     experiment_id: str = "",
     save_model: bool = True,
     use_weighted_voting: bool = False,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a serial random forest on synthetic data.
@@ -299,6 +303,8 @@ def train_serial_on_synthetic_data(
     use_weighted_voting : bool
         Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
         Default is ``False``.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     configuration = locals()
     del configuration["output_dir"]
@@ -360,7 +366,7 @@ def train_serial_on_synthetic_data(
     clf = RandomForestClassifier(
         n_estimators=n_trees,
         random_state=check_random_state(random_state_model),
-        n_jobs=-1,
+        n_jobs=n_jobs,
     )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start

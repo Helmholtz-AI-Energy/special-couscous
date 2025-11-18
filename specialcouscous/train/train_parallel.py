@@ -49,6 +49,7 @@ def train_parallel_on_synthetic_data(
     output_label: str = "",
     experiment_id: str = "",
     save_model: bool = True,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a distributed random forest on synthetic data.
@@ -113,6 +114,8 @@ def train_parallel_on_synthetic_data(
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     # Note that to evaluate the global model in a meaningful way, either the model itself of the test data must be
     # shared among all ranks. Otherwise, each rank can only test its local subforest on its private test set, making
@@ -202,6 +205,7 @@ def train_parallel_on_synthetic_data(
             comm=mpi_comm,
             random_state=random_state_model,
             shared_global_model=shared_global_model,
+            node_local_jobs=n_jobs,
         )
     store_timing(timer, global_results, local_results)
 
@@ -452,6 +456,7 @@ def train_parallel_on_balanced_synthetic_data(
     output_label: str = "",
     experiment_id: str = "",
     save_model: bool = True,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a distributed random forest on globally balanced synthetic data.
@@ -500,6 +505,8 @@ def train_parallel_on_balanced_synthetic_data(
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
@@ -572,6 +579,7 @@ def train_parallel_on_balanced_synthetic_data(
             comm=mpi_comm,
             random_state=random_state_model,
             shared_global_model=shared_global_model,
+            node_local_jobs=n_jobs,
         )
     store_timing(timer, global_results, local_results)
 
@@ -695,6 +703,7 @@ def train_parallel_on_dataset(
     output_label: str = "",
     experiment_id: str = "",
     save_model: bool = True,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a distributed random forest on the specified dataset.
@@ -736,6 +745,8 @@ def train_parallel_on_dataset(
         Can be used to group the result of multiple runs of an experiment. Default is an empty string.
     save_model : bool
         Whether the locally trained classifiers are saved to disk (True) or not (False). Default is True.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     # Get all arguments passed to the function as dict, captures all variables in the current local scope so this needs
     # to be called before defining any other local variables.
@@ -784,6 +795,7 @@ def train_parallel_on_dataset(
             comm=mpi_comm,
             random_state=random_state_model,
             shared_global_model=shared_global_model,
+            node_local_jobs=n_jobs,
         )
     store_timing(timer, global_results, local_results)
 
