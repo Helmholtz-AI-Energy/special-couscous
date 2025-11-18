@@ -95,7 +95,8 @@ If you found `specialcouscous` useful, please cite our paper: coming soon 🚀
 
 ---
 ## Acknowledgments
+This work was funded by Helmholtz Association’s Initiative and Networking Fund through the Helmholtz AI platform grant
+
 The authors gratefully acknowledge the computing time provided on the high-performance computer HoreKa by the National High-Performance Computing Center at KIT (NHR@KIT). This center is jointly supported by the Federal Ministry of Education and Research and the Ministry of Science, Research and the Arts of Baden-Württemberg, as part of the [National High-Performance Computing (NHR) joint funding program](https://www.nhr-verein.de/en/our-partners). HoreKa is partly funded by the German Research Foundation (DFG).
 
-This work is supported by the Helmholtz AI platform grant.
-![KIT and Helmholtz AI](docs/hai_kit_logos.svg)
+![KIT, Helmholtz AI, NHR](docs/kit_hai_nhr_logos.svg)
