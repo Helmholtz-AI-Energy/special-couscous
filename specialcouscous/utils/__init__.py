@@ -9,8 +9,6 @@ import colorlog
 import numpy as np
 from mpi4py import MPI
 
-from .parse_cli_args import parse_arguments  # noqa: F401
-
 log = logging.getLogger(__name__)  # Get logger instance.
 
 

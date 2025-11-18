@@ -3,8 +3,6 @@ import logging
 import pathlib
 from typing import Any
 
-from specialcouscous.datasets import DATASETS
-
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -20,11 +18,10 @@ def parse_arguments() -> argparse.Namespace:
         prog="Random Forest",
         description="Generate synthetic classification data and classify with (distributed) random forest.",
     )
-    available_datasets = list(DATASETS.keys())
     parser.add_argument(
         "--dataset_name",
         type=str,
-        choices=available_datasets,
+        choices=["susy", "cover_type", "higgs"],
         help="The dataset to train on when not using a synthetic dataset.",
     )
     parser.add_argument(
