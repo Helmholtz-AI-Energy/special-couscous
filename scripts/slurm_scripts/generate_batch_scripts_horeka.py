@@ -353,17 +353,7 @@ class BatchScriptGenerator:
         self.nodes = nodes
 
         self.result_base_dir = pathlib.Path(result_base_dir)
-        self.scripts = {
-            "serial": {
-                "synthetic": "rf_serial_synthetic.py",
-                "real": "rf_serial_on_dataset.py",
-            },
-            "parallel": {
-                "synthetic": "rf_parallel_synthetic.py",
-                "real": "rf_training_on_dataset.py",
-            },
-            "breaking_iid": {"synthetic": "rf_training_breaking_iid.py"},
-        }
+        self.scripts = {"serial": "serial.py", "parallel": "parallel.py"}
 
     @classmethod
     def dataset_config_from_name(
@@ -477,13 +467,6 @@ class BatchScriptGenerator:
         ), n_nodes in itertools.product(
             data_seeds, model_seeds, dataset_n_trees, nodes
         ):
-            dataset_type = (
-                "synthetic"
-                if re.match(self.SYNTHETIC_DATASET_PATTERN, dataset)
-                else "real"
-            )
-            script = self.scripts[script_type][dataset_type]
-
             n_trees_global, n_trees_local = self.get_local_global_n_trees(
                 n_trees_serial, n_nodes, scaling_type
             )
@@ -522,7 +505,7 @@ class BatchScriptGenerator:
                 "time": time_limit,
                 "n_nodes": n_nodes,
                 "result_dir": self.result_base_dir / run_label,
-                "script": script,
+                "script": self.scripts[script_type],
                 "dataset_config": dataset_config,
                 **mem_and_partition_config,
                 **kwargs,
@@ -583,8 +566,7 @@ class BatchScriptGenerator:
             dataset_n_trees,
             "strong",
             label,
-            "breaking_iid",
-            additional_args="--shared_test_set",
+            additional_args="--distribute_data --shared_test_set",
         )
 
     def generate_inference_job_scripts(
@@ -652,7 +634,7 @@ if __name__ == "__main__":
     base_dir = pathlib.Path(
         "/hkfs/home/project/hk-project-test-haiga/bk6983/special-couscous"
     )
-    script_dir = base_dir / "scripts/examples/"
+    script_dir = base_dir / "scripts/"
     base_job_script_path = pathlib.Path(__file__).parent / "batch_scripts"
     venv = base_dir / "venv311"
     result_base_dir = (

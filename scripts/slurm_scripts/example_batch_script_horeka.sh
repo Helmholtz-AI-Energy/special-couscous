@@ -14,4 +14,4 @@ ml load mpi/openmpi/4.1
 
 # Activate venv
 source venv/bin/activate
-srun python -u scripts/examples/rf_training_on_dataset.py --dataset_name higgs --n_trees 640
+srun python -u scripts/parallel.py --dataset_name higgs --n_trees 640
