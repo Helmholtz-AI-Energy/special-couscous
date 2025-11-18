@@ -32,6 +32,15 @@ Parallel execution depends on [``mpi4py``](https://mpi4py.readthedocs.io/en/stab
 You can use `specialcouscous` either via the scripts provided in `scripts/` or via the Python interface.
 
 Scripts for both serial and parallel runs are provided in `scripts/serial.py` and `scripts/parallel.py`.
+For example, to reproduce our weak scaling results on the [HIGGS](https://archive.ics.uci.edu/dataset/280/higgs) dataset, run
+```commandline
+python -u scripts/parallel.py --dataset_name higgs --n_trees 10
+```
+with MPI on p nodes (depending on your system e.g. with `mpirun -n <p>` or with `srun`) and 
+```commandline
+python -u scripts/serial.py --dataset_name higgs --n_trees 10
+```
+for the serial baseline.
 We offer an extensive command line interface, use the `--help` option to learn more.
 
 Alternatively, you can also use `specialcouscous` in your own Python code, for example like this:
@@ -65,6 +74,8 @@ distributed_random_forest.predict(test_data.x)
 distributed_random_forest.score(test_data.x, test_data.y)
 
 ```
+
+For an example on how to use `specialcouscous` with slurm, check out `scripts/slurm_scripts/`.
 
 ## Core Results
 `specialcouscous` scales successfully, demonstrating a strong scaling speedup of up to 31.98 and a weak scaling efficiency of over 0.96 without affecting predictive performance of the global model.
