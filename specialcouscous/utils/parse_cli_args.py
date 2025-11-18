@@ -133,6 +133,11 @@ def parse_arguments() -> argparse.Namespace:
         help="The position (class index) of the distribution's peak (i.e., the most frequent class).",
     )
     parser.add_argument(
+        "--distribute_data",
+        action="store_true",
+        help="Whether to distribute the data across nodes. Currently only supported for synthetic data.",
+    )
+    parser.add_argument(
         "--enforce_constant_local_size",
         action="store_true",
         help="Whether to relax the local class distribution to instead force all local subsets to have the same size.",

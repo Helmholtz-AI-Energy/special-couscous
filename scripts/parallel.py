@@ -41,19 +41,21 @@ def run_parallel(config: argparse.Namespace, comm: MPI.Comm) -> None:
     }
 
     if config.dataset_name is None:  # synthetic data
-        if (
-            config.globally_imbalanced or config.locally_imbalanced
-        ):  # allow data imbalance
+        if config.distribute_data:  # distribute data and allow data imbalance
             train_parallel.train_parallel_on_synthetic_data(
                 **synthetic_data_config,
                 **imbalanced_synthetic_data_config,
                 **shared_config,
             )
-        else:  # balanced dataset
+        else:  # balanced global dataset
             train_parallel.train_parallel_on_balanced_synthetic_data(
                 **synthetic_data_config, **shared_config
             )
     else:  # named dataset
+        if config.distribute_data:
+            log.warning(
+                "Distributed data currently only supported for synthetic data, ignoring."
+            )
         train_parallel.train_parallel_on_dataset(
             dataset=config.dataset_name, **shared_config
         )
