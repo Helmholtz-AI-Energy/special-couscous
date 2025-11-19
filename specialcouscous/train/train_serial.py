@@ -14,11 +14,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.validation import check_random_state
 
-from specialcouscous.synthetic_classification_data import (
+from specialcouscous.datasets import (
     SyntheticDataset,
+    get_dataset,
     make_classification_dataset,
 )
-from specialcouscous.utils.datasets import get_dataset
 from specialcouscous.utils.result_handling import construct_output_path, save_dataframe
 
 log = logging.getLogger(__name__)  # Get logger instance.
@@ -83,6 +83,7 @@ def train_serial_on_dataset(
     experiment_id: str = "",
     save_model: bool = True,
     use_weighted_voting: bool = False,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a serial random forest on the specified dataset.
@@ -119,6 +120,8 @@ def train_serial_on_dataset(
     use_weighted_voting : bool
         Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
         Default is ``False``.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     configuration = locals()
     for key in ["output_dir", "detailed_evaluation", "data_dir"]:
@@ -146,7 +149,7 @@ def train_serial_on_dataset(
     )
 
     # Generate data.
-    log.info("Generating data...")
+    log.info("Preparing data...")
     data_generation_start = time.perf_counter()
     data = get_dataset(
         dataset, data_dir, random_state, train_split, stratified_train_test
@@ -158,19 +161,21 @@ def train_serial_on_dataset(
     )
 
     log.info(
-        f"Done\nTrain samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}.\n"
+        f"Done. Train samples and targets have shapes {train_data.x.shape} and {train_data.y.shape}."
+    )
+    log.debug(
         f"First train sample is: \n{train_data.x[0]}\nLast train sample is:\n {train_data.x[-1]}\n"
         f"Test samples and targets have shapes {test_data.x.shape} and {test_data.y.shape}.\n"
         f"First test sample is:\n {test_data.x[0]}\nLast test sample is:\n{test_data.x[-1]}\n"
-        f"Set up classifier."
     )
+    log.info("Set up classifier.")
 
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
     clf = RandomForestClassifier(
         n_estimators=n_trees,
         random_state=check_random_state(random_state_model),
-        n_jobs=-1,
+        n_jobs=n_jobs,
     )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
@@ -180,7 +185,6 @@ def train_serial_on_dataset(
         expected_n_jobs = joblib.cpu_count() + 1 + expected_n_jobs
     log.info(f"Training local random forest with {expected_n_jobs} jobs.")
 
-    log.info("Train.")
     train_start = time.perf_counter()
     clf.fit(train_data.x, train_data.y)
     global_results["time_sec_training"] = time.perf_counter() - train_start
@@ -219,13 +223,10 @@ def train_serial_on_dataset(
             base_filename=base_filename,
             label="train",
         )
-    log.info(
-        f"Training time is {global_results['time_sec_training']} s.\n"
-        f"Test accuracy is {global_results['accuracy_test']}."
-        f"Test AUC is {global_results['auc_test']}"
-        if data.n_classes == 2
-        else ""
-    )
+    log.info(f"Training time is {global_results['time_sec_training']:7.2g}s.")
+    log.info(f"Test accuracy is {global_results['accuracy_test']:8.3%}.")
+    if data.n_classes == 2:
+        log.info(f"Test AUC is {global_results['auc_test']:.5}")
     results_df = pandas.DataFrame([global_results])
 
     for key, value in configuration.items():  # Add configuration as columns.
@@ -259,6 +260,7 @@ def train_serial_on_synthetic_data(
     experiment_id: str = "",
     save_model: bool = True,
     use_weighted_voting: bool = False,
+    n_jobs: int = -1,
 ) -> None:
     """
     Train and evaluate a serial random forest on synthetic data.
@@ -299,6 +301,8 @@ def train_serial_on_synthetic_data(
     use_weighted_voting : bool
         Whether to use weighted voting as implemented in ``sklearn`` (``True``) or plain voting (``False``).
         Default is ``False``.
+    n_jobs : int
+        The number of parallel jobs per rank. Default is -1 to use all available cores.
     """
     configuration = locals()
     del configuration["output_dir"]
@@ -348,19 +352,21 @@ def train_serial_on_synthetic_data(
     )
 
     log.info(
-        f"Done\nTrain samples and targets have shapes {train_samples.shape} and {train_targets.shape}.\n"
+        f"Done. Train samples and targets have shapes {train_samples.shape} and {train_targets.shape}."
+    )
+    log.debug(
         f"First train sample is: \n{train_samples[0]}\nLast train sample is:\n {train_samples[-1]}\n"
         f"Test samples and targets have shapes {test_samples.shape} and {test_targets.shape}.\n"
         f"First test sample is:\n {test_samples[0]}\nLast test sample is:\n{test_samples[-1]}\n"
-        f"Set up classifier."
     )
+    log.info("Set up classifier.")
 
     # Set up, train, and test model.
     forest_creation_start = time.perf_counter()
     clf = RandomForestClassifier(
         n_estimators=n_trees,
         random_state=check_random_state(random_state_model),
-        n_jobs=-1,
+        n_jobs=n_jobs,
     )
     global_results["time_sec_forest_creation"] = (
         time.perf_counter() - forest_creation_start
@@ -370,7 +376,6 @@ def train_serial_on_synthetic_data(
         expected_n_jobs = joblib.cpu_count() + 1 + expected_n_jobs
     log.info(f"Training local random forest with {expected_n_jobs} jobs.")
 
-    log.info("Train.")
     train_start = time.perf_counter()
     clf.fit(train_data.x, train_data.y)
     global_results["time_sec_training"] = time.perf_counter() - train_start
@@ -408,13 +413,11 @@ def train_serial_on_synthetic_data(
             base_filename=base_filename,
             label="train",
         )
-    log.info(
-        f"Training time is {global_results['time_sec_training']} s.\n"
-        f"Test accuracy is {global_results['accuracy_test']}."
-        f"Test AUC is {global_results['auc_test']}"
-        if n_classes == 2
-        else ""
-    )
+    log.info(f"Training time is {global_results['time_sec_training']:7.2g}s.")
+    log.info(f"Test accuracy is {global_results['accuracy_test']:8.3%}.")
+    if n_classes == 2:
+        log.info(f"Test AUC is {global_results['auc_test']:.5}")
+    results_df = pandas.DataFrame([global_results])
     results_df = pandas.DataFrame([global_results])
 
     for key, value in configuration.items():  # Add configuration as columns.
