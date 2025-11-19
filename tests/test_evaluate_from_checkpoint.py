@@ -6,7 +6,6 @@ import pandas as pd
 import pytest
 from mpi4py import MPI
 
-from specialcouscous.evaluation_metrics import accuracy_score
 from specialcouscous.train.train_parallel import (
     evaluate_parallel_from_checkpoint_balanced_synthetic_data,
     evaluate_parallel_from_checkpoint_synthetic_data,
@@ -14,6 +13,7 @@ from specialcouscous.train.train_parallel import (
     train_parallel_on_synthetic_data,
 )
 from specialcouscous.utils import set_logger_config
+from specialcouscous.utils.evaluation_metrics import accuracy_score
 from specialcouscous.utils.result_handling import construct_output_path
 
 log = logging.getLogger("specialcouscous")  # Get logger instance.
@@ -158,7 +158,7 @@ def test_evaluate_from_checkpoint_synthetic(
             "n_redundant": int(frac_redundant * n_features),
             "flip_y": flip_y,
         },
-        comm=comm,
+        mpi_comm=comm,
         train_split=train_split,
         stratified_train_test=stratified_train_test,
         n_trees=n_trees,

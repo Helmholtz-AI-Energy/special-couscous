@@ -136,7 +136,7 @@ def test_breaking_iid(
             "n_redundant": int(frac_redundant * n_features),
             "flip_y": flip_y,
         },
-        comm=MPI.COMM_WORLD,
+        mpi_comm=MPI.COMM_WORLD,
         train_split=train_split,
         stratified_train_test=stratified_train_test,
         n_trees=n_trees,

@@ -508,6 +508,7 @@ class DistributedRandomForest:
         n_classes : int | None
             The number of classes in the global dataset.
         """
+        rank_tag = f"[{self.comm.rank}/{self.comm.size}]"
         # compute predictions on local and global model
         local_predictions = self.predict_local(samples, n_classes)
         global_predictions = self.predict(samples, n_classes)
@@ -526,7 +527,7 @@ class DistributedRandomForest:
                 targets, self.predict_global_histogram(samples, n_classes)
             )
             log.info(
-                f"[{self.comm.rank}/{self.comm.size}]: {self.auc_local=}, {self.auc_global=}"
+                f"{rank_tag}: Local AUC = {self.auc_local:7.5}, Global AUC = {self.auc_global:7.5}"
             )
 
         # compute local and global accuracy and confusion matrices
@@ -561,7 +562,11 @@ class DistributedRandomForest:
             )  # without a shared global model, all test data must be shared
 
         log.info(
-            f"[{self.comm.rank}/{self.comm.size}]: Accuracy of local model on local data is {self.acc_local}.\n"
-            f"Accuracy of global model on local data is {self.acc_global_local}.\n"
-            f"Accuracy of global model on global data is {self.acc_global}."
+            f"{rank_tag}: Accuracy of local model on local data is   {self.acc_local:8.3%}."
+        )
+        log.info(
+            f"{rank_tag}: Accuracy of global model on local data is  {self.acc_global_local:8.3%}."
+        )
+        log.info(
+            f"{rank_tag}: Accuracy of global model on global data is {self.acc_global:8.3%}."
         )
