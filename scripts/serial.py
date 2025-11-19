@@ -44,9 +44,10 @@ if __name__ == "__main__":
 
     if comm.rank == 0:
         log.info(
-            "************************\n"
-            "* Serial Random Forest *\n"
-            "************************\n"
+            "\n"
+            "**************************************************\n"
+            "*              Serial Random Forest              *\n"
+            "**************************************************\n"
             f"Hyperparameters used are:\n{args}"
         )
     run_serial(args)
