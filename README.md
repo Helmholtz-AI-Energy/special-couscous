@@ -91,10 +91,10 @@ For an example on how to use `specialcouscous` with slurm, check out `scripts/sl
 ![Inference](docs/inference_serial.svg)
 
 ## Citing `specialcouscous`
-If you found `specialcouscous` useful, please cite our paper: 
+If you found `specialcouscous` useful, please cite our paper:
 
 > Flügel, Katharina, Charlotte Debus, Markus Götz, Achim Streit, and Marie Weiel. 2025. “Scaling Laws of Distributed Random Forests.” Transactions on Machine Learning Research. https://openreview.net/forum?id=ICHxTlgnSy.
-> 
+>
 
 ```
 @article{
