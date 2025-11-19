@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: >-
+  SpecialCouscous: Distributed Random Forests in Python with MPI
+type: software
+url: https://openreview.net/forum?id=ICHxTlgnSy
+repository-code: https://github.com/Helmholtz-AI-Energy/special-couscous
+authors:
+  - family-names: Flügel
+    given-names: Katharina
+  - family-names: Debus
+    given-names: Charlotte
+  - family-names: Götz
+    given-names: Markus
+  - family-names: Streit
+    given-names: Achim
+  - family-names: Weiel
+    given-names: Marie
+preferred-citation:
+  type: article
+  title: >-
+    Scaling Laws of Distributed Random Forests
+  type: journalArticle
+  issn: 2835-8856
+  url: https://openreview.net/forum?id=ICHxTlgnSy
+  year: 2025
+  abstract: >-
+    Random forests are a widely used machine learning technique valued for their robust predictive performance and
+    conceptual simplicity. They are applied in many critical applications and often combined with federated learning to
+    collaboratively build machine learning models across multiple distributed sites. The independent decision trees make
+    random forests inherently parallelizable and well-suited for distributed and federated settings. Despite this
+    perfect fit, there is a lack of comprehensive scalability studies, and many existing methods show limited parallel
+    efficiency or are tested only at smaller scales. To address this gap, we present a comprehensive analysis of the
+    scaling capabilities of distributed random forests on up to 64 compute nodes. Using a tree-parallel approach, we
+    demonstrate a strong scaling speedup of up to 31.98 and a weak scaling efficiency of over 0.96 without affecting
+    predictive performance of the global model. Comparing the performance trade-offs of distributed and local inference
+    strategies enables us to simulate various real-life scenarios in terms of distributed computing resources, data
+    availability, and privacy considerations. We further explore how increasing model and data size improves prediction
+    accuracy, scaling up to 51 200 trees and 7.5 million training samples. We find that while distributing the data
+    across nodes leads to super-scalar speedup, it negates the predictive benefit of increased data. Finally, we study
+    the impact of distributed and non-IID data and find that while global imbalance reduces performance, local
+    distribution differences can help mitigate this effect.
+  authors:
+    - family-names: Flügel
+      given-names: Katharina
+    - family-names: Debus
+      given-names: Charlotte
+    - family-names: Götz
+      given-names: Markus
+    - family-names: Streit
+      given-names: Achim
+    - family-names: Weiel
+      given-names: Marie
