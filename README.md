@@ -91,9 +91,24 @@ For an example on how to use `specialcouscous` with slurm, check out `scripts/sl
 ![Inference](docs/inference_serial.svg)
 
 ## Citing `specialcouscous`
-If you found `specialcouscous` useful, please cite our paper: coming soon 🚀
+If you found `specialcouscous` useful, please cite our paper:
 
----
+> Flügel, Katharina, Charlotte Debus, Markus Götz, Achim Streit, and Marie Weiel. 2025. “Scaling Laws of Distributed Random Forests.” Transactions on Machine Learning Research. https://openreview.net/forum?id=ICHxTlgnSy.
+>
+
+```
+@article{
+    fluegel2025scaling,
+    title={Scaling Laws of Distributed Random Forests},
+    author={Katharina Fl{\"u}gel and Charlotte Debus and Markus G{\"o}tz and Achim Streit and Marie Weiel},
+    journal={Transactions on Machine Learning Research},
+    issn={2835-8856},
+    year={2025},
+    url={https://openreview.net/forum?id=ICHxTlgnSy},
+    note={Survey Certification}
+}
+```
+
 ## Acknowledgments
 This work was funded by Helmholtz Association’s Initiative and Networking Fund through the Helmholtz AI platform grant.
 
