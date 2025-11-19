@@ -17,10 +17,10 @@ authors:
   - family-names: Weiel
     given-names: Marie
 preferred-citation:
-  type: article
   title: >-
     Scaling Laws of Distributed Random Forests
-  type: journalArticle
+  type: article
+  journal: Transactions on Machine Learning Research
   issn: 2835-8856
   url: https://openreview.net/forum?id=ICHxTlgnSy
   year: 2025
