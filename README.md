@@ -64,7 +64,9 @@ train_data = SyntheticDataset(x=data.x_train, y=data.y_train)
 test_data = SyntheticDataset(x=data.x_test, y=data.y_test)
 
 # Train the random forest
-distributed_random_forest = DistributedRandomForest(n_trees, MPI.COMM_WORLD, seed, shared_global_model)
+distributed_random_forest = DistributedRandomForest(
+    n_trees, MPI.COMM_WORLD, seed, shared_global_model
+)
 distributed_random_forest.train(train_data.x, train_data.y)
 if shared_global_model:
     distributed_random_forest.build_shared_global_model()
@@ -72,7 +74,6 @@ if shared_global_model:
 # Inference and evaluation of the random forest
 distributed_random_forest.predict(test_data.x)
 distributed_random_forest.score(test_data.x, test_data.y)
-
 ```
 
 For an example on how to use `specialcouscous` with slurm, check out `scripts/slurm_scripts/`.
