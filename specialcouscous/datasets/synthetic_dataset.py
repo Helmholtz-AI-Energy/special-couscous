@@ -650,6 +650,10 @@ class SyntheticDataset:
             f"The random state is before generating the dataset is:\n"
             f"{random_state.get_state(legacy=True)}"  # type:ignore
         )
+
+        if make_classification_kwargs is None:
+            make_classification_kwargs = {}
+
         x, y = make_classification(
             n_samples=n_samples,
             n_features=n_features,
@@ -1231,6 +1235,9 @@ def make_classification_dataset(
         f"Random state before generating the dataset is:\n{random_state.get_state(legacy=True)}\n"  # type:ignore
         f"`make_classification_kwargs`:\n{make_classification_kwargs}"
     )
+
+    if make_classification_kwargs is None:
+        make_classification_kwargs = {}
 
     # Generate data as numpy arrays.
     samples, targets = make_classification(
